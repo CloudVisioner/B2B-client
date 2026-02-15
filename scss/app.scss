@@ -1,0 +1,54 @@
+@import 'variables';
+@import 'reset';
+
+// Base styles
+body {
+  background-color: $white;
+  color: $slate-900;
+  transition: background-color 0.3s, color 0.3s;
+}
+
+body.dark {
+  background-color: $slate-800;
+  color: $slate-100;
+}
+
+// Utility classes
+.gradient-text {
+  background: linear-gradient(135deg, $indigo-600 0%, #7c3aed 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.bg-primary-gradient {
+  background: linear-gradient(135deg, $indigo-600 0%, #7c3aed 100%);
+}
+
+// App container
+.app-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  font-family: $font-family-sans;
+}
+
+.main-content {
+  flex-grow: 1;
+  padding-top: 5rem;
+}
+
+// Import component styles
+@import 'components/_navbar';
+@import 'components/_hero';
+@import 'components/_footer';
+@import 'components/_how-it-works';
+@import 'components/_top-categories';
+@import 'components/_testimonial-section';
+@import 'components/_marketplace';
+@import 'components/_providers-page';
+@import 'components/_provider-profile';
+
+// Import page styles
+@import 'pages/_login';
+@import 'pages/_signup';

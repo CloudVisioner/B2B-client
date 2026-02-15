@@ -1,1 +1,8 @@
-{}
+{
+  "/_app": "pages/_app.js",
+  "/_error": "pages/_error.js",
+  "/_document": "pages/_document.js",
+  "/provider/[id]": "pages/provider/[id].js",
+  "/marketplace": "pages/marketplace.js",
+  "/providers": "pages/providers.js"
+}

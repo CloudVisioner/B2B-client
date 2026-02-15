@@ -1,0 +1,11 @@
+@import '../variables';
+
+.provider-profile {
+  padding: $spacing-24 0;
+  background-color: $white;
+  transition: background-color 0.3s;
+
+  .dark & {
+    background-color: $slate-800;
+  }
+}

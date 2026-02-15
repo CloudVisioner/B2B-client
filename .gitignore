@@ -12,6 +12,13 @@ dist
 dist-ssr
 *.local
 
+# Environment variables
+.env.local
+.env*.local
+
+# Note: .env.development and .env.production can be committed
+# as they don't contain secrets, only API URLs
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
