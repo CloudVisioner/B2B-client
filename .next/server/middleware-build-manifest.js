@@ -27,10 +27,10 @@ self.__BUILD_MANIFEST = {
       "static/chunks/main.js",
       "static/chunks/pages/marketplace.js"
     ],
-    "/provider/[id]": [
+    "/providers": [
       "static/chunks/webpack.js",
       "static/chunks/main.js",
-      "static/chunks/pages/provider/[id].js"
+      "static/chunks/pages/providers.js"
     ]
   },
   "ampFirstPages": []

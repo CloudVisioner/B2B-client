@@ -8,7 +8,7 @@ export default function SignupPage() {
   const roleParam = router.query.role as string;
   const [selectedRole, setSelectedRole] = useState<'buyer' | 'provider'>('buyer');
   const [formData, setFormData] = useState({
-    fullName: '',
+    userNick: '',
     email: '',
     password: '',
   });
@@ -38,7 +38,7 @@ export default function SignupPage() {
     setLoading(true);
 
     // Validation
-    if (!formData.fullName || !formData.email || !formData.password) {
+    if (!formData.userNick || !formData.email || !formData.password) {
       setError('Please fill in all fields');
       setLoading(false);
       return;
@@ -54,14 +54,18 @@ export default function SignupPage() {
 
     try {
       await signUpNew({
-        fullName: formData.fullName.trim(),
+        userNick: formData.userNick.trim(),
         email: formData.email.trim().toLowerCase(),
         password: formData.password,
         memberType: selectedRole,
       });
 
-      // Redirect to home page after successful signup
-      router.push('/');
+      // Redirect based on user role
+      if (selectedRole === 'buyer') {
+        router.push('/dashboard');
+      } else {
+        router.push('/'); // Provider dashboard (to be created)
+      }
     } catch (err: any) {
       // Display detailed error message
       const errorMessage = err?.message || 'Signup failed. Please try again.';
@@ -169,16 +173,16 @@ export default function SignupPage() {
               )}
 
               <div className="signup-form-group">
-                <label className="signup-form-label" htmlFor="fullName">
-                  Full Name
+                <label className="signup-form-label" htmlFor="userNick">
+                  Username
                 </label>
                 <input
                   className="signup-form-input"
-                  id="fullName"
-                  name="fullName"
-                  value={formData.fullName}
+                  id="userNick"
+                  name="userNick"
+                  value={formData.userNick}
                   onChange={handleInputChange}
-                  placeholder="John Doe"
+                  placeholder="JohnDoe"
                   required
                   type="text"
                   disabled={loading}

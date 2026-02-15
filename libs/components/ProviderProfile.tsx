@@ -371,7 +371,9 @@ const ProviderProfile: React.FC<ProviderProfileProps> = ({ providerId, onBrowseS
                     <div className="flex flex-wrap items-center gap-3 mb-3">
                       <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 text-sm font-semibold rounded-md border border-indigo-100 dark:border-indigo-800">
                         <Briefcase className="w-4 h-4" />
-                        {recProvider.subCategory}
+                        {Array.isArray(recProvider.subCategory) 
+                          ? recProvider.subCategory.join(', ') 
+                          : recProvider.subCategory}
                       </span>
                       <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-sm font-medium rounded-md">
                         <Building2 className="w-4 h-4 text-slate-400 dark:text-slate-500" />

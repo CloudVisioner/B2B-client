@@ -9,10 +9,30 @@ import { BackendProviderListItem, BackendProviderDetail, Provider } from '../typ
  * Map backend provider list item to frontend Provider format
  */
 export function mapBackendProviderToList(backend: BackendProviderListItem): Provider {
+  // Handle subCategory as string or array
+  // Flatten nested arrays and ensure we always get string[]
+  let subCategories: string[] = [];
+  if (Array.isArray(backend.subCategory)) {
+    subCategories = backend.subCategory.flatMap(subCat => {
+      const mapped = mapSubCategoryFromBackend(subCat);
+      // If mapped is array, flatten it; if string, wrap in array
+      return Array.isArray(mapped) ? mapped : [mapped];
+    });
+  } else {
+    const mapped = mapSubCategoryFromBackend(backend.subCategory);
+    subCategories = Array.isArray(mapped) ? mapped : [mapped];
+  }
+  
+  // Handle categoryId as string or array - provider can belong to multiple categories
+  const categoryIds = Array.isArray(backend.categoryId)
+    ? backend.categoryId.map(mapCategoryFromBackend)
+    : [mapCategoryFromBackend(backend.categoryId)];
+  const mappedCategoryId = categoryIds.length === 1 ? categoryIds[0] : categoryIds; // Return string if single, array if multiple
+  
   return {
     id: backend._id,
-    categoryId: mapCategoryFromBackend(backend.categoryId) as any, // Map backend enum to UI format
-    subCategory: mapSubCategoryFromBackend(backend.subCategory), // Map backend enum to UI format
+    categoryId: mappedCategoryId as any, // Map backend enum to UI format, can be string or array
+    subCategory: subCategories.length === 1 ? subCategories[0] : subCategories, // Return string if single, array if multiple
     serviceTitle: backend.serviceTitle,
     name: backend.orgName,
     description: backend.orgDescription,
@@ -130,8 +150,19 @@ export function mapCategoryFromBackend(backendCategory: string): string {
 
 /**
  * Map UI subcategory to backend subcategory enum format
+ * Handles both single string and array of strings
  */
-export function mapSubCategoryToBackend(uiSubCategory: string): string {
+export function mapSubCategoryToBackend(uiSubCategory: string | string[]): string | string[] {
+  if (Array.isArray(uiSubCategory)) {
+    return uiSubCategory.map(mapSingleSubCategoryToBackend);
+  }
+  return mapSingleSubCategoryToBackend(uiSubCategory);
+}
+
+/**
+ * Map single UI subcategory to backend subcategory enum format
+ */
+function mapSingleSubCategoryToBackend(uiSubCategory: string): string {
   const subCategoryMap: Record<string, string> = {
     // IT_AND_SOFTWARE
     'web-app-development': 'WEB_APP_DEVELOPMENT',
@@ -163,8 +194,22 @@ export function mapSubCategoryToBackend(uiSubCategory: string): string {
 
 /**
  * Map backend subcategory enum to UI subcategory format
+ * Handles both single string and array of strings
  */
-export function mapSubCategoryFromBackend(backendSubCategory: string): string {
+export function mapSubCategoryFromBackend(backendSubCategory: string | string[]): string | string[] {
+  if (Array.isArray(backendSubCategory)) {
+    return backendSubCategory.map(mapSingleSubCategoryFromBackend);
+  }
+  return mapSingleSubCategoryFromBackend(backendSubCategory);
+}
+
+/**
+ * Map single backend subcategory enum to UI subcategory format
+ */
+function mapSingleSubCategoryFromBackend(backendSubCategory: string): string {
+  // Handle case-insensitive matching and different formats
+  const normalized = backendSubCategory.toUpperCase().trim();
+  
   const subCategoryMap: Record<string, string> = {
     // IT_AND_SOFTWARE
     'WEB_APP_DEVELOPMENT': 'web-app-development',
@@ -191,5 +236,16 @@ export function mapSubCategoryFromBackend(backendSubCategory: string): string {
     'ILLUSTRATION_AND_PRINT': 'illustrative-print',
   };
   
-  return subCategoryMap[backendSubCategory] || backendSubCategory;
+  // Try exact match first
+  if (subCategoryMap[normalized]) {
+    return subCategoryMap[normalized];
+  }
+  
+  // Try original format
+  if (subCategoryMap[backendSubCategory]) {
+    return subCategoryMap[backendSubCategory];
+  }
+  
+  // If no mapping found, return as-is (might already be in UI format)
+  return backendSubCategory;
 }

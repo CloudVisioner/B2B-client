@@ -416,11 +416,12 @@ const Marketplace: React.FC<MarketplaceProps> = ({
       limit: itemsPerPage,
     };
     
-    // Add filters if they're not default values
-    if (activeSubCats.length > 0) {
-      // Map UI subcategories to backend enum format
-      input.subCategory = activeSubCats.map(mapSubCategoryToBackend);
-    }
+    // Note: We don't send subCategory filter to backend
+    // Instead, we fetch all providers for the category and filter client-side
+    // This is because providers can have multiple subcategories in an array,
+    // and backend filtering might not match providers with subcategory in array
+    // Client-side filtering handles this correctly by checking if selected
+    // subcategory exists in provider's subCategory array
     
     if (selectedLocation !== 'All Countries') {
       input.location = selectedLocation;
@@ -454,10 +455,28 @@ const Marketplace: React.FC<MarketplaceProps> = ({
       fetchPolicy: 'cache-and-network',
       notifyOnNetworkStatusChange: true,
       skip: !backendCategoryId, // Skip query if category is not set
+      onCompleted: (data) => {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Query completed:', {
+            hasData: !!data,
+            listLength: useSortedQuery 
+              ? data?.getProvidersSorted?.list?.length || 0
+              : data?.getProvidersByCategory?.list?.length || 0,
+            firstProvider: useSortedQuery 
+              ? data?.getProvidersSorted?.list?.[0]
+              : data?.getProvidersByCategory?.list?.[0],
+          });
+        }
+      },
+      onError: (error) => {
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Query error:', error);
+        }
+      },
     }
   );
   
-  // Extract providers from response
+  // Extract providers from response and apply client-side filtering
   const providers = useMemo(() => {
     if (!data) return [];
     
@@ -465,20 +484,115 @@ const Marketplace: React.FC<MarketplaceProps> = ({
       ? data?.getProvidersSorted?.list || []
       : data?.getProvidersByCategory?.list || [];
     
-    return list.map(mapBackendProviderToList);
-  }, [data, useSortedQuery]);
-  
-  // Get total count for pagination
-  const totalCount = useMemo(() => {
-    if (!data) return 0;
+    // Debug: Log raw backend data
+    if (process.env.NODE_ENV === 'development' && list.length > 0) {
+      console.log('🔍 Raw backend data (first provider):', {
+        orgName: list[0]?.orgName,
+        categoryId: list[0]?.categoryId,
+        categoryIdType: typeof list[0]?.categoryId,
+        categoryIdIsArray: Array.isArray(list[0]?.categoryId),
+        subCategory: list[0]?.subCategory,
+        subCategoryType: typeof list[0]?.subCategory,
+        subCategoryIsArray: Array.isArray(list[0]?.subCategory),
+      });
+    }
     
-    return useSortedQuery
-      ? data?.getProvidersSorted?.metaCounter?.total || 0
-      : data?.getProvidersByCategory?.metaCounter?.total || 0;
-  }, [data, useSortedQuery]);
+    let mappedProviders = list.map(mapBackendProviderToList);
+    
+    // Debug: Log mapped data
+    if (process.env.NODE_ENV === 'development' && mappedProviders.length > 0) {
+      console.log('🔍 Mapped provider (first):', {
+        name: mappedProviders[0]?.name,
+        categoryId: mappedProviders[0]?.categoryId,
+        categoryIdType: typeof mappedProviders[0]?.categoryId,
+        categoryIdIsArray: Array.isArray(mappedProviders[0]?.categoryId),
+        subCategory: mappedProviders[0]?.subCategory,
+        subCategoryType: typeof mappedProviders[0]?.subCategory,
+        subCategoryIsArray: Array.isArray(mappedProviders[0]?.subCategory),
+      });
+      console.log('🔍 Active filters:', {
+        selectedCategory: selectedCatId,
+        activeSubCats,
+      });
+    }
+    
+    // Apply client-side filtering
+    // 1. Filter by categoryId (provider must belong to selected category)
+    // 2. Filter by subCategory (provider must have selected subcategory)
+    const beforeFilter = mappedProviders.length;
+    mappedProviders = mappedProviders.filter(provider => {
+      // Step 1: Check if provider belongs to the selected category
+      const providerCategoryIds = Array.isArray(provider.categoryId) 
+        ? provider.categoryId 
+        : [provider.categoryId];
+      
+      const categoryMatches = providerCategoryIds.includes(selectedCatId);
+      
+      // Step 2: Check subcategory filter (if any subcategories are selected)
+      let subCategoryMatches = true; // Default to true (show all if no filter)
+      
+      if (activeSubCats.length > 0) {
+        // Normalize provider subcategories to array
+        const providerSubCats = Array.isArray(provider.subCategory) 
+          ? provider.subCategory 
+          : [provider.subCategory];
+        
+        // Normalize to strings and trim for comparison (case-insensitive)
+        const normalizedProviderSubCats = providerSubCats.map(cat => String(cat).trim().toLowerCase());
+        const normalizedActiveSubCats = activeSubCats.map(cat => String(cat).trim().toLowerCase());
+        
+        // Check if any of the provider's subcategories match any selected subcategory
+        subCategoryMatches = normalizedActiveSubCats.some(selectedSubCat => 
+          normalizedProviderSubCats.includes(selectedSubCat)
+        );
+      }
+      
+      // Provider must match both category AND subcategory (if subcategory filter is active)
+      const matches = categoryMatches && subCategoryMatches;
+      
+      // Debug logging
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🔍 Provider filter check:', {
+          providerName: provider.name,
+          providerCategoryIds,
+          selectedCatId,
+          categoryMatches,
+          providerSubCats: Array.isArray(provider.subCategory) ? provider.subCategory : [provider.subCategory],
+          activeSubCats,
+          subCategoryMatches,
+          finalMatch: matches
+        });
+      }
+      
+      return matches;
+    });
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`Filtering: ${beforeFilter} → ${mappedProviders.length} providers`, {
+        selectedCategory: selectedCatId,
+        activeSubCats,
+        totalProviders: beforeFilter,
+        filteredProviders: mappedProviders.length
+      });
+    }
+    
+    return mappedProviders;
+  }, [data, useSortedQuery, activeSubCats]);
+  
+  // Get total count for pagination (use filtered providers count since we filter client-side)
+  const totalCount = useMemo(() => {
+    return providers.length;
+  }, [providers]);
   
   // Calculate pagination
   const totalPages = Math.ceil(totalCount / itemsPerPage);
+  
+  // Paginate filtered providers
+  const paginatedProviders = useMemo(() => {
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+    return providers.slice(startIndex, endIndex);
+  }, [providers, currentPage, itemsPerPage]);
   
   // Refetch when filters change
   useEffect(() => {
@@ -491,7 +605,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({
   useEffect(() => {
     setSelectedCatId(initialCategory);
   }, [initialCategory]);
-
+  
   // Sync initial filters from URL on mount
   useEffect(() => {
     if (isInitialMount.current) {
@@ -764,7 +878,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({
               )}
               
               <div className="space-y-3 mb-8">
-                {providers.map((provider) => {
+                {paginatedProviders.map((provider) => {
                   // Find icon based on category
                   const category = CATEGORIES.find(c => c.id === provider.categoryId);
                   const IconComponent = category?.icon || Code;
@@ -799,10 +913,13 @@ const Marketplace: React.FC<MarketplaceProps> = ({
 
                       {/* Row 2: Category, Provider, Location - Clean Badges */}
                       <div className="flex flex-wrap items-center gap-3 mb-3">
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 text-sm font-semibold rounded-md border border-indigo-100 dark:border-indigo-800">
+                        {/* Display all subcategories if array, or single if string */}
+                        {(Array.isArray(provider.subCategory) ? provider.subCategory : [provider.subCategory]).map((subCat, idx) => (
+                          <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 text-sm font-semibold rounded-md border border-indigo-100 dark:border-indigo-800">
                           <Briefcase className="w-4 h-4" />
-                        {provider.subCategory}
+                            {subCat}
                      </span>
+                        ))}
                         <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-sm font-medium rounded-md">
                           <Building2 className="w-4 h-4 text-slate-400 dark:text-slate-500" />
                           {provider.name}
@@ -885,18 +1002,18 @@ const Marketplace: React.FC<MarketplaceProps> = ({
                       }
                       
                       return (
-                        <button
+                      <button
                           key={pageNum}
                           onClick={() => setCurrentPage(pageNum)}
                           disabled={loading}
-                          className={`w-10 h-10 text-sm font-semibold rounded-lg transition-colors ${
+                        className={`w-10 h-10 text-sm font-semibold rounded-lg transition-colors ${
                             currentPage === pageNum
-                              ? 'bg-indigo-600 dark:bg-indigo-500 text-white'
-                              : 'text-slate-600 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700'
-                          }`}
-                        >
+                            ? 'bg-indigo-600 dark:bg-indigo-500 text-white'
+                            : 'text-slate-600 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700'
+                        }`}
+                      >
                           {pageNum}
-                        </button>
+                      </button>
                       );
                     })}
                   </div>

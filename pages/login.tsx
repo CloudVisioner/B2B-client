@@ -36,8 +36,12 @@ export default function LoginPage() {
 
     try {
       await logInWithEmail(formData.userNick, formData.userPassword);
-      // Redirect to home page after successful login
-      router.push('/');
+      // Redirect based on selected role (or user's actual role from backend)
+      if (selectedRole === 'buyer') {
+        router.push('/dashboard');
+      } else {
+        router.push('/'); // Provider dashboard (to be created)
+      }
     } catch (err: any) {
       setError(err.message || 'Login failed. Please check your credentials.');
       console.error('Login error:', err);

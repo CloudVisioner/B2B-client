@@ -33,8 +33,8 @@ export interface BackendProviderListItem {
   orgCity: string;
   location: string;
   flag: string;
-  categoryId: string;
-  subCategory: string;
+      categoryId: string | string[]; // Can be single string or array - provider can belong to multiple categories
+      subCategory: string | string[]; // Can be single string or array of subcategories
   serviceTitle: string;
   avatar: string;
   badges: string[];
@@ -81,8 +81,8 @@ export interface ProviderListResponse {
 
 export interface Provider {
   id: string; // MongoDB ObjectId (e.g., "69864f6efcf99b93d1eca978")
-  categoryId: CategoryId;
-  subCategory: string;
+      categoryId: CategoryId | CategoryId[]; // Can be single CategoryId or array - provider can belong to multiple categories
+      subCategory: string | string[]; // Can be single string or array of subcategories
   serviceTitle: string; // The primary service they offer in marketplace
   name: string; // Provider/Company name (mapped from orgName)
   description: string; // Mapped from orgDescription
