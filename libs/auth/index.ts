@@ -31,7 +31,6 @@ export function updateUserInfo(token: string): void {
       userEmail: claims.userEmail,
       userPhone: claims.userPhone,
       userNick: claims.userNick,
-      userNick: claims.userNick,
       userImage: claims.userImage,
       userOrganizationId: claims.userOrganizationId,
       userCountry: claims.userCountry,
@@ -154,7 +153,8 @@ export async function googleLogIn(token: string): Promise<void> {
  * userRole is set based on user's choice: 'buyer' or 'provider'
  */
 export async function signUpNew(input: {
-  fullName: string;
+  userNick?: string;
+  fullName?: string;
   email: string;
   password: string;
   memberType: 'buyer' | 'provider';
@@ -165,15 +165,22 @@ export async function signUpNew(input: {
     // Map frontend input to backend SignupInput format
     // Backend expects: { userEmail, userPassword, userNick, userRole }
     // userRole defaults to 'BUYER' if not provided, but we always send it based on user's choice
+    const userNick = input.userNick || input.fullName || '';
+    const userEmail = input.email || '';
+    
+    if (!userNick || !userEmail || !input.password) {
+      throw new Error('Please fill in all required fields');
+    }
+    
     const userInput: {
       userEmail: string;
       userPassword: string;
       userNick: string;
       userRole: 'BUYER' | 'PROVIDER';
     } = {
-      userEmail: input.email.trim().toLowerCase(),
+      userEmail: userEmail.trim().toLowerCase(),
       userPassword: input.password,
-      userNick: input.fullName.trim(),
+      userNick: userNick.trim(),
       userRole: input.memberType.toUpperCase() as 'BUYER' | 'PROVIDER', // Convert to uppercase enum: 'BUYER' or 'PROVIDER'
     };
     

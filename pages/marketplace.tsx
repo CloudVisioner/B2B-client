@@ -44,7 +44,7 @@ export default function MarketplacePage() {
     if (filters.subcategory && filters.subcategory.length > 0) query.subcategory = filters.subcategory;
     if (filters.location && filters.location !== 'All Countries') query.location = filters.location;
     if (filters.budget && filters.budget !== 5000) query.budget = filters.budget.toString();
-    if (filters.sort && filters.sort !== 'Premium Partners') query.sort = filters.sort;
+    if (filters.sort && filters.sort !== 'Newest') query.sort = filters.sort;
     if (filters.page && filters.page > 1) query.page = filters.page.toString();
     if (filters.search) query.search = filters.search;
 
@@ -69,7 +69,7 @@ export default function MarketplacePage() {
             subcategory: subcategory ? (Array.isArray(subcategory) ? subcategory : [subcategory]) : [],
             location: (location as string) || 'All Countries',
             budget: budget ? parseInt(budget as string, 10) : 5000,
-            sort: (sort as string) || 'Premium Partners',
+            sort: (sort as string) || 'Newest',
             page: page ? parseInt(page as string, 10) : 1,
             search: (search as string) || '',
           }}

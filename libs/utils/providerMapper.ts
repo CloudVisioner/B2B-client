@@ -108,15 +108,12 @@ function mapBadges(backend: BackendProviderListItem): string[] {
  */
 export function mapSortOption(uiSort: string): string {
   const sortMap: Record<string, string> = {
-    'Premium Partners': 'rating', // Default to rating for premium
-    'Highest Rated': 'rating',
-    'Cheapest': 'startingRate',
-    'Newest': 'createdAt', // If backend supports this
-    'Most Projects': 'projects',
-    'Fastest Response': 'responseTime',
+    'Newest': 'createdAt',        // createdAt DESC — 80% buyer preference
+    'Cheapest': 'startingRate',   // reqBudgetMin ASC — price-sensitive SMEs
+    'Ending Soon': 'reqDeadline', // reqDeadline ASC — urgency driver
   };
   
-  return sortMap[uiSort] || 'rating';
+  return sortMap[uiSort] || 'createdAt';
 }
 
 /**

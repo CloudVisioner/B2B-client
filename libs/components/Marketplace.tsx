@@ -387,7 +387,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({
   onFilterChange 
 }) => {
   const [selectedCatId, setSelectedCatId] = useState<CategoryId>(initialCategory);
-  const [sortBy, setSortBy] = useState(initialFilters.sort || 'Premium Partners');
+  const [sortBy, setSortBy] = useState(initialFilters.sort || 'Newest');
   const [isSortOpen, setIsSortOpen] = useState(false);
   const [maxBudget, setMaxBudget] = useState(initialFilters.budget || 5000);
   const [activeSubCats, setActiveSubCats] = useState<string[]>(initialFilters.subcategory || []);
@@ -438,8 +438,8 @@ const Marketplace: React.FC<MarketplaceProps> = ({
     return { input };
   }, [backendCategoryId, activeSubCats, selectedLocation, maxBudget, currentPage, itemsPerPage, searchQuery]);
   
-  // Use GET_PROVIDERS_SORTED if sortBy is not "Premium Partners", otherwise use GET_PROVIDERS_BY_CATEGORY
-  const useSortedQuery = sortBy !== 'Premium Partners';
+  // Always use sorted query since all options require backend sorting
+  const useSortedQuery = true;
   
   const { data, loading, error, refetch } = useQuery(
     useSortedQuery ? GET_PROVIDERS_SORTED : GET_PROVIDERS_BY_CATEGORY,
@@ -609,7 +609,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({
   // Sync initial filters from URL on mount
   useEffect(() => {
     if (isInitialMount.current) {
-      setSortBy(initialFilters.sort || 'Premium Partners');
+      setSortBy(initialFilters.sort || 'Newest');
       setMaxBudget(initialFilters.budget || 5000);
       setActiveSubCats(initialFilters.subcategory || []);
       setSelectedLocation(initialFilters.location || 'All Countries');
@@ -660,7 +660,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({
           subcategory: activeSubCats.length > 0 ? activeSubCats : undefined,
           location: selectedLocation !== 'All Countries' ? selectedLocation : undefined,
           budget: maxBudget !== 5000 ? maxBudget : undefined,
-          sort: sortBy !== 'Premium Partners' ? sortBy : undefined,
+          sort: sortBy !== 'Newest' ? sortBy : undefined,
           page: currentPage > 1 ? currentPage : undefined,
           search: searchQuery || undefined,
         });
@@ -825,7 +825,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({
                 </div>
                 {isSortOpen && (
                   <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl shadow-xl dark:shadow-2xl z-20 py-1">
-                    {['Premium Partners', 'Cheapest', 'Newest', 'Highest Rated'].map((opt) => (
+                    {['Newest', 'Cheapest', 'Ending Soon'].map((opt) => (
                       <button
                         key={opt}
                         onClick={() => handleSortChange(opt)}

@@ -22,15 +22,15 @@ self.__BUILD_MANIFEST = {
       "static/chunks/main.js",
       "static/chunks/pages/_error.js"
     ],
-    "/marketplace": [
+    "/results": [
       "static/chunks/webpack.js",
       "static/chunks/main.js",
-      "static/chunks/pages/marketplace.js"
+      "static/chunks/pages/results.js"
     ],
-    "/providers": [
+    "/results/[slug]": [
       "static/chunks/webpack.js",
       "static/chunks/main.js",
-      "static/chunks/pages/providers.js"
+      "static/chunks/pages/results/[slug].js"
     ]
   },
   "ampFirstPages": []

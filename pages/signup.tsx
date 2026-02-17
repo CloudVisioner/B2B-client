@@ -54,8 +54,8 @@ export default function SignupPage() {
 
     try {
       await signUpNew({
-        userNick: formData.userNick.trim(),
-        email: formData.email.trim().toLowerCase(),
+        userNick: formData.userNick?.trim() || '',
+        email: formData.email?.trim().toLowerCase() || '',
         password: formData.password,
         memberType: selectedRole,
       });
