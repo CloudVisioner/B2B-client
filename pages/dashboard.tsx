@@ -51,7 +51,7 @@ export default function DashboardPage() {
       {/* Main Content Area - Fills remaining space */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Header - Stays at top */}
-        <Header subtitle="Active Organization: Acme Corp" />
+        <Header />
 
         {/* Scrollable Section */}
         <main className="flex-1 overflow-y-auto p-8 bg-[#F9FAFB]">

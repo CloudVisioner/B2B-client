@@ -66,7 +66,7 @@ const Hero: React.FC<HeroProps> = ({ onGetStarted, onWantToHire, onWantToWork })
             {/* Apple - Original Colors */}
             <div className="flex items-center justify-center h-12 w-28">
               <svg className="h-10 w-auto" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.57 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.16c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" fill="#000000"/>
+                <path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.57 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.16c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" className="fill-black dark:fill-white"/>
               </svg>
             </div>
             
@@ -74,7 +74,7 @@ const Hero: React.FC<HeroProps> = ({ onGetStarted, onWantToHire, onWantToWork })
             <div className="flex items-center justify-center h-12 w-28">
               <svg className="h-10 w-auto" viewBox="0 0 120 72" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M60 12L30 30v12l30 18 30-18V30L60 12z" fill="#FF9900"/>
-                <path d="M30 30l30 18 30-18v12l-30 18-30-18V30z" fill="#232F3E"/>
+                <path d="M30 30l30 18 30-18v12l-30 18-30-18V30z" className="fill-[#232F3E] dark:fill-slate-300"/>
                 <path d="M60 12L30 30l30 18 30-18L60 12z" fill="#FF9900" opacity="0.8"/>
               </svg>
             </div>

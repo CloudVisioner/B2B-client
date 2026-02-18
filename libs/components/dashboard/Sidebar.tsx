@@ -7,6 +7,7 @@ import { logOut } from '../../auth';
 
 const NAV_ITEMS = [
   { icon: 'dashboard', label: 'Dashboard', href: '/dashboard' },
+  { icon: 'corporate_fare', label: 'Organizations', href: '/organizations' },
   { icon: 'description', label: 'My Service Requests', href: '/service-requests' },
   { icon: 'assignment', label: 'Orders', href: '/orders' },
   { icon: 'notifications', label: 'Notifications', href: '/notifications' },
@@ -27,8 +28,9 @@ export const Sidebar: React.FC = () => {
     <aside className="w-64 flex-shrink-0 bg-white border-r border-slate-200 flex flex-col h-full">
       {/* Brand */}
       <div className="h-16 flex items-center px-6 border-b border-slate-100 flex-shrink-0">
-        <Link href="/" className="text-xl font-bold tracking-tight text-[var(--primary)]">
-          SME<span className="text-slate-900">Connect</span>
+        <Link href="/" className="text-xl font-bold tracking-tight">
+          <span className="text-[var(--primary)]">SME</span>
+          <span className="text-slate-900">Connect</span>
         </Link>
       </div>
 

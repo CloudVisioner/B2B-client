@@ -6,6 +6,57 @@
   --primary: #4F46E5;
   --border: #E5E7EB;
   --bg-subtle: #F9FAFB;
+  --text-default: #0f172a;
+  --text-muted: #64748b;
+  --text-light: #94a3b8;
+  --bg-default: #ffffff;
+  --bg-card: #ffffff;
+}
+
+html.dark {
+  --primary: #818cf8;
+  --border: #334155;
+  --bg-subtle: #1e293b;
+  --text-default: #f1f5f9;
+  --text-muted: #94a3b8;
+  --text-light: #64748b;
+  --bg-default: #1e293b;
+  --bg-card: #1e293b;
+}
+
+/* Fix for text descenders (g, j, p, q, y) being cut off */
+@layer base {
+  * {
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  p, span, div, a, button, label, input, textarea {
+    line-height: 1.7;
+    overflow: visible;
+    padding-bottom: 0.15em; /* Extra space for descenders (g, j, p, q, y) */
+  }
+
+  /* Ensure text containers have proper spacing for descenders */
+  .prose p,
+  .prose span,
+  .text-content {
+    line-height: 1.8;
+    padding-bottom: 0.2em;
+  }
+
+  /* Fix for buttons and interactive elements */
+  button {
+    line-height: 1.6;
+    padding-top: 0.75em;
+    padding-bottom: 0.75em;
+  }
 }
 
 .material-symbols-outlined {
@@ -17,11 +68,11 @@
 }
 
 .sidebar-link {
-  @apply flex items-center gap-3 px-4 py-2.5 text-slate-500 hover:bg-slate-50 hover:text-[var(--primary)] transition-all rounded-[8px] text-sm font-medium;
+  @apply flex items-center gap-3 px-4 py-2.5 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-[var(--primary)] transition-all rounded-[8px] text-sm font-medium;
 }
 
 .sidebar-link.active {
-  @apply bg-indigo-50 text-[var(--primary)] font-semibold;
+  @apply bg-indigo-50 dark:bg-indigo-900/20 text-[var(--primary)] font-semibold;
 }
 
 .sidebar-link.active .material-symbols-outlined {
@@ -30,11 +81,11 @@
 }
 
 .table-header {
-  @apply px-5 py-3.5 bg-slate-50 text-left text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-[var(--border)];
+  @apply px-5 py-3.5 bg-slate-50 dark:bg-slate-800 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-[var(--border)] dark:border-slate-700;
 }
 
 .table-cell {
-  @apply px-5 py-5 text-[15px] text-slate-700 border-b border-slate-100;
+  @apply px-5 py-5 text-[15px] text-slate-700 dark:text-slate-300 border-b border-slate-100 dark:border-slate-800;
 }
 
 .card-hover:hover {

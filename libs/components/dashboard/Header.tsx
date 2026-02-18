@@ -1,7 +1,10 @@
 import React from 'react';
 import { useRouter } from 'next/router';
-import { useReactiveVar } from '@apollo/client';
+import { useReactiveVar, useQuery } from '@apollo/client';
 import { userVar } from '../../../apollo/store';
+import { GET_BUYER_ORGANIZATION } from '../../../apollo/user/query';
+import { getHeaders } from '../../../apollo/utils';
+import { isLoggedIn } from '../../auth';
 
 interface HeaderProps {
   title?: string;
@@ -13,12 +16,27 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
   const currentUser = useReactiveVar(userVar);
   const userName = currentUser?.userNick || 'User';
 
+  // Fetch organization data
+  const { data: orgData } = useQuery(GET_BUYER_ORGANIZATION, {
+    skip: !isLoggedIn(),
+    fetchPolicy: 'cache-first',
+    errorPolicy: 'all',
+    context: {
+      headers: isLoggedIn() ? getHeaders() : {},
+    },
+  });
+
+  const organization = orgData?.getBuyerOrganization;
+  const displaySubtitle = subtitle || (organization 
+    ? `Active Organization: ${organization.orgName}${organization.orgIndustry ? ` • ${organization.orgIndustry}` : ''}`
+    : 'Create your organization in Settings');
+
   return (
     <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 shrink-0">
       <div>
         <h1 className="text-xl font-bold text-slate-900">{title || `Welcome back, ${userName}!`}</h1>
-        {subtitle && (
-          <p className="text-xs text-slate-500 font-medium">{subtitle}</p>
+        {displaySubtitle && (
+          <p className="text-xs text-slate-500 font-medium">{displaySubtitle}</p>
         )}
       </div>
 

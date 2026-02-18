@@ -2,6 +2,9 @@ import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { Sun, Moon } from 'lucide-react';
+import { useReactiveVar } from '@apollo/client';
+import { userVar } from '../../apollo/store';
+import { isLoggedIn } from '../auth';
 import { useTheme } from '../contexts/ThemeContext';
 import { PageId } from '../types/index';
 
@@ -12,6 +15,15 @@ interface NavbarProps {
 const Navbar: React.FC<NavbarProps> = ({ currentPage }) => {
   const { theme, toggleTheme } = useTheme();
   const router = useRouter();
+  const currentUser = useReactiveVar(userVar);
+  const [mounted, setMounted] = React.useState(false);
+  const [loggedIn, setLoggedIn] = React.useState(false);
+
+  // Prevent hydration mismatch by only checking login status after mount
+  React.useEffect(() => {
+    setMounted(true);
+    setLoggedIn(isLoggedIn());
+  }, []);
   
   // Determine current page from route
   const getCurrentPage = (): PageId => {
@@ -24,6 +36,16 @@ const Navbar: React.FC<NavbarProps> = ({ currentPage }) => {
   };
 
   const activePage = getCurrentPage();
+  
+  const getDashboardPath = () => {
+    if (loggedIn && currentUser?.userRole) {
+      const role = currentUser.userRole;
+      if (role === 'PROVIDER' || role === 'provider') {
+        return '/provider/dashboard';
+      }
+    }
+    return '/dashboard';
+  };
   
   const linkClass = (page: PageId) =>
     `text-base font-semibold transition-colors ${
@@ -38,11 +60,9 @@ const Navbar: React.FC<NavbarProps> = ({ currentPage }) => {
         <div className="flex items-center h-20">
           {/* ── Logo (left, flex-1 to balance right side) ── */}
           <div className="flex-1 flex items-center">
-            <Link href="/" className="flex items-center gap-2">
-              <span className="text-2xl font-extrabold tracking-tight">
-                <span className="text-indigo-600 dark:text-indigo-400">SME</span>
-                <span className="text-slate-900 dark:text-white">Connect</span>
-              </span>
+            <Link href="/" className="text-2xl font-extrabold tracking-tight">
+              <span className="text-indigo-600 dark:text-indigo-400">SME</span>
+              <span className="text-slate-900 dark:text-white">Connect</span>
             </Link>
           </div>
 
@@ -53,6 +73,9 @@ const Navbar: React.FC<NavbarProps> = ({ currentPage }) => {
             </Link>
             <Link href="/marketplace" className={linkClass('marketplace')}>
               Marketplace
+            </Link>
+            <Link href="/find-jobs" className={linkClass('marketplace')}>
+              Find Jobs
             </Link>
             <Link href="/results" className={linkClass('results')}>
               Results
@@ -65,25 +88,38 @@ const Navbar: React.FC<NavbarProps> = ({ currentPage }) => {
               onClick={toggleTheme}
               className="p-2.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors flex items-center justify-center"
               aria-label="Toggle dark mode"
+              suppressHydrationWarning
             >
-              {theme === 'dark' ? (
+              {mounted && theme === 'dark' ? (
                 <Sun className="w-5 h-5 text-amber-500" />
               ) : (
                 <Moon className="w-5 h-5 text-slate-500" />
               )}
             </button>
-            <Link
-              href="/signup"
-              className="text-base font-semibold text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
-            >
-              Sign up
-            </Link>
-            <Link
-              href="/login"
-              className="bg-indigo-600 hover:bg-indigo-700 text-white text-base font-bold px-6 py-2.5 rounded-lg shadow-sm transition-all"
-            >
-              Login
-            </Link>
+            {mounted && loggedIn ? (
+              <Link
+                href={getDashboardPath()}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white text-base font-bold px-6 py-2.5 rounded-lg shadow-sm transition-all flex items-center gap-2"
+              >
+                <span className="material-symbols-outlined text-lg" aria-hidden="true">dashboard</span>
+                <span>Dashboard</span>
+              </Link>
+            ) : (
+              <>
+                <Link
+                  href="/signup"
+                  className="text-base font-semibold text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                >
+                  Sign up
+                </Link>
+                <Link
+                  href="/login"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-base font-bold px-6 py-2.5 rounded-lg shadow-sm transition-all"
+                >
+                  Login
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </div>

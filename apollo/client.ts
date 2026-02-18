@@ -11,10 +11,18 @@ let apolloClient: ApolloClient<any>;
 // Error Link
 const errorLink = onError(({ graphQLErrors, networkError, operation, forward }) => {
   if (graphQLErrors) {
-    graphQLErrors.forEach(({ message, locations, path }) => {
-      console.error(
-        `[GraphQL error]: Message: ${message}, Location: ${locations}, Path: ${path}`
-      );
+    graphQLErrors.forEach(({ message, locations, path, extensions }) => {
+      // Log warnings for non-critical field errors (like "Expected Iterable")
+      // These are handled by errorPolicy: 'all' in queries
+      if (message && message.includes('Expected Iterable')) {
+        console.warn(
+          `[GraphQL warning]: Field ${path?.join('.') || 'unknown'} returned non-iterable value. This will be normalized to an empty array.`
+        );
+      } else {
+        console.error(
+          `[GraphQL error]: Message: ${message}, Location: ${locations}, Path: ${path}`
+        );
+      }
     });
   }
 
@@ -76,6 +84,40 @@ function createApolloClient() {
         Query: {
           fields: {
             // Add cache policies here if needed
+          },
+        },
+        Organization: {
+          fields: {
+            orgSkills: {
+              // Normalize orgSkills to always be an array
+              read(existing) {
+                if (!existing) return [];
+                if (Array.isArray(existing)) return existing;
+                if (typeof existing === 'string') return [existing];
+                return [];
+              },
+              merge(existing, incoming) {
+                if (!incoming) return [];
+                if (Array.isArray(incoming)) return incoming;
+                if (typeof incoming === 'string') return [incoming];
+                return [];
+              },
+            },
+            industries: {
+              // Normalize industries to always be an array
+              read(existing) {
+                if (!existing) return [];
+                if (Array.isArray(existing)) return existing;
+                if (typeof existing === 'string') return [existing];
+                return [];
+              },
+              merge(existing, incoming) {
+                if (!incoming) return [];
+                if (Array.isArray(incoming)) return incoming;
+                if (typeof existing === 'string') return [incoming];
+                return [];
+              },
+            },
           },
         },
       },

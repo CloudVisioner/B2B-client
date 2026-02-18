@@ -2,10 +2,13 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { CheckCircle } from 'lucide-react';
+import { useReactiveVar } from '@apollo/client';
+import { userVar } from '../apollo/store';
 import { logInWithEmail, googleLogIn } from '../libs/auth';
 
 export default function LoginPage() {
   const router = useRouter();
+  const currentUser = useReactiveVar(userVar);
   const [selectedRole, setSelectedRole] = useState<'buyer' | 'provider'>('buyer');
   const [formData, setFormData] = useState({
     userNick: '',
@@ -36,11 +39,35 @@ export default function LoginPage() {
 
     try {
       await logInWithEmail(formData.userNick, formData.userPassword);
-      // Redirect based on selected role (or user's actual role from backend)
-      if (selectedRole === 'buyer') {
-        router.push('/dashboard');
+
+      // Wait a moment for userVar to update from JWT
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Get the authenticated user (decoded from JWT)
+      const actualUser = userVar();
+      const tokenRoleRaw = actualUser?.userRole as string | undefined;
+      const tokenRole = tokenRoleRaw ? tokenRoleRaw.toUpperCase() : '';
+      const expectedRole = selectedRole.toUpperCase(); // 'BUYER' or 'PROVIDER'
+
+      if (!tokenRole) {
+        setError('Unable to determine your account role from the server.');
+        return;
+      }
+
+      // If the user selected a different role than what the JWT says, block redirect
+      if (tokenRole !== expectedRole) {
+        const actualLabel = tokenRole === 'PROVIDER' ? 'provider' : 'buyer';
+        setError(
+          `This account is registered as a ${actualLabel}. Please choose "${actualLabel}" above or use a different account.`
+        );
+        return;
+      }
+
+      // Redirect strictly based on authenticated JWT role
+      if (tokenRole === 'PROVIDER') {
+        router.push('/provider/dashboard');
       } else {
-        router.push('/'); // Provider dashboard (to be created)
+        router.push('/dashboard');
       }
     } catch (err: any) {
       setError(err.message || 'Login failed. Please check your credentials.');

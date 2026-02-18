@@ -43,7 +43,7 @@ export interface BackendProviderListItem {
   orgLogoImages: string[];
   orgTotalLikes: number;
   orgTotalViews: number;
-  industries: string[];
+  industries?: string[] | null; // May be null, undefined, or non-array from backend
   createdAt: string;
 }
 
@@ -53,7 +53,7 @@ export interface BackendProviderDetail extends BackendProviderListItem {
   establishmentYear: number;
   teamSize: number;
   orgWebsiteUrl: string;
-  orgSkills: string[];
+  orgSkills?: string[] | null; // May be null, undefined, or non-array from backend
   email?: string; // Only shown if logged in
   phone?: string; // Only shown if logged in
   linkedIn?: string;
@@ -145,4 +145,105 @@ export interface Testimonial {
   author: string;
   role: string;
   avatar: string;
+}
+
+// ============================================
+// Backend Testimonial Types (from GraphQL)
+// ============================================
+
+export interface BackendTestimonial {
+  _id: string;
+  providerId?: string;
+  text: string;
+  rating: number;
+  authorName: string;
+  authorRole: string;
+  authorCompany: string;
+  authorAvatar?: string;
+  projectTitle?: string;
+  isVerified?: boolean;
+  createdAt: string;
+}
+
+export interface TestimonialListResponse {
+  list: BackendTestimonial[];
+  metaCounter: {
+    total: number;
+  };
+}
+
+// ============================================
+// Backend Portfolio Types (from GraphQL)
+// ============================================
+
+export interface PortfolioMetric {
+  label: string;
+  value: string;
+}
+
+export interface BackendPortfolio {
+  _id: string;
+  title: string;
+  description: string;
+  coverImage?: string;
+  images: string[];
+  metrics: PortfolioMetric[];
+  tags?: string[];
+  clientName?: string;
+  clientLogo?: string;
+  industry?: string;
+  projectUrl?: string;
+  providerId?: string;
+  providerName?: string;
+  providerAvatar?: string;
+  completedAt?: string;
+  createdAt: string;
+}
+
+// ============================================
+// Landing Page Statistics Types
+// ============================================
+
+export interface LandingStatistics {
+  totalProviders: number;
+  totalProjectsCompleted: number;
+  totalIndustriesServed: number;
+  totalClientsServed: number;
+  totalCountriesReached: number;
+  averageSatisfactionRate: number;
+  totalActiveServiceRequests: number;
+  platformEstablishedYear: number;
+}
+
+// ============================================
+// Frontend Testimonial & Portfolio Types (for UI)
+// ============================================
+
+export interface ClientTestimonial {
+  id: string;
+  text: string;
+  rating: number;
+  author: string;
+  role: string;
+  company: string;
+  avatar?: string;
+  projectTitle?: string;
+  isVerified?: boolean;
+}
+
+export interface PortfolioItem {
+  id: string;
+  title: string;
+  description: string;
+  coverImage?: string;
+  images: string[];
+  metrics: PortfolioMetric[];
+  tags: string[];
+  clientName?: string;
+  clientLogo?: string;
+  industry?: string;
+  projectUrl?: string;
+  providerName?: string;
+  providerAvatar?: string;
+  completedAt?: string;
 }

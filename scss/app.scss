@@ -8,7 +8,8 @@ body {
   transition: background-color 0.3s, color 0.3s;
 }
 
-body.dark {
+html.dark body,
+.dark body {
   background-color: $slate-800;
   color: $slate-100;
 }

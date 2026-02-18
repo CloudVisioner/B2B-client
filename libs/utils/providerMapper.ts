@@ -6,6 +6,25 @@
 import { BackendProviderListItem, BackendProviderDetail, Provider } from '../types';
 
 /**
+ * Safely normalize a value to an array of strings
+ * Handles null, undefined, non-array values, and ensures all items are strings
+ */
+function normalizeToStringArray(value: any): string[] {
+  if (!value) {
+    return [];
+  }
+  if (Array.isArray(value)) {
+    return value.filter(item => typeof item === 'string').map(item => String(item));
+  }
+  // If it's a single string, wrap it in an array
+  if (typeof value === 'string') {
+    return [value];
+  }
+  // For any other type, return empty array
+  return [];
+}
+
+/**
  * Map backend provider list item to frontend Provider format
  */
 export function mapBackendProviderToList(backend: BackendProviderListItem): Provider {
@@ -48,13 +67,13 @@ export function mapBackendProviderToList(backend: BackendProviderListItem): Prov
     location: backend.location || backend.orgCountry || '',
     city: backend.orgCity,
     flag: backend.flag || '',
-    expertise: backend.industries || [],
+    expertise: normalizeToStringArray(backend.industries),
     caseStudies: [], // Not in backend response yet
     color: backend.color || 'bg-indigo-50 text-indigo-600',
     orgVerified: backend.orgVerified,
     orgTotalLikes: backend.orgTotalLikes,
     orgTotalViews: backend.orgTotalViews,
-    industries: backend.industries,
+    industries: normalizeToStringArray(backend.industries),
   };
 }
 
@@ -64,14 +83,18 @@ export function mapBackendProviderToList(backend: BackendProviderListItem): Prov
 export function mapBackendProviderDetail(backend: BackendProviderDetail): Provider {
   const base = mapBackendProviderToList(backend);
   
+  // Safely normalize orgSkills and industries to arrays
+  const orgSkillsArray = normalizeToStringArray(backend.orgSkills);
+  const industriesArray = normalizeToStringArray(backend.industries);
+  
   return {
     ...base,
     bio: backend.bio || backend.orgDescription,
     establishmentYear: backend.establishmentYear,
-    teamSize: backend.teamSize,
+    teamSize: backend.orgTeamSize || backend.teamSize, // Support both field names for backward compatibility
     minProjectSize: backend.minProjectSize,
     orgWebsiteUrl: backend.orgWebsiteUrl,
-    expertise: backend.orgSkills || backend.industries || [],
+    expertise: orgSkillsArray.length > 0 ? orgSkillsArray : industriesArray,
     email: backend.email,
     phone: backend.phone,
     linkedIn: backend.linkedIn,

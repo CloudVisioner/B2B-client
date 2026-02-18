@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
+import { useReactiveVar } from '@apollo/client';
+import { userVar } from '../apollo/store';
 import { signUpNew } from '../libs/auth';
 
 export default function SignupPage() {
@@ -60,11 +62,18 @@ export default function SignupPage() {
         memberType: selectedRole,
       });
 
-      // Redirect based on user role
-      if (selectedRole === 'buyer') {
-        router.push('/dashboard');
+      // Wait a moment for userVar to update
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Get the actual user role from the reactive variable
+      const actualUser = userVar();
+      const userRole = actualUser?.userRole;
+      
+      // Redirect based on actual user role from backend
+      if (userRole === 'PROVIDER' || userRole === 'provider') {
+        router.push('/provider/dashboard');
       } else {
-        router.push('/'); // Provider dashboard (to be created)
+        router.push('/dashboard');
       }
     } catch (err: any) {
       // Display detailed error message

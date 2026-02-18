@@ -13,4 +13,21 @@ html, body {
 
 body {
   font-family: $font-family-sans;
+  // Fix for letter descenders (g, j, p, q, y) being cut off
+  line-height: 1.6;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+// Ensure text containers don't clip descenders
+p, span, div, h1, h2, h3, h4, h5, h6, a, button, label {
+  line-height: 1.6;
+  overflow: visible;
+}
+
+// Fix for text with descenders
+.text-content {
+  line-height: 1.7;
+  padding-bottom: 0.1em; // Extra space for descenders
 }

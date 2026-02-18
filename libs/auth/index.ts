@@ -1,4 +1,4 @@
-import { decode } from 'jwt-decode';
+import decode from 'jwt-decode';
 import { userVar } from '../../apollo/store';
 import { User } from '../../apollo/store';
 import { initializeApollo } from '../../apollo/client';

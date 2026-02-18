@@ -62,7 +62,7 @@ export const GET_PROVIDER_DETAIL = gql`
       startingRate
       minProjectSize
       establishmentYear
-      teamSize
+      orgTeamSize
       industries
       orgCountry
       orgCity
@@ -215,6 +215,14 @@ export const GET_PROVIDER = gql`
   }
 `;
 
+// ============================================
+// PORTFOLIO QUERIES
+// ============================================
+
+/**
+ * Get Provider Portfolio / Case Studies
+ * Public query - fetches portfolio items for a provider's profile page
+ */
 export const GET_PROVIDER_PORTFOLIO = gql`
   query GetProviderPortfolio($providerId: String!) {
     getProviderPortfolio(providerId: $providerId) {
@@ -222,15 +230,129 @@ export const GET_PROVIDER_PORTFOLIO = gql`
       title
       description
       images
+      coverImage
       metrics {
         label
         value
       }
+      tags
       clientName
+      clientLogo
+      industry
+      projectUrl
       completedAt
+      createdAt
     }
   }
 `;
+
+// ============================================
+// TESTIMONIAL QUERIES
+// ============================================
+
+/**
+ * Get Provider Testimonials
+ * Public query - fetches client testimonials for a provider
+ */
+export const GET_PROVIDER_TESTIMONIALS = gql`
+  query GetProviderTestimonials($input: TestimonialInput!) {
+    getProviderTestimonials(input: $input) {
+      list {
+        _id
+        providerId
+        text
+        rating
+        authorName
+        authorRole
+        authorCompany
+        authorAvatar
+        projectTitle
+        isVerified
+        createdAt
+      }
+      metaCounter {
+        total
+      }
+    }
+  }
+`;
+
+// ============================================
+// LANDING PAGE / STATISTICS QUERIES
+// ============================================
+
+/**
+ * Get Landing Page Statistics
+ * Public query - fetches dynamic stats for landing page (About Us section)
+ * Returns: total providers, total projects completed, industries served count, etc.
+ */
+export const GET_LANDING_STATISTICS = gql`
+  query GetLandingStatistics {
+    getLandingStatistics {
+      totalProviders
+      totalProjectsCompleted
+      totalIndustriesServed
+      totalClientsServed
+      totalCountriesReached
+      averageSatisfactionRate
+      totalActiveServiceRequests
+      platformEstablishedYear
+    }
+  }
+`;
+
+/**
+ * Get Featured Testimonials for Landing Page
+ * Public query - fetches highlighted testimonials for the homepage
+ */
+export const GET_FEATURED_TESTIMONIALS = gql`
+  query GetFeaturedTestimonials($limit: Int) {
+    getFeaturedTestimonials(limit: $limit) {
+      _id
+      text
+      rating
+      authorName
+      authorRole
+      authorCompany
+      authorAvatar
+      isVerified
+      createdAt
+    }
+  }
+`;
+
+/**
+ * Get Featured Portfolios for Landing Page
+ * Public query - fetches highlighted portfolio items/case studies for the homepage
+ */
+export const GET_FEATURED_PORTFOLIOS = gql`
+  query GetFeaturedPortfolios($limit: Int) {
+    getFeaturedPortfolios(limit: $limit) {
+      _id
+      title
+      description
+      coverImage
+      images
+      metrics {
+        label
+        value
+      }
+      tags
+      clientName
+      clientLogo
+      industry
+      providerId
+      providerName
+      providerAvatar
+      completedAt
+      createdAt
+    }
+  }
+`;
+
+// ============================================
+// CONTACT & RECOMMENDATION QUERIES
+// ============================================
 
 export const GET_PROVIDER_CONTACT = gql`
   query GetProviderContact($providerId: String!) {
@@ -309,6 +431,82 @@ export const GET_MEMBER = gql`
       _id
       memberNick
       memberImage
+    }
+  }
+`;
+
+// ============================================
+// BUYER ORGANIZATION QUERIES
+// ============================================
+
+/**
+ * Get Buyer Organization
+ * Fetches the organization details for the logged-in buyer
+ * Note: Backend returns orgIndustry and orgDescription, but we map them to industry and description for frontend consistency
+ */
+export const GET_BUYER_ORGANIZATION = gql`
+  query GetBuyerOrganization {
+    getBuyerOrganization {
+      _id
+      orgName
+      orgIndustry
+      location
+      orgDescription
+      orgWebsiteUrl
+      orgLogoImages
+      orgVerified
+      createdAt
+      updatedAt
+    }
+  }
+`;
+
+// ============================================
+// SERVICE REQUEST QUERIES (Buyer)
+// ============================================
+
+/**
+ * Get Buyer Service Requests (My Requests)
+ * Fetches all service requests created by the logged-in buyer
+ */
+export const GET_BUYER_SERVICE_REQUESTS = gql`
+  query GetBuyerServiceRequests($input: ServiceRequestFilterInput) {
+    getBuyerServiceRequests(input: $input) {
+      list {
+        _id
+        title
+        description
+        category
+        subCategory
+        budgetMin
+        budgetMax
+        deadline
+        urgency
+        skills
+        status
+        quotesCount
+        newQuotesCount
+        organizationId
+        buyerId
+        providerId
+        provider {
+          _id
+          orgName
+          orgAverageRating
+          reviewsCount
+          avatar
+        }
+        phase
+        createdAt
+        updatedAt
+      }
+      metaCounter {
+        total
+        open
+        inProgress
+        closed
+        draft
+      }
     }
   }
 `;

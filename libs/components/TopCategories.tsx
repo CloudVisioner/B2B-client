@@ -13,7 +13,7 @@ const categories: { id: CategoryId, icon: any, name: string, description: string
     name: "IT & Software", 
     description: "Cybersecurity, cloud infrastructure, network architecture, and managed help desk.",
     count: "1,200+",
-    color: "bg-indigo-50 text-indigo-600"
+    color: "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400"
   },
   { 
     id: 'business',
@@ -21,7 +21,7 @@ const categories: { id: CategoryId, icon: any, name: string, description: string
     name: "Business Services", 
     description: "Finance, accounting, legal compliance, and corporate strategy advisory.",
     count: "950+",
-    color: "bg-emerald-50 text-emerald-600"
+    color: "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400"
   },
   { 
     id: 'marketing-sales',
@@ -29,7 +29,7 @@ const categories: { id: CategoryId, icon: any, name: string, description: string
     name: "Marketing & Sales", 
     description: "SEO, Social Media Management, Copywriting, and Lead Generation experts.",
     count: "870+",
-    color: "bg-orange-50 text-orange-600"
+    color: "bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400"
   },
   { 
     id: 'design-creative',
@@ -37,7 +37,7 @@ const categories: { id: CategoryId, icon: any, name: string, description: string
     name: "Design & Creative", 
     description: "Branding, Logo Design, Video Editing, and premium UI/UX Design services.",
     count: "1,500+",
-    color: "bg-pink-50 text-pink-600"
+    color: "bg-pink-50 dark:bg-pink-900/30 text-pink-600 dark:text-pink-400"
   },
 ];
 
