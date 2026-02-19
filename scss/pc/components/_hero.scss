@@ -1,0 +1,199 @@
+@import '../../variables';
+
+.hero {
+  padding-top: $spacing-24;
+  padding-bottom: $spacing-16;
+  padding-left: $spacing-4;
+  padding-right: $spacing-4;
+  background-color: $white;
+  transition: background-color 0.3s;
+
+  .dark & {
+    background-color: $slate-800;
+  }
+
+  .hero-container {
+    max-width: 64rem;
+    margin: 0 auto;
+    text-align: center;
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: $spacing-1 $spacing-3;
+      border-radius: $radius-full;
+      background-color: $indigo-50;
+      border: 1px solid $indigo-100;
+      margin-bottom: $spacing-6;
+
+      .dark & {
+        background-color: rgba($indigo-900, 0.2);
+        border-color: $indigo-800;
+      }
+
+      .hero-badge-dot {
+        width: $spacing-2;
+        height: $spacing-2;
+        border-radius: $radius-full;
+        background-color: $indigo-500;
+        margin-right: $spacing-2;
+      }
+
+      .hero-badge-text {
+        font-size: $font-size-xs;
+        font-weight: $font-weight-bold;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: $indigo-600;
+
+        .dark & {
+          color: $indigo-400;
+        }
+      }
+    }
+
+    .hero-title {
+      font-size: $font-size-5xl;
+      font-weight: $font-weight-extrabold;
+      color: $slate-900;
+      line-height: 1.1;
+      margin-bottom: $spacing-6;
+
+      .dark & {
+        color: $white;
+      }
+
+      @media (min-width: $breakpoint-md) {
+        font-size: $font-size-7xl;
+      }
+    }
+
+    .hero-description {
+      font-size: $font-size-lg;
+      color: $slate-500;
+      max-width: 32rem;
+      margin: 0 auto $spacing-10;
+      line-height: 1.75;
+
+      .dark & {
+        color: $slate-400;
+      }
+
+      @media (min-width: $breakpoint-md) {
+        font-size: $font-size-xl;
+      }
+    }
+
+    .hero-buttons {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: $spacing-4;
+      margin-bottom: $spacing-12;
+
+      @media (min-width: $breakpoint-sm) {
+        flex-direction: row;
+      }
+
+      .hero-button-primary {
+        width: 100%;
+        padding: $spacing-4 $spacing-8;
+        font-size: $font-size-base;
+        color: $white;
+        font-weight: $font-weight-bold;
+        background: linear-gradient(135deg, $indigo-600 0%, #7c3aed 100%);
+        border-radius: $radius-full;
+        box-shadow: 0 20px 25px -5px rgba(79, 70, 229, 0.1), 0 10px 10px -5px rgba(79, 70, 229, 0.04);
+        transition: all 0.3s;
+        border: none;
+        cursor: pointer;
+
+        @media (min-width: $breakpoint-sm) {
+          width: auto;
+        }
+
+        &:hover {
+          transform: translateY(-2px);
+        }
+      }
+
+      .hero-button-secondary {
+        width: 100%;
+        padding: $spacing-4 $spacing-8;
+        font-size: $font-size-base;
+        color: $indigo-600;
+        font-weight: $font-weight-bold;
+        border: 2px solid $indigo-100;
+        border-radius: $radius-full;
+        background: transparent;
+        transition: all 0.3s;
+        border: none;
+        cursor: pointer;
+
+        .dark & {
+          color: $indigo-400;
+          border-color: $indigo-800;
+        }
+
+        @media (min-width: $breakpoint-sm) {
+          width: auto;
+        }
+
+        &:hover {
+          background-color: $indigo-50;
+
+          .dark & {
+            background-color: rgba($indigo-900, 0.2);
+          }
+        }
+      }
+    }
+
+    .hero-trusted {
+      margin-top: $spacing-12;
+
+      .hero-trusted-label {
+        font-size: $font-size-xs;
+        color: $slate-400;
+        font-weight: $font-weight-semibold;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        margin-bottom: $spacing-6;
+
+        .dark & {
+          color: $slate-500;
+        }
+      }
+
+      .hero-trusted-logos {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: $spacing-6;
+        flex-wrap: wrap;
+
+        @media (min-width: $breakpoint-md) {
+          gap: $spacing-10;
+        }
+
+        @media (min-width: $breakpoint-lg) {
+          gap: $spacing-12;
+        }
+
+        .hero-logo-item {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          height: $spacing-12;
+          width: 7rem;
+
+          svg {
+            height: $spacing-10;
+            width: auto;
+          }
+        }
+      }
+    }
+  }
+}

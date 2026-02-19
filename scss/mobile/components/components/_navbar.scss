@@ -1,0 +1,194 @@
+@import '../../../variables';
+
+nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  background-color: $white;
+  border-bottom: 1px solid $slate-100;
+  transition: background-color 0.3s, border-color 0.3s;
+
+  .dark & {
+    background-color: $slate-800;
+    border-bottom-color: $slate-700;
+  }
+
+  .nav-container {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 0 $spacing-4;
+
+    @media (min-width: $breakpoint-sm) {
+      padding: 0 $spacing-6;
+    }
+
+    @media (min-width: $breakpoint-lg) {
+      padding: 0 $spacing-8;
+    }
+
+    .nav-content {
+      display: flex;
+      align-items: center;
+      height: 5rem;
+
+      .nav-logo {
+        display: flex;
+        align-items: center;
+        gap: $spacing-2;
+        cursor: pointer;
+
+        .nav-logo-text {
+          font-size: $font-size-3xl;
+          font-weight: $font-weight-bold;
+          letter-spacing: -0.025em;
+
+          .nav-logo-indigo {
+            color: $indigo-600;
+
+            .dark & {
+              color: $indigo-400;
+            }
+          }
+
+          .nav-logo-dark {
+            color: $slate-900;
+
+            .dark & {
+              color: $white;
+            }
+          }
+        }
+      }
+
+      .nav-links {
+        display: none;
+        align-items: center;
+        gap: $spacing-8;
+        flex: 1;
+        justify-content: center;
+
+        @media (min-width: $breakpoint-md) {
+          display: flex;
+        }
+
+        .nav-link {
+          font-size: $font-size-lg;
+          font-weight: $font-weight-medium;
+          transition: color 0.3s;
+          background: none;
+          border: none;
+          cursor: pointer;
+          padding: 0;
+
+          &.nav-link-active {
+            color: $indigo-600;
+
+            .dark & {
+              color: $indigo-400;
+            }
+          }
+
+          &:not(.nav-link-active) {
+            color: $slate-600;
+
+            .dark & {
+              color: $slate-300;
+            }
+
+            &:hover {
+              color: $indigo-600;
+
+              .dark & {
+                color: $indigo-400;
+              }
+            }
+          }
+        }
+      }
+
+      .nav-actions {
+        display: flex;
+        align-items: center;
+        gap: $spacing-4;
+        margin-left: auto;
+
+        .theme-toggle {
+          padding: $spacing-2_5;
+          border-radius: $radius-lg;
+          background-color: $slate-100;
+          border: 1px solid $slate-200;
+          transition: all 0.2s;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+
+          .dark & {
+            background-color: $slate-800;
+            border-color: $slate-700;
+
+            &:hover {
+              background-color: $slate-700;
+            }
+          }
+
+          &:hover {
+            background-color: $slate-200;
+          }
+
+          svg {
+            width: $spacing-5;
+            height: $spacing-5;
+          }
+        }
+
+        .nav-link-text {
+          font-size: $font-size-lg;
+          font-weight: $font-weight-medium;
+          color: $slate-600;
+          text-decoration: none;
+          transition: color 0.3s;
+
+          .dark & {
+            color: $slate-300;
+          }
+
+          &:hover {
+            color: $indigo-600;
+
+            .dark & {
+              color: $indigo-400;
+            }
+          }
+        }
+
+        .nav-button {
+          font-size: $font-size-lg;
+          font-weight: $font-weight-medium;
+          background-color: $indigo-600;
+          color: $white;
+          padding: $spacing-2_5 $spacing-6;
+          border-radius: $radius-lg;
+          text-decoration: none;
+          transition: all 0.3s;
+          border: none;
+          cursor: pointer;
+
+          .dark & {
+            background-color: $indigo-500;
+
+            &:hover {
+              background-color: $indigo-600;
+            }
+          }
+
+          &:hover {
+            background-color: $indigo-700;
+          }
+        }
+      }
+    }
+  }
+}

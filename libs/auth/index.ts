@@ -4,9 +4,6 @@ import { User } from '../../apollo/store';
 import { initializeApollo } from '../../apollo/client';
 import { LOGIN, GOOGLE_LOGIN, SIGNUP } from '../../apollo/user/mutation';
 
-/**
- * Decode JWT token and extract user information
- */
 export function decodeJWT<T = any>(token: string): T | null {
   try {
     return decode(token) as T;
@@ -16,13 +13,9 @@ export function decodeJWT<T = any>(token: string): T | null {
   }
 }
 
-/**
- * Update user info in reactive variable
- */
 export function updateUserInfo(token: string): void {
   const claims = decodeJWT(token);
   if (claims) {
-    // Map JWT claims to User interface (backend uses user* prefix)
     userVar({
       _id: claims._id || claims.userId,
       userRole: claims.userRole,
@@ -38,31 +31,22 @@ export function updateUserInfo(token: string): void {
       userDescription: claims.userDescription,
       userLanguages: claims.userLanguages,
       accessToken: token,
-      ...claims, // Include all other claims
+      ...claims,
     });
   }
 }
 
-/**
- * Get JWT token from storage
- */
 export function getJwtToken(): string | null {
   if (typeof window === 'undefined') return null;
   return localStorage.getItem('accessToken');
 }
 
-/**
- * Update storage with token
- */
 function updateStorage({ jwtToken }: { jwtToken: string }): void {
   if (typeof window !== 'undefined') {
     localStorage.setItem('accessToken', jwtToken);
   }
 }
 
-/**
- * Login with userNick and userPassword
- */
 export async function logInWithEmail(
   userNick: string,
   userPassword: string
@@ -71,8 +55,6 @@ export async function logInWithEmail(
     const { jwtToken, user } = await requestJwtToken({ userNick, userPassword });
     if (jwtToken) {
       updateStorage({ jwtToken });
-      // User is already set in requestJwtToken via userVar
-      // Also update from token for JWT claims
       updateUserInfo(jwtToken);
     }
   } catch (err) {
@@ -82,9 +64,6 @@ export async function logInWithEmail(
   }
 }
 
-/**
- * Request JWT token from server
- */
 async function requestJwtToken({
   userNick,
   userPassword,
@@ -106,7 +85,6 @@ async function requestJwtToken({
       throw new Error('No access token received');
     }
     
-    // Update user info from login response
     userVar(loginData);
     
     return { jwtToken: loginData.accessToken, user: loginData };
@@ -119,9 +97,6 @@ async function requestJwtToken({
   }
 }
 
-/**
- * Google OAuth login
- */
 export async function googleLogIn(token: string): Promise<void> {
   try {
     const apolloClient = await initializeApollo();
@@ -147,11 +122,6 @@ export async function googleLogIn(token: string): Promise<void> {
   }
 }
 
-/**
- * Sign up new user
- * Maps frontend form fields to backend UserInput format
- * userRole is set based on user's choice: 'buyer' or 'provider'
- */
 export async function signUpNew(input: {
   userNick?: string;
   fullName?: string;
@@ -162,9 +132,6 @@ export async function signUpNew(input: {
   try {
     const apolloClient = await initializeApollo();
     
-    // Map frontend input to backend SignupInput format
-    // Backend expects: { userEmail, userPassword, userNick, userRole }
-    // userRole defaults to 'BUYER' if not provided, but we always send it based on user's choice
     const userNick = input.userNick || input.fullName || '';
     const userEmail = input.email || '';
     
@@ -181,13 +148,13 @@ export async function signUpNew(input: {
       userEmail: userEmail.trim().toLowerCase(),
       userPassword: input.password,
       userNick: userNick.trim(),
-      userRole: input.memberType.toUpperCase() as 'BUYER' | 'PROVIDER', // Convert to uppercase enum: 'BUYER' or 'PROVIDER'
+      userRole: input.memberType.toUpperCase() as 'BUYER' | 'PROVIDER',
     };
     
     console.log('Sending signup request:', {
       input: {
         ...userInput,
-        userPassword: '***', // Don't log password
+        userPassword: '***',
       },
     });
     
@@ -202,10 +169,8 @@ export async function signUpNew(input: {
       throw new Error('No access token received');
     }
     
-    // Response structure: { accessToken, user: { _id, userEmail, userNick, userRole } }
     const { accessToken, user } = signupResponse;
     
-    // Update user info from signup response (user object + accessToken)
     userVar({
       ...user,
       accessToken,
@@ -219,19 +184,16 @@ export async function signUpNew(input: {
       fullError: err,
     });
 
-    // Extract detailed error message
     let errorMessage = 'Signup failed. Please try again.';
     
     if (err?.graphQLErrors && err.graphQLErrors.length > 0) {
       const graphQLError = err.graphQLErrors[0];
       errorMessage = graphQLError.message || errorMessage;
       
-      // Check for validation errors in extensions
       if (graphQLError.extensions?.exception?.message) {
         errorMessage = graphQLError.extensions.exception.message;
       }
       
-      // Check for validation errors array
       if (graphQLError.extensions?.validationErrors) {
         const validationErrors = graphQLError.extensions.validationErrors;
         errorMessage = validationErrors.map((v: any) => 
@@ -248,9 +210,6 @@ export async function signUpNew(input: {
   }
 }
 
-/**
- * Login - Save token and update user info (legacy function)
- */
 export function logIn(token: string): void {
   if (typeof window !== 'undefined') {
     updateStorage({ jwtToken: token });
@@ -258,9 +217,6 @@ export function logIn(token: string): void {
   }
 }
 
-/**
- * Sign up - Save token and update user info (legacy function)
- */
 export function signUp(token: string): void {
   if (typeof window !== 'undefined') {
     updateStorage({ jwtToken: token });
@@ -268,9 +224,6 @@ export function signUp(token: string): void {
   }
 }
 
-/**
- * Logout - Clear token and user info
- */
 export function logOut(): void {
   if (typeof window !== 'undefined') {
     localStorage.removeItem('accessToken');
@@ -278,18 +231,12 @@ export function logOut(): void {
   }
 }
 
-/**
- * Check if user is logged in
- */
 export function isLoggedIn(): boolean {
   if (typeof window === 'undefined') return false;
   const token = getJwtToken();
   return !!token;
 }
 
-/**
- * Get current user from reactive variable
- */
 export function getCurrentUser(): User | null {
   const user = userVar();
   return user?._id ? user : null;

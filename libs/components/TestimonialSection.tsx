@@ -15,7 +15,6 @@ interface FeaturedTestimonial {
   authorAvatar?: string;
 }
 
-// Fallback testimonials when backend is not available
 const fallbackTestimonials: FeaturedTestimonial[] = [
   {
     id: 'fallback-1',

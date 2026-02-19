@@ -5,11 +5,6 @@ import { CREATE_OR_UPDATE_ORGANIZATION } from '../../../apollo/user/mutation';
 import { GET_BUYER_ORGANIZATION } from '../../../apollo/user/query';
 import { getHeaders } from '../../../apollo/utils';
 
-/**
- * Buyer Organization form
- * Standalone component used on the dedicated `/organizations` page.
- * Layout and UX matches the settings pattern, but lives outside Settings.
- */
 export function BuyerOrganizationForm() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({

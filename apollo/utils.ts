@@ -1,7 +1,3 @@
-/**
- * Get headers for GraphQL requests
- * Adds JWT token from localStorage
- */
 export function getHeaders(): Record<string, string> {
   const headers: Record<string, string> = {};
 

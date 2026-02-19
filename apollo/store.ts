@@ -1,6 +1,5 @@
 import { makeVar } from '@apollo/client';
 
-// User reactive variable - matches backend schema
 export interface UserOrganization {
   _id?: string;
   orgType?: string;
@@ -33,7 +32,6 @@ export interface User {
   userEmail?: string;
   userPhone?: string;
   userNick?: string;
-  userNick?: string;
   userImage?: string;
   userOrganizationId?: string;
   userCountry?: string;
@@ -54,8 +52,4 @@ export interface User {
 }
 
 export const userVar = makeVar<User>({});
-
-// Theme reactive variable
 export const themeModeVar = makeVar<'light' | 'dark'>('light');
-
-// Add other reactive variables as needed

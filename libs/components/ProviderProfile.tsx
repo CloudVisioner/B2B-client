@@ -218,7 +218,6 @@ const ProviderProfile: React.FC<ProviderProfileProps> = ({ providerId, onBrowseS
       ? provider.caseStudies
       : fallbackCaseStudies;
 
-  // Fallback testimonials (used only when backend returns no data)
   const fallbackTestimonials: ClientTestimonial[] = [
     {
       id: 'fallback-1',

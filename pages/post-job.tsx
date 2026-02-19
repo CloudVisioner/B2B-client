@@ -5,10 +5,6 @@ import { userVar } from '../apollo/store';
 import { isLoggedIn } from '../libs/auth';
 import { Sidebar } from '../libs/components/dashboard/Sidebar';
 
-/* ═══════════════════════════════════════════════════════════
-   Category → Subcategory → Skills mapping
-   (matches backend enums in libs/types/category.enum.ts)
-   ═══════════════════════════════════════════════════════════ */
 interface CategoryData {
   icon: string;
   color: string;

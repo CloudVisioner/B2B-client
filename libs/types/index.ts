@@ -16,9 +16,6 @@ export interface CaseStudy {
   image: string;
 }
 
-// ============================================
-// Backend Provider Types (from GraphQL)
-// ============================================
 
 export interface BackendProviderListItem {
   _id: string;
@@ -33,8 +30,8 @@ export interface BackendProviderListItem {
   orgCity: string;
   location: string;
   flag: string;
-      categoryId: string | string[]; // Can be single string or array - provider can belong to multiple categories
-      subCategory: string | string[]; // Can be single string or array of subcategories
+      categoryId: string | string[];
+      subCategory: string | string[];
   serviceTitle: string;
   avatar: string;
   badges: string[];
@@ -43,7 +40,7 @@ export interface BackendProviderListItem {
   orgLogoImages: string[];
   orgTotalLikes: number;
   orgTotalViews: number;
-  industries?: string[] | null; // May be null, undefined, or non-array from backend
+  industries?: string[] | null;
   createdAt: string;
 }
 
@@ -53,9 +50,9 @@ export interface BackendProviderDetail extends BackendProviderListItem {
   establishmentYear: number;
   teamSize: number;
   orgWebsiteUrl: string;
-  orgSkills?: string[] | null; // May be null, undefined, or non-array from backend
-  email?: string; // Only shown if logged in
-  phone?: string; // Only shown if logged in
+  orgSkills?: string[] | null;
+  email?: string;
+  phone?: string;
   linkedIn?: string;
   twitter?: string;
   github?: string;
@@ -75,33 +72,29 @@ export interface ProviderListResponse {
   };
 }
 
-// ============================================
-// Frontend Provider Types (for UI components)
-// ============================================
 
 export interface Provider {
-  id: string; // MongoDB ObjectId (e.g., "69864f6efcf99b93d1eca978")
-      categoryId: CategoryId | CategoryId[]; // Can be single CategoryId or array - provider can belong to multiple categories
-      subCategory: string | string[]; // Can be single string or array of subcategories
-  serviceTitle: string; // The primary service they offer in marketplace
-  name: string; // Provider/Company name (mapped from orgName)
-  description: string; // Mapped from orgDescription
+  id: string;
+      categoryId: CategoryId | CategoryId[];
+      subCategory: string | string[];
+  serviceTitle: string;
+  name: string;
+  description: string;
   bio: string;
-  icon: any; // For UI icons (not from backend)
-  avatar: string; // Mapped from orgLogoImages[0] or avatar
-  badges: string[]; // Mapped from orgVerified and other fields
-  rating: number; // Mapped from orgAverageRating
+  icon: any;
+  avatar: string;
+  badges: string[];
+  rating: number;
   reviewsCount: number;
-  projectsCompleted: number; // Mapped from orgTotalProjects
-  responseTime: string; // Mapped from orgResponseTimeAvg
-  startingRate: number; // in USD
-  location: string; // Mapped from orgCountry or location
-  city?: string; // Mapped from orgCity
+  projectsCompleted: number;
+  responseTime: string;
+  startingRate: number;
+  location: string;
+  city?: string;
   flag: string;
-  expertise: string[]; // Mapped from orgSkills or industries
-  caseStudies: CaseStudy[]; // Not in backend yet, keep for UI
+  expertise: string[];
+  caseStudies: CaseStudy[];
   color: string;
-  // Additional fields from backend
   establishmentYear?: number;
   teamSize?: number;
   industries?: string[];
@@ -147,9 +140,6 @@ export interface Testimonial {
   avatar: string;
 }
 
-// ============================================
-// Backend Testimonial Types (from GraphQL)
-// ============================================
 
 export interface BackendTestimonial {
   _id: string;
@@ -172,9 +162,6 @@ export interface TestimonialListResponse {
   };
 }
 
-// ============================================
-// Backend Portfolio Types (from GraphQL)
-// ============================================
 
 export interface PortfolioMetric {
   label: string;
@@ -200,9 +187,6 @@ export interface BackendPortfolio {
   createdAt: string;
 }
 
-// ============================================
-// Landing Page Statistics Types
-// ============================================
 
 export interface LandingStatistics {
   totalProviders: number;
@@ -215,9 +199,6 @@ export interface LandingStatistics {
   platformEstablishedYear: number;
 }
 
-// ============================================
-// Frontend Testimonial & Portfolio Types (for UI)
-// ============================================
 
 export interface ClientTestimonial {
   id: string;
