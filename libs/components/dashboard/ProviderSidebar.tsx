@@ -7,7 +7,7 @@ import { logOut } from '../../auth';
 
 const NAV_ITEMS = [
   { icon: 'dashboard', label: 'Dashboard', href: '/provider/dashboard' },
-  { icon: 'work', label: 'New Job Posts', href: '/provider/jobs' },
+  { icon: 'work', label: 'Find Jobs', href: '/provider/jobs' },
   { icon: 'corporate_fare', label: 'Organizations', href: '/provider/organizations' },
   { icon: 'settings', label: 'Settings', href: '/provider/settings' },
 ];

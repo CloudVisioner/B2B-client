@@ -8,24 +8,13 @@ export const LOGIN = gql`
   mutation Login($input: LoginInput!) {
     login(input: $input) {
       _id
+      userNick
+      userEmail
       userRole
       userStatus
       userAuthType
-      userEmail
-      userPhone
-      userNick
-      userImage
-      userOrganizationId
-      userCountry
-      userCity
-      userDescription
-      userLanguages
-      userTotalServiceRequests
-      userTotalQuotes
-      deletedAt
-      createdAt
-      updatedAt
       accessToken
+      createdAt
     }
   }
 `;
@@ -49,9 +38,21 @@ export const SIGNUP = gql`
       accessToken
       user {
         _id
-        userEmail
         userNick
+        userEmail
         userRole
+        userStatus
+        userAuthType
+        createdAt
+        userOrganization {
+          _id
+          organizationName
+          organizationIndustry
+          organizationLocation
+          organizationDescription
+          organizationWebsiteUrl
+          organizationImage
+        }
       }
     }
   }
@@ -136,51 +137,84 @@ export const CREATE_COMMENT = gql`
 `;
 
 // ============================================
-// ORGANIZATION MUTATIONS (Buyer)
+// USER PROFILE MUTATIONS
 // ============================================
 
 /**
- * Create or Update Buyer Organization
- * Creates a new organization or updates existing one for the logged-in buyer
- * Note: Backend expects orgIndustry and orgDescription in input, returns same fields
+ * Update My Profile
+ * Updates the current user's profile information
+ * Requires authentication - backend uses auth token to identify user
  */
-export const CREATE_OR_UPDATE_ORGANIZATION = gql`
-  mutation CreateOrUpdateBuyerOrganization($input: BuyerOrganizationInput!) {
-    createOrUpdateBuyerOrganization(input: $input) {
+export const UPDATE_MY_PROFILE = gql`
+  mutation UpdateMyProfile($input: UserUpdate!) {
+    updateUser(input: $input) {
       _id
-      orgName
-      orgIndustry
-      location
-      orgDescription
-      orgWebsiteUrl
-      orgLogoImages
-      orgVerified
-      createdAt
+      userNick
+      userEmail
+      userPhone
+      userImage
+      userDescription
       updatedAt
+      accessToken
     }
   }
 `;
 
 /**
- * Get Buyer Organization
- * Fetches the organization details for the logged-in buyer
- * Note: Backend returns orgIndustry and orgDescription
+ * Change My Password
+ * Changes the current user's password
+ * Requires current password for verification
  */
-export const GET_BUYER_ORGANIZATION = gql`
-  query GetBuyerOrganization {
-    getBuyerOrganization {
-      _id
-      orgName
-      orgIndustry
-      location
-      orgDescription
-      orgWebsiteUrl
-      orgLogoImages
-      orgVerified
-      createdAt
-      updatedAt
-    }
+export const CHANGE_MY_PASSWORD = gql`
+  mutation ChangeMyPassword($input: ChangePasswordInput!) {
+    changeMyPassword(input: $input)
   }
+`;
+
+/**
+ * Upload Profile Image
+ * Uploads a profile image for the current user
+ */
+export const UPLOAD_PROFILE_IMAGE = gql`
+  mutation UploadProfileImage($file: Upload!, $target: String!) {
+    imageUploader(file: $file, target: $target)
+  }
+`;
+
+// ============================================
+// ORGANIZATION MUTATIONS (Buyer)
+// ============================================
+
+export const CREATE_ORGANIZATION = gql`
+mutation CreateOrUpdateBuyerOrganization($input: BuyerOrganizationInput!) {
+  createOrUpdateBuyerOrganization(input: $input) {
+    _id
+    organizationName
+    organizationIndustry
+    organizationLocation
+    organizationDescription
+    organizationImage
+    budgetRange
+    createdAt
+    updatedAt
+  }
+}
+`;
+
+export const UPDATE_ORGANIZATION = gql`
+ mutation UpdateOrganization($input: OrganizationUpdate!) {
+  updateOrganization(input: $input) {
+    _id
+    organizationName
+    organizationIndustry
+    organizationLocation
+    organizationDescription
+    organizationImage
+    budgetRange
+    createdAt
+    updatedAt
+  }
+}
 `;
 
 // ============================================
@@ -190,23 +224,22 @@ export const GET_BUYER_ORGANIZATION = gql`
 /**
  * Create Service Request (Post New Job)
  * Creates a new service request/job posting
+ * Uses backend field names: reqTitle, reqDescription, reqBuyerOrgId, etc.
  */
 export const CREATE_SERVICE_REQUEST = gql`
   mutation CreateServiceRequest($input: ServiceRequestInput!) {
     createServiceRequest(input: $input) {
       _id
-      title
-      description
-      category
-      subCategory
-      budgetMin
-      budgetMax
-      deadline
-      urgency
-      skills
-      status
-      organizationId
-      buyerId
+      reqTitle
+      reqDescription
+      reqBuyerOrgId
+      reqCategory
+      reqSubCategory
+      reqBudgetRange
+      reqDeadline
+      reqUrgency
+      reqSkillsNeeded
+      reqStatus
       createdAt
       updatedAt
     }

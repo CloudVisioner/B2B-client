@@ -69,7 +69,7 @@ export function mapBackendProviderDetail(backend: BackendProviderDetail): Provid
     ...base,
     bio: backend.bio || backend.orgDescription,
     establishmentYear: backend.establishmentYear,
-    teamSize: backend.orgTeamSize || backend.teamSize,
+    teamSize: backend.teamSize,
     minProjectSize: backend.minProjectSize,
     orgWebsiteUrl: backend.orgWebsiteUrl,
     expertise: orgSkillsArray.length > 0 ? orgSkillsArray : industriesArray,

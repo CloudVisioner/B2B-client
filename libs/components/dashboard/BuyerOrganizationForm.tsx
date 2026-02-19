@@ -1,12 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery } from '@apollo/client';
 import { isLoggedIn, getJwtToken } from '../../auth';
-import { CREATE_OR_UPDATE_ORGANIZATION } from '../../../apollo/user/mutation';
+import { CREATE_ORGANIZATION, UPDATE_ORGANIZATION } from '../../../apollo/user/mutation';
 import { GET_BUYER_ORGANIZATION } from '../../../apollo/user/query';
 import { getHeaders } from '../../../apollo/utils';
 
 export function BuyerOrganizationForm() {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasRefetchedOnMountRef = useRef(false);
+  const hasInitializedEditModeRef = useRef(false);
   const [formData, setFormData] = useState({
     orgName: '',
     industry: '',
@@ -21,91 +24,137 @@ export function BuyerOrganizationForm() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
 
+  useEffect(() => {
+    return () => {
+      if (successTimeoutRef.current) {
+        clearTimeout(successTimeoutRef.current);
+        successTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
   // Fetch existing organization data
   const { data: orgData, loading: orgLoading, refetch } = useQuery(GET_BUYER_ORGANIZATION, {
     skip: !isLoggedIn(),
-    fetchPolicy: 'cache-and-network',
+    fetchPolicy: 'network-only',
     errorPolicy: 'all',
+    notifyOnNetworkStatusChange: true,
     context: {
       headers: isLoggedIn() ? getHeaders() : {},
     },
   });
 
-  // Sync form data with backend when organization data changes (only when not in edit mode)
+  // Refetch on mount to ensure fresh data
   useEffect(() => {
-    if (orgData?.getBuyerOrganization && !isEditMode && !logoFile) {
+    if (isLoggedIn() && !hasRefetchedOnMountRef.current) {
+      hasRefetchedOnMountRef.current = true;
+      refetch().catch(console.error);
+    }
+  }, [refetch]);
+
+  useEffect(() => {
+    if (orgData?.getBuyerOrganization) {
       const org = orgData.getBuyerOrganization;
-      const logoUrl = org.orgLogoImages && org.orgLogoImages.length > 0 ? org.orgLogoImages[0] : '';
+      const logoUrl = org.organizationImage && org.organizationImage.length > 0 
+        ? org.organizationImage[0] 
+        : '';
 
-      setFormData({
-        orgName: org.orgName || '',
-        industry: org.orgIndustry || '',
-        location: org.location || '',
-        description: org.orgDescription || '',
-        logoUrl: logoUrl,
-      });
+      // Only update form data if not in edit mode (to avoid overwriting user input while editing)
+      if (!isEditMode) {
+        setFormData({
+          orgName: org.organizationName || '',
+          industry: org.organizationIndustry || '',
+          location: org.organizationLocation || '',
+          description: org.organizationDescription || '',
+          logoUrl: logoUrl,
+        });
+      }
 
-      if (logoUrl) {
+      // Always update logo preview if we have a logo URL and no file is being uploaded
+      if (logoUrl && !logoFile) {
         setLogoPreview((prev) => {
           if (prev && prev.startsWith('blob:')) {
             URL.revokeObjectURL(prev);
           }
           return logoUrl;
         });
-      } else {
+      } else if (!logoUrl && !logoFile) {
         setLogoPreview((prev) => {
-          if (prev && !prev.startsWith('blob:')) {
-            return '';
+          if (prev && prev.startsWith('blob:')) {
+            URL.revokeObjectURL(prev);
           }
-          return prev;
+          return '';
         });
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgData?.getBuyerOrganization?._id, isEditMode, logoFile]);
+  }, [orgData, isEditMode, logoFile]);
 
   const organizationExists = orgData?.getBuyerOrganization?._id;
 
-  // Auto-enable edit mode if organization doesn't exist yet
+  // Auto-enable/disable edit mode on initial load only
   useEffect(() => {
-    if (!organizationExists && !isEditMode) {
+    if (hasInitializedEditModeRef.current) return; // Don't interfere after user interactions
+    
+    if (organizationExists) {
+      // Organization exists, disable edit mode to show data
+      setIsEditMode(false);
+      hasInitializedEditModeRef.current = true;
+    } else if (!organizationExists && orgData !== undefined) {
+      // Organization doesn't exist and we've confirmed no data, enable edit mode for creation
       setIsEditMode(true);
+      hasInitializedEditModeRef.current = true;
     }
-  }, [organizationExists, isEditMode]);
+  }, [organizationExists, orgData]);
 
-  // Create/Update organization mutation
-  const [createOrUpdateOrg, { loading: isSaving }] = useMutation(CREATE_OR_UPDATE_ORGANIZATION, {
+  const [createOrg, { loading: isCreating }] = useMutation(CREATE_ORGANIZATION, {
     context: {
       headers: isLoggedIn() ? getHeaders() : {},
     },
-    onCompleted: (data) => {
+    onCompleted: async (data) => {
       setIsSaved(true);
       setShowSuccessMessage(true);
       setIsEditMode(false);
-
-      if (data?.createOrUpdateBuyerOrganization?.orgLogoImages?.length > 0) {
-        const savedLogoUrl = data.createOrUpdateBuyerOrganization.orgLogoImages[0];
-        if (logoPreview && logoPreview.startsWith('blob:')) {
-          URL.revokeObjectURL(logoPreview);
-        }
-        setLogoPreview(savedLogoUrl);
-        setFormData((prev) => ({ ...prev, logoUrl: savedLogoUrl }));
-      }
-
       setLogoFile(null);
 
-      setTimeout(() => {
+      await refetch();
+
+      if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current);
+      successTimeoutRef.current = setTimeout(() => {
         setIsSaved(false);
         setShowSuccessMessage(false);
       }, 3000);
-
-      refetch();
     },
     onError: (error) => {
-      console.error('Error saving organization:', error);
-      alert('Failed to save organization. Please try again.');
+      console.error('Error creating organization:', error);
+      alert('Failed to create organization. Please try again.');
     },
   });
+
+  const [updateOrg, { loading: isUpdating }] = useMutation(UPDATE_ORGANIZATION, {
+    context: {
+      headers: isLoggedIn() ? getHeaders() : {},
+    },
+    onCompleted: async (data) => {
+      setIsSaved(true);
+      setShowSuccessMessage(true);
+      setIsEditMode(false);
+      setLogoFile(null);
+
+      await refetch();
+
+      if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current);
+      successTimeoutRef.current = setTimeout(() => {
+        setIsSaved(false);
+        setShowSuccessMessage(false);
+      }, 3000);
+    },
+    onError: (error) => {
+      console.error('Error updating organization:', error);
+      alert('Failed to update organization. Please try again.');
+    },
+  });
+
+  const isSaving = isCreating || isUpdating;
 
   const handleInputChange = (field: string, value: string) => {
     if (!isEditMode) return;
@@ -116,12 +165,14 @@ export function BuyerOrganizationForm() {
   const handleEditToggle = () => {
     if (isEditMode && orgData?.getBuyerOrganization) {
       const org = orgData.getBuyerOrganization;
-      const logoUrl = org.orgLogoImages && org.orgLogoImages.length > 0 ? org.orgLogoImages[0] : '';
+      const logoUrl = org.organizationImage && org.organizationImage.length > 0 
+        ? org.organizationImage[0] 
+        : '';
       setFormData({
-        orgName: org.orgName || '',
-        industry: org.orgIndustry || '',
-        location: org.location || '',
-        description: org.orgDescription || '',
+        orgName: org.organizationName || '',
+        industry: org.organizationIndustry || '',
+        location: org.organizationLocation || '',
+        description: org.organizationDescription || '',
         logoUrl: logoUrl,
       });
       if (logoPreview && logoPreview.startsWith('blob:')) {
@@ -164,17 +215,44 @@ export function BuyerOrganizationForm() {
         }
       }
 
-      await createOrUpdateOrg({
-        variables: {
-          input: {
-            orgName: formData.orgName.trim(),
-            orgIndustry: formData.industry,
-            location: formData.location.trim(),
-            orgDescription: formData.description.trim(),
-            orgLogoImages: logoUrl ? [logoUrl] : [],
+      if (organizationExists) {
+        const updateInput: any = {
+          orgId: orgData.getBuyerOrganization._id,
+          organizationName: formData.orgName.trim(),
+          organizationIndustry: formData.industry,
+          organizationLocation: formData.location.trim(),
+          organizationDescription: formData.description.trim(),
+        };
+
+        if (logoUrl) {
+          updateInput.organizationImage = [logoUrl];
+        }
+
+        await updateOrg({
+          variables: {
+            input: updateInput,
           },
-        },
-      });
+        });
+      } else {
+        const createInput: any = {
+          organizationName: formData.orgName.trim(),
+          organizationIndustry: formData.industry,
+          organizationLocation: formData.location.trim(),
+          organizationDescription: formData.description.trim(),
+          orgOwnerUserId: null,
+          deletedAt: null,
+        };
+
+        if (logoUrl) {
+          createInput.organizationImage = [logoUrl];
+        }
+
+        await createOrg({
+          variables: {
+            input: createInput,
+          },
+        });
+      }
     } catch {
       // handled in onError
     }
@@ -431,12 +509,12 @@ export function BuyerOrganizationForm() {
                 Company Description <span className="text-red-400">*</span>
               </label>
               <textarea
-                rows={8}
+                rows={12}
                 value={formData.description}
                 onChange={(e) => handleInputChange('description', e.target.value)}
                 placeholder="Provide a detailed description of your organization, including what you do, your mission, values, and any other relevant information that would help service providers understand your business..."
                 disabled={!isEditMode}
-                className="w-full border border-slate-200 rounded-lg px-4 py-3.5 text-sm font-medium text-slate-900 focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50 resize-y min-h-[200px] disabled:bg-white disabled:cursor-not-allowed disabled:text-slate-600"
+                className="w-full border border-slate-200 rounded-lg px-4 py-3.5 text-sm font-medium text-slate-900 focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50 resize-y min-h-[300px] disabled:bg-white disabled:cursor-not-allowed disabled:text-slate-600"
               />
               <p className="text-xs text-slate-400 mt-1.5 text-right">
                 {formData.description.length} / 2000 characters

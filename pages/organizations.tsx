@@ -1,23 +1,43 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/router';
-import { useReactiveVar } from '@apollo/client';
+import { useReactiveVar, useQuery } from '@apollo/client';
 import { userVar } from '../apollo/store';
 import { isLoggedIn } from '../libs/auth';
+import { getHeaders } from '../apollo/utils';
 import { Sidebar } from '../libs/components/dashboard/Sidebar';
 import { Header } from '../libs/components/dashboard/Header';
 import { BuyerOrganizationForm } from '../libs/components/dashboard/BuyerOrganizationForm';
+import { GET_BUYER_ORGANIZATION } from '../apollo/user/query';
 
 export default function BuyerOrganizationsPage() {
   const router = useRouter();
   const currentUser = useReactiveVar(userVar);
   const [mounted, setMounted] = useState(false);
+  const hasRefetchedRef = useRef(false);
+
+  // Force refetch organization data when page mounts
+  const { refetch } = useQuery(GET_BUYER_ORGANIZATION, {
+    skip: !isLoggedIn() || !mounted,
+    fetchPolicy: 'network-only',
+    errorPolicy: 'all',
+    context: {
+      headers: isLoggedIn() ? getHeaders() : {},
+    },
+  });
 
   useEffect(() => {
     setMounted(true);
     if (!isLoggedIn()) {
       router.push('/login');
+      return;
     }
-  }, [router]);
+    
+    // Refetch organization data when page loads to ensure fresh data
+    if (mounted && !hasRefetchedRef.current) {
+      hasRefetchedRef.current = true;
+      refetch().catch(console.error);
+    }
+  }, [router, mounted, refetch]);
 
   if (!mounted) {
     return (
@@ -75,12 +95,8 @@ export default function BuyerOrganizationsPage() {
                 {userName}
               </span>
             </div>
-          </div>
-        </main>
-        {/* Footer */}
-        <div className="border-t border-[var(--border)] bg-white px-8 py-6">
-          <div className="max-w-5xl mx-auto">
-            <div className="flex flex-wrap items-center gap-4 pt-4 border-t border-[var(--border)]">
+
+            <div className="flex flex-wrap items-center gap-4 pt-8 border-t border-[var(--border)]">
               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mr-4">Management</p>
               <button
                 onClick={() => router.push('/marketplace')}
@@ -101,11 +117,11 @@ export default function BuyerOrganizationsPage() {
                 Help & Support
               </button>
             </div>
-            <div className="pt-4 mt-4 border-t border-[var(--border)]">
-              <p className="text-xs text-slate-400 font-medium">© 2024 SME Connect. Enterprise Buyer Protocol v2.4.1</p>
+            <div className="pb-8">
+              <p className="text-xs text-slate-400 font-medium">© 2026 SME Marketplace Provider v2.1</p>
             </div>
           </div>
-        </div>
+        </main>
       </div>
     </div>
   );

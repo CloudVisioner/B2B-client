@@ -74,9 +74,6 @@ const Navbar: React.FC<NavbarProps> = ({ currentPage }) => {
             <Link href="/marketplace" className={linkClass('marketplace')}>
               Marketplace
             </Link>
-            <Link href="/find-jobs" className={linkClass('marketplace')}>
-              Find Jobs
-            </Link>
             <Link href="/results" className={linkClass('results')}>
               Results
             </Link>
@@ -102,7 +99,7 @@ const Navbar: React.FC<NavbarProps> = ({ currentPage }) => {
                 className="bg-indigo-600 hover:bg-indigo-700 text-white text-base font-bold px-6 py-2.5 rounded-lg shadow-sm transition-all flex items-center gap-2"
               >
                 <span className="material-symbols-outlined text-lg" aria-hidden="true">dashboard</span>
-                <span>Dashboard</span>
+                <span>Go to Dashboard</span>
               </Link>
             ) : (
               <>

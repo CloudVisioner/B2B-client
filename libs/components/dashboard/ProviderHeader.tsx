@@ -27,7 +27,7 @@ export const ProviderHeader: React.FC<ProviderHeaderProps> = ({ title }) => {
 
   const organization = orgData?.getBuyerOrganization;
   const displayTitle = title || (organization
-    ? `Welcome back, ${userName}! • ${organization.orgName}`
+    ? `Welcome back, ${userName}! • ${organization.organizationName}`
     : `Welcome back, ${userName}!`);
 
   const getInitials = (name: string) => {
@@ -48,7 +48,7 @@ export const ProviderHeader: React.FC<ProviderHeaderProps> = ({ title }) => {
           </h1>
           {organization && !title && (
             <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-              {organization.orgIndustry ? `${organization.orgIndustry}` : 'Provider Organization'}
+              {organization.organizationIndustry ? `${organization.organizationIndustry}` : 'Provider Organization'}
             </p>
           )}
         </div>

@@ -1,9 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { useQuery } from '@apollo/client';
-import { Star, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
-import { GET_FEATURED_TESTIMONIALS } from '../../apollo/user/query';
-import { BackendTestimonial } from '../types/index';
+import { Star, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface FeaturedTestimonial {
   id: string;
@@ -48,28 +45,8 @@ const fallbackTestimonials: FeaturedTestimonial[] = [
 const TestimonialSection: React.FC = () => {
   const [activeIndex, setActiveIndex] = useState(0);
 
-  // Fetch featured testimonials from backend
-  const { data, loading } = useQuery(GET_FEATURED_TESTIMONIALS, {
-    variables: { limit: 10 },
-    fetchPolicy: 'cache-and-network',
-    errorPolicy: 'all',
-  });
-
-  // Map backend data to frontend format
-  const dynamicTestimonials: FeaturedTestimonial[] = (data?.getFeaturedTestimonials || []).map(
-    (t: BackendTestimonial) => ({
-      id: t._id,
-      text: t.text,
-      rating: t.rating,
-      authorName: t.authorName,
-      authorRole: t.authorRole,
-      authorCompany: t.authorCompany,
-      authorAvatar: t.authorAvatar,
-    })
-  );
-
-  // Use dynamic testimonials from backend, fallback to static data
-  const testimonials = dynamicTestimonials.length > 0 ? dynamicTestimonials : fallbackTestimonials;
+  // Use static fallback testimonials (backend query not available)
+  const testimonials = fallbackTestimonials;
 
   const currentTestimonial = testimonials[activeIndex] || testimonials[0];
 
@@ -96,12 +73,6 @@ const TestimonialSection: React.FC = () => {
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/10 blur-3xl rounded-full"></div>
 
         <div className="relative z-10">
-          {loading && (
-            <div className="flex justify-center mb-4">
-              <Loader2 className="w-5 h-5 animate-spin text-indigo-400" />
-            </div>
-          )}
-
           <div className="flex justify-center gap-1 mb-10">
             {[...Array(currentTestimonial.rating || 5)].map((_, i) => (
               <Star key={i} className="w-6 h-6 fill-yellow-400 text-yellow-400" />

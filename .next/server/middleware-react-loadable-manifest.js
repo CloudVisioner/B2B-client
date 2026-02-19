@@ -1,1 +1,1 @@
-self.__REACT_LOADABLE_MANIFEST="{}"
+self.__REACT_LOADABLE_MANIFEST="{\"libs/auth/index.ts -> ../../apollo/client\":{\"id\":\"libs/auth/index.ts -> ../../apollo/client\",\"files\":[]}}"

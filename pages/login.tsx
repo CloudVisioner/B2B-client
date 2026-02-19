@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { CheckCircle } from 'lucide-react';
 import { useReactiveVar } from '@apollo/client';
 import { userVar } from '../apollo/store';
-import { logInWithEmail, googleLogIn } from '../libs/auth';
+import { logInWithEmail, googleLogIn, normalizeRole, isValidRole } from '../libs/auth';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -40,39 +40,36 @@ export default function LoginPage() {
     try {
       await logInWithEmail(formData.userNick, formData.userPassword);
 
-      // Wait a moment for userVar to update from JWT
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, 200));
 
-      // Get the authenticated user (decoded from JWT)
       const actualUser = userVar();
-      const tokenRoleRaw = actualUser?.userRole as string | undefined;
-      const tokenRole = tokenRoleRaw ? tokenRoleRaw.toUpperCase() : '';
-      const expectedRole = selectedRole.toUpperCase(); // 'BUYER' or 'PROVIDER'
+      const tokenRole = normalizeRole(actualUser?.userRole);
+      const expectedRole = normalizeRole(selectedRole);
 
-      if (!tokenRole) {
-        setError('Unable to determine your account role from the server.');
+      if (!tokenRole || !isValidRole(tokenRole)) {
+        setError('Unable to determine your account role. Please try again.');
+        setLoading(false);
         return;
       }
 
-      // If the user selected a different role than what the JWT says, block redirect
       if (tokenRole !== expectedRole) {
-        const actualLabel = tokenRole === 'PROVIDER' ? 'provider' : 'buyer';
+        const actualLabel = tokenRole === 'PROVIDER' ? 'Provider' : 'Buyer';
         setError(
-          `This account is registered as a ${actualLabel}. Please choose "${actualLabel}" above or use a different account.`
+          `This account is registered as a ${actualLabel}. Please select "${actualLabel}" above to log in, or use a different account.`
         );
+        setLoading(false);
         return;
       }
 
-      // Redirect strictly based on authenticated JWT role
       if (tokenRole === 'PROVIDER') {
         router.push('/provider/dashboard');
       } else {
         router.push('/dashboard');
       }
     } catch (err: any) {
-      setError(err.message || 'Login failed. Please check your credentials.');
+      const errorMessage = err?.message || 'Login failed. Please check your credentials.';
+      setError(errorMessage);
       console.error('Login error:', err);
-    } finally {
       setLoading(false);
     }
   };

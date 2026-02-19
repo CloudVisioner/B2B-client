@@ -28,7 +28,7 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
 
   const organization = orgData?.getBuyerOrganization;
   const displaySubtitle = subtitle || (organization 
-    ? `Active Organization: ${organization.orgName}${organization.orgIndustry ? ` • ${organization.orgIndustry}` : ''}`
+    ? `Active Organization: ${organization.organizationName}${organization.organizationIndustry ? ` • ${organization.organizationIndustry}` : ''}`
     : 'Create your organization in Settings');
 
   return (

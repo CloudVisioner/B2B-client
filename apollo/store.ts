@@ -34,8 +34,6 @@ export interface User {
   userNick?: string;
   userImage?: string;
   userOrganizationId?: string;
-  userCountry?: string;
-  userCity?: string;
   userDescription?: string;
   userLanguages?: string[];
   userTotalServiceRequests?: number;

@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { useReactiveVar } from '@apollo/client';
+import { useReactiveVar, useMutation, useQuery } from '@apollo/client';
 import { userVar } from '../apollo/store';
 import { isLoggedIn } from '../libs/auth';
+import { getHeaders } from '../apollo/utils';
 import { Sidebar } from '../libs/components/dashboard/Sidebar';
+import { CREATE_SERVICE_REQUEST } from '../apollo/user/mutation';
+import { GET_BUYER_ORGANIZATION } from '../apollo/user/query';
 
 interface CategoryData {
   icon: string;
@@ -61,21 +64,14 @@ const CATEGORY_MAP: Record<string, CategoryData> = {
 
 const CATEGORY_NAMES = Object.keys(CATEGORY_MAP);
 
-const ORGANIZATIONS = [
-  { id: '1', name: 'Acme Corp', icon: 'AC' },
-  { id: '2', name: 'Acme Web Studio', icon: 'AW' },
-];
-
 /* ═══════════════════════════════════════════════════════════
    Form state
    ═══════════════════════════════════════════════════════════ */
 interface FormData {
-  organization: string;
   title: string;
   category: string;
   subcategory: string;
-  budgetMin: string;
-  budgetMax: string;
+  budgetRange: string;
   deadline: string;
   description: string;
   attachments: string[];
@@ -84,12 +80,10 @@ interface FormData {
 }
 
 const INITIAL: FormData = {
-  organization: '1',
   title: '',
   category: '',
   subcategory: '',
-  budgetMin: '',
-  budgetMax: '',
+  budgetRange: '',
   deadline: '',
   description: '',
   attachments: [],
@@ -100,8 +94,16 @@ const INITIAL: FormData = {
 /* ═══════════════════════════════════════════════════════════
    Preview Card
    ═══════════════════════════════════════════════════════════ */
-function PreviewCard({ form }: { form: FormData }) {
-  const org = ORGANIZATIONS.find((o) => o.id === form.organization);
+function PreviewCard({ form, userOrganization }: { form: FormData; userOrganization?: { _id?: string; organizationName?: string; organizationImage?: string[] } | null }) {
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map((word) => word[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
   return (
     <div className="bg-white border border-slate-200 rounded-xl overflow-hidden min-w-0">
       <div className="px-6 py-4 bg-slate-50 border-b border-slate-100">
@@ -109,12 +111,20 @@ function PreviewCard({ form }: { form: FormData }) {
       </div>
       <div className="p-6 space-y-4 overflow-hidden">
         {/* Org badge */}
-        {org && (
+        {userOrganization && (
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded bg-indigo-100 flex items-center justify-center">
-              <span className="text-[9px] font-bold text-indigo-700">{org.icon}</span>
-            </div>
-            <span className="text-xs font-semibold text-slate-500">{org.name}</span>
+            {userOrganization.organizationImage && userOrganization.organizationImage.length > 0 ? (
+              <div className="w-6 h-6 rounded bg-indigo-100 flex items-center justify-center overflow-hidden">
+                <img src={userOrganization.organizationImage[0]} alt={userOrganization.organizationName || 'Organization'} className="w-full h-full object-cover" />
+              </div>
+            ) : (
+              <div className="w-6 h-6 rounded bg-indigo-100 flex items-center justify-center">
+                <span className="text-[9px] font-bold text-indigo-700">
+                  {getInitials(userOrganization.organizationName || 'Organization')}
+                </span>
+              </div>
+            )}
+            <span className="text-xs font-semibold text-slate-500">{userOrganization.organizationName || 'Organization'}</span>
           </div>
         )}
 
@@ -148,9 +158,7 @@ function PreviewCard({ form }: { form: FormData }) {
             <div>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Budget</p>
               <p className="text-sm font-bold text-slate-700">
-                {form.budgetMin || form.budgetMax
-                  ? `$${form.budgetMin || '0'} – $${form.budgetMax || '∞'}`
-                  : <span className="text-slate-300">Not set</span>}
+                {form.budgetRange || <span className="text-slate-300">Not set</span>}
               </p>
             </div>
           </div>
@@ -195,6 +203,35 @@ export default function PostJobPage() {
   const [form, setForm] = useState<FormData>(INITIAL);
   const [skillInput, setSkillInput] = useState('');
   const [step, setStep] = useState<1 | 2>(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Fetch organization data from backend
+  const { data: orgData, loading: orgLoading } = useQuery(GET_BUYER_ORGANIZATION, {
+    skip: !isLoggedIn(),
+    fetchPolicy: 'network-only',
+    errorPolicy: 'all',
+    context: {
+      headers: isLoggedIn() ? getHeaders() : {},
+    },
+  });
+
+  const userOrganization = orgData?.getBuyerOrganization;
+  const organizationId = userOrganization?._id;
+
+  const [createServiceRequest] = useMutation(CREATE_SERVICE_REQUEST, {
+    context: {
+      headers: isLoggedIn() ? getHeaders() : {},
+    },
+    onCompleted: (data) => {
+      setIsSubmitting(false);
+      router.push('/service-requests');
+    },
+    onError: (error) => {
+      setIsSubmitting(false);
+      console.error('Error creating service request:', error);
+      alert(`Failed to create service request: ${error.message || 'Please try again'}`);
+    },
+  });
 
   useEffect(() => {
     setMounted(true);
@@ -224,8 +261,92 @@ export default function PostJobPage() {
 
   const removeSkill = (skill: string) => update('skills', form.skills.filter((s) => s !== skill));
 
-  const filledFields = [form.title, form.category, form.budgetMin, form.deadline, form.description].filter(Boolean).length;
+  const filledFields = [form.title, form.category, form.budgetRange, form.deadline, form.description].filter(Boolean).length;
   const progressPct = Math.round((filledFields / 5) * 100);
+
+  // Map urgency from form to backend format
+  const mapUrgency = (urgency: string): string => {
+    switch (urgency.toLowerCase()) {
+      case 'urgent': return 'URGENT';
+      case 'critical': return 'CRITICAL';
+      default: return 'NORMAL';
+    }
+  };
+
+  // Map category name to backend enum format
+  const mapCategory = (category: string): string => {
+    const categoryMap: Record<string, string> = {
+      'IT & Software': 'IT_AND_SOFTWARE',
+      'Business Services': 'BUSINESS_SERVICES',
+      'Marketing & Sales': 'MARKETING_AND_SALES',
+      'Design & Creative': 'DESIGN_AND_CREATIVE',
+    };
+    return categoryMap[category] || category.toUpperCase().replace(/\s+/g, '_');
+  };
+
+  // Map subcategory name to backend enum format
+  const mapSubCategory = (subcategory: string): string => {
+    return subcategory.toUpperCase().replace(/\s+/g, '_').replace(/&/g, 'AND');
+  };
+
+  const handleSubmit = async (status: 'DRAFT' | 'PUBLISHED') => {
+    if (!organizationId) {
+      alert('Please create an organization first before posting a service request.');
+      router.push('/organizations');
+      return;
+    }
+
+    // Validate required fields
+    if (!form.title.trim()) {
+      alert('Please enter a title for your service request.');
+      return;
+    }
+    if (!form.description.trim()) {
+      alert('Please enter a description for your service request.');
+      return;
+    }
+    if (!form.category) {
+      alert('Please select a category.');
+      return;
+    }
+    if (!form.budgetRange.trim()) {
+      alert('Please enter a budget range.');
+      return;
+    }
+    if (!form.deadline) {
+      alert('Please select a deadline.');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const input: any = {
+        reqTitle: form.title.trim(),
+        reqDescription: form.description.trim(),
+        reqBuyerOrgId: organizationId,
+        reqCategory: mapCategory(form.category),
+        reqBudgetRange: form.budgetRange.trim(),
+        reqDeadline: new Date(form.deadline).toISOString(),
+        reqUrgency: mapUrgency(form.urgency),
+        reqStatus: status,
+      };
+
+      // Optional fields
+      if (form.subcategory) {
+        input.reqSubCategory = mapSubCategory(form.subcategory);
+      }
+      if (form.skills.length > 0) {
+        input.reqSkillsNeeded = form.skills;
+      }
+
+      await createServiceRequest({
+        variables: { input },
+      });
+    } catch (error) {
+      // Error handled in onError callback
+    }
+  };
 
   return (
     <div className="flex h-screen w-full bg-[#F9FAFB] overflow-hidden antialiased">
@@ -300,39 +421,59 @@ export default function PostJobPage() {
                 {step === 1 && (
                   <>
                     {/* Organization */}
-                    <div className="bg-white border border-slate-200 rounded-xl p-8">
-                      <h3 className="text-base font-bold text-slate-900 mb-1 flex items-center gap-2">
-                        <span className="material-symbols-outlined text-[var(--primary)]">business</span>
-                        Organization
-                      </h3>
-                      <p className="text-sm text-slate-500 mb-6">Select the organization posting this request</p>
+                    {userOrganization ? (
+                      <div className="bg-white border border-slate-200 rounded-xl p-8">
+                        <h3 className="text-base font-bold text-slate-900 mb-1 flex items-center gap-2">
+                          <span className="material-symbols-outlined text-[var(--primary)]">business</span>
+                          Organization
+                        </h3>
+                        <p className="text-sm text-slate-500 mb-6">Posting as your organization</p>
 
-                      <div className="grid grid-cols-2 gap-3">
-                        {ORGANIZATIONS.map((org) => (
-                          <button
-                            key={org.id}
-                            onClick={() => update('organization', org.id)}
-                            className={`flex items-center gap-3 p-4 border rounded-lg text-left transition-all ${
-                              form.organization === org.id
-                                ? 'border-[var(--primary)] bg-indigo-50/50 ring-1 ring-indigo-200'
-                                : 'border-slate-200 hover:border-slate-300'
-                            }`}
-                          >
-                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold ${
-                              form.organization === org.id ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'
-                            }`}>
-                              {org.icon}
+                        <div className="flex items-center gap-3 p-4 border border-[var(--primary)] bg-indigo-50/50 rounded-lg">
+                          {userOrganization.organizationImage && userOrganization.organizationImage.length > 0 ? (
+                            <div className="w-10 h-10 rounded-lg flex items-center justify-center overflow-hidden">
+                              <img 
+                                src={userOrganization.organizationImage[0]} 
+                                alt={userOrganization.organizationName || 'Organization'} 
+                                className="w-full h-full object-cover"
+                              />
                             </div>
-                            <span className="text-sm font-bold text-slate-900">{org.name}</span>
-                            {form.organization === org.id && (
-                              <span className="material-symbols-outlined text-[var(--primary)] ml-auto text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>
-                                check_circle
-                              </span>
-                            )}
-                          </button>
-                        ))}
+                          ) : (
+                            <div className="w-10 h-10 rounded-lg bg-indigo-600 text-white flex items-center justify-center text-sm font-bold">
+                              {(() => {
+                                const name = userOrganization.organizationName || 'Organization';
+                                return name
+                                  .split(' ')
+                                  .map((word: string) => word[0])
+                                  .join('')
+                                  .toUpperCase()
+                                  .slice(0, 2);
+                              })()}
+                            </div>
+                          )}
+                          <span className="text-sm font-bold text-slate-900 flex-1">
+                            {userOrganization.organizationName || 'Organization'}
+                          </span>
+                          <span className="material-symbols-outlined text-[var(--primary)] text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>
+                            check_circle
+                          </span>
+                        </div>
                       </div>
-                    </div>
+                    ) : orgLoading ? (
+                      <div className="bg-white border border-slate-200 rounded-xl p-8">
+                        <p className="text-sm text-slate-500">Loading organization...</p>
+                      </div>
+                    ) : (
+                      <div className="bg-white border border-slate-200 rounded-xl p-8">
+                        <p className="text-sm text-slate-500 mb-4">Please create an organization first.</p>
+                        <button
+                          onClick={() => router.push('/organizations')}
+                          className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg text-sm font-bold hover:bg-indigo-700 transition-colors"
+                        >
+                          Create Organization
+                        </button>
+                      </div>
+                    )}
 
                     {/* Title & Category */}
                     <div className="bg-white border border-slate-200 rounded-xl p-8">
@@ -478,36 +619,24 @@ export default function PostJobPage() {
                       </h3>
                       <p className="text-sm text-slate-500 mb-6">Set your expected budget range and project deadline</p>
 
-                      <div className="grid grid-cols-3 gap-6">
+                      <div className="grid grid-cols-2 gap-6">
                         <div>
                           <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-                            Min Budget <span className="text-red-400">*</span>
+                            Budget Range <span className="text-red-400">*</span>
                           </label>
                           <div className="relative">
-                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">$</span>
+                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">
+                              $
+                            </span>
                             <input
-                              type="number"
-                              value={form.budgetMin}
-                              onChange={(e) => update('budgetMin', e.target.value)}
-                              placeholder="500"
+                              type="text"
+                              value={form.budgetRange}
+                              onChange={(e) => update('budgetRange', e.target.value)}
+                              placeholder="3,500 or Contact to discuss"
                               className="w-full border border-slate-200 rounded-lg pl-8 pr-4 py-3.5 text-sm font-medium text-slate-900 focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50 placeholder:text-slate-300"
                             />
                           </div>
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-                            Max Budget
-                          </label>
-                          <div className="relative">
-                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">$</span>
-                            <input
-                              type="number"
-                              value={form.budgetMax}
-                              onChange={(e) => update('budgetMax', e.target.value)}
-                              placeholder="1,200"
-                              className="w-full border border-slate-200 rounded-lg pl-8 pr-4 py-3.5 text-sm font-medium text-slate-900 focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50 placeholder:text-slate-300"
-                            />
-                          </div>
+                          <p className="text-xs text-slate-400 mt-1.5">Enter budget amount (e.g., $3,500) or "Contact to discuss"</p>
                         </div>
                         <div>
                           <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
@@ -621,14 +750,11 @@ export default function PostJobPage() {
                         <div className="flex items-start justify-between">
                           <div>
                             <div className="flex items-center gap-2 mb-2">
-                              {(() => {
-                                const org = ORGANIZATIONS.find((o) => o.id === form.organization);
-                                return org ? (
-                                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-slate-100 rounded text-xs font-semibold text-slate-600">
-                                    {org.name}
-                                  </span>
-                                ) : null;
-                              })()}
+                              {userOrganization && (
+                                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-slate-100 rounded text-xs font-semibold text-slate-600">
+                                  {userOrganization.organizationName || 'Organization'}
+                                </span>
+                              )}
                               <span className={`px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider ${
                                 form.urgency === 'critical' ? 'bg-red-50 text-red-700 border border-red-100'
                                   : form.urgency === 'urgent' ? 'bg-amber-50 text-amber-700 border border-amber-100'
@@ -651,7 +777,7 @@ export default function PostJobPage() {
                             <div>
                               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Budget</p>
                               <p className="text-sm font-bold text-slate-700">
-                                ${form.budgetMin || '0'} – ${form.budgetMax || '∞'}
+                                {form.budgetRange || <span className="text-slate-300">Not set</span>}
                               </p>
                             </div>
                           </div>
@@ -733,15 +859,20 @@ export default function PostJobPage() {
                         Back to Edit
                       </button>
                       <div className="flex items-center gap-3">
-                        <button className="px-5 py-2.5 border border-slate-200 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors">
-                          Save as Draft
+                        <button
+                          onClick={() => handleSubmit('DRAFT')}
+                          disabled={isSubmitting}
+                          className="px-5 py-2.5 border border-slate-200 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isSubmitting ? 'Saving...' : 'Save as Draft'}
                         </button>
                         <button
-                          onClick={() => router.push('/service-requests')}
-                          className="bg-[var(--primary)] hover:bg-indigo-700 text-white px-6 py-2.5 rounded-lg font-bold text-sm flex items-center gap-2 transition-all shadow-sm"
+                          onClick={() => handleSubmit('PUBLISHED')}
+                          disabled={isSubmitting}
+                          className="bg-[var(--primary)] hover:bg-indigo-700 text-white px-6 py-2.5 rounded-lg font-bold text-sm flex items-center gap-2 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <span className="material-symbols-outlined text-lg">send</span>
-                          Publish Request
+                          {isSubmitting ? 'Publishing...' : 'Publish Request'}
                         </button>
                       </div>
                     </>
@@ -754,12 +885,17 @@ export default function PostJobPage() {
                         Cancel
                       </button>
                       <div className="flex items-center gap-3">
-                        <button className="px-5 py-2.5 border border-slate-200 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors">
-                          Save as Draft
+                        <button
+                          onClick={() => handleSubmit('DRAFT')}
+                          disabled={isSubmitting}
+                          className="px-5 py-2.5 border border-slate-200 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isSubmitting ? 'Saving...' : 'Save as Draft'}
                         </button>
                         <button
                           onClick={() => setStep(2)}
-                          className="bg-[var(--primary)] hover:bg-indigo-700 text-white px-6 py-2.5 rounded-lg font-bold text-sm flex items-center gap-2 transition-all shadow-sm"
+                          disabled={isSubmitting}
+                          className="bg-[var(--primary)] hover:bg-indigo-700 text-white px-6 py-2.5 rounded-lg font-bold text-sm flex items-center gap-2 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           Preview
                           <span className="material-symbols-outlined text-lg">arrow_forward</span>
@@ -773,7 +909,7 @@ export default function PostJobPage() {
               {/* RIGHT — Sticky preview */}
               <div className="col-span-4">
                 <div className="sticky top-10 space-y-6">
-                  <PreviewCard form={form} />
+                  <PreviewCard form={form} userOrganization={userOrganization} />
 
                   {/* Tips card */}
                   <div className="bg-white border border-slate-200 rounded-xl p-6">

@@ -13,6 +13,16 @@ export function decodeJWT<T = any>(token: string): T | null {
   }
 }
 
+export function normalizeRole(role: string | undefined | null): string {
+  if (!role) return '';
+  return role.toUpperCase().trim();
+}
+
+export function isValidRole(role: string): boolean {
+  const normalized = normalizeRole(role);
+  return normalized === 'BUYER' || normalized === 'PROVIDER';
+}
+
 export function updateUserInfo(token: string): void {
   const claims = decodeJWT(token);
   if (claims) {
@@ -26,8 +36,6 @@ export function updateUserInfo(token: string): void {
       userNick: claims.userNick,
       userImage: claims.userImage,
       userOrganizationId: claims.userOrganizationId,
-      userCountry: claims.userCountry,
-      userCity: claims.userCity,
       userDescription: claims.userDescription,
       userLanguages: claims.userLanguages,
       accessToken: token,
@@ -174,6 +182,7 @@ export async function signUpNew(input: {
     userVar({
       ...user,
       accessToken,
+      userOrganization: user?.userOrganization || null,
     });
     updateStorage({ jwtToken: accessToken });
   } catch (err: any) {
@@ -224,10 +233,14 @@ export function signUp(token: string): void {
   }
 }
 
-export function logOut(): void {
+export async function logOut(): Promise<void> {
   if (typeof window !== 'undefined') {
     localStorage.removeItem('accessToken');
     userVar({});
+    
+    const { initializeApollo } = await import('../../apollo/client');
+    const apolloClient = initializeApollo();
+    await apolloClient.clearStore();
   }
 }
 

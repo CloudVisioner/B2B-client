@@ -5,7 +5,7 @@ import { userVar } from '../../apollo/store';
 import { isLoggedIn, getJwtToken } from '../../libs/auth';
 import { ProviderSidebar } from '../../libs/components/dashboard/ProviderSidebar';
 import { ProviderHeader } from '../../libs/components/dashboard/ProviderHeader';
-import { CREATE_OR_UPDATE_ORGANIZATION } from '../../apollo/user/mutation';
+import { CREATE_ORGANIZATION, UPDATE_ORGANIZATION } from '../../apollo/user/mutation';
 import { GET_BUYER_ORGANIZATION } from '../../apollo/user/query';
 import { getHeaders } from '../../apollo/utils';
 
@@ -14,6 +14,7 @@ export default function ProviderSettingsPage() {
   const currentUser = useReactiveVar(userVar);
   const [mounted, setMounted] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [formData, setFormData] = useState({
     orgName: '',
     industry: '',
@@ -30,6 +31,15 @@ export default function ProviderSettingsPage() {
   const [logoPreview, setLogoPreview] = useState<string>('');
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [specialtyInput, setSpecialtyInput] = useState('');
+
+  useEffect(() => {
+    return () => {
+      if (successTimeoutRef.current) {
+        clearTimeout(successTimeoutRef.current);
+        successTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     setMounted(true);
@@ -54,12 +64,12 @@ export default function ProviderSettingsPage() {
     onCompleted: (data) => {
       if (data?.getBuyerOrganization && !isEditMode && !logoFile) {
         const org = data.getBuyerOrganization;
-        const logoUrl = org.orgLogoImages && org.orgLogoImages.length > 0 ? org.orgLogoImages[0] : '';
+        const logoUrl = org.organizationImage && org.organizationImage.length > 0 ? org.organizationImage[0] : '';
         setFormData((prev) => ({
-          orgName: org.orgName || '',
-          industry: org.orgIndustry || '',
-          location: org.location || '',
-          description: org.orgDescription || '',
+          orgName: org.organizationName || '',
+          industry: org.organizationIndustry || '',
+          location: org.organizationLocation || '',
+          description: org.organizationDescription || '',
           specialties: org.orgSkills || [],
           hourlyRate: org.startingRate?.toString() || '',
           availability: org.teamSize?.toString() || '',
@@ -79,7 +89,7 @@ export default function ProviderSettingsPage() {
 
   const organizationExists = orgData?.getBuyerOrganization?._id;
 
-  const [createOrUpdateOrg, { loading: isSaving }] = useMutation(CREATE_OR_UPDATE_ORGANIZATION, {
+  const [createOrg, { loading: isCreating }] = useMutation(CREATE_ORGANIZATION, {
     context: {
       headers: isLoggedIn() ? getHeaders() : {},
     },
@@ -87,17 +97,43 @@ export default function ProviderSettingsPage() {
       setShowSuccessMessage(true);
       setIsEditMode(false);
       setLogoFile(null);
-      const newLogoUrl = data.createOrUpdateBuyerOrganization?.orgLogoImages?.[0] || '';
+      const org = data?.createOrUpdateBuyerOrganization;
+      const newLogoUrl = org?.organizationImage?.[0] || '';
       setFormData((prev) => ({ ...prev, logoUrl: newLogoUrl }));
       setLogoPreview(newLogoUrl);
       refetch();
-      setTimeout(() => setShowSuccessMessage(false), 3000);
+      if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current);
+      successTimeoutRef.current = setTimeout(() => setShowSuccessMessage(false), 3000);
     },
     onError: (error) => {
-      console.error('Error saving organization:', error);
-      alert('Failed to save organization. Please try again.');
+      console.error('Error creating organization:', error);
+      alert('Failed to create organization. Please try again.');
     },
   });
+
+  const [updateOrg, { loading: isUpdating }] = useMutation(UPDATE_ORGANIZATION, {
+    context: {
+      headers: isLoggedIn() ? getHeaders() : {},
+    },
+    onCompleted: (data) => {
+      setShowSuccessMessage(true);
+      setIsEditMode(false);
+      setLogoFile(null);
+      const org = data?.updateOrganization;
+      const newLogoUrl = org?.organizationImage?.[0] || '';
+      setFormData((prev) => ({ ...prev, logoUrl: newLogoUrl }));
+      setLogoPreview(newLogoUrl);
+      refetch();
+      if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current);
+      successTimeoutRef.current = setTimeout(() => setShowSuccessMessage(false), 3000);
+    },
+    onError: (error) => {
+      console.error('Error updating organization:', error);
+      alert('Failed to update organization. Please try again.');
+    },
+  });
+
+  const isSaving = isCreating || isUpdating;
 
   const handleInputChange = (field: string, value: string | string[]) => {
     if (!isEditMode) return;
@@ -140,20 +176,46 @@ export default function ProviderSettingsPage() {
         }
       }
 
-      await createOrUpdateOrg({
-        variables: {
-          input: {
-            orgName: formData.orgName.trim(),
-            orgIndustry: formData.industry,
-            location: formData.location.trim(),
-            orgDescription: formData.description.trim(),
-            orgLogoImages: logoUrl ? [logoUrl] : [],
-            orgSkills: formData.specialties,
-            startingRate: formData.hourlyRate ? parseFloat(formData.hourlyRate) : undefined,
-            teamSize: formData.availability ? parseInt(formData.availability) : undefined,
-          },
-        },
-      });
+      if (organizationExists) {
+        const updateInput: any = {
+          orgId: orgData.getBuyerOrganization._id,
+          organizationName: formData.orgName.trim(),
+          organizationIndustry: formData.industry,
+          organizationLocation: formData.location.trim(),
+          organizationDescription: formData.description.trim(),
+          organizationSpecialties: formData.specialties || [],
+          organizationHourlyRate: formData.hourlyRate ? parseFloat(formData.hourlyRate) : 0,
+          organizationTeamSize: formData.availability ? parseInt(formData.availability) : 0,
+          organizationWebsiteUrl: '',
+          organizationContactEmail: '',
+          organizationPhoneNumber: '',
+          organizationImage: logoUrl ? [logoUrl] : [],
+        };
+
+        await updateOrg({
+          variables: { input: updateInput },
+        });
+      } else {
+        const createInput: any = {
+          organizationName: formData.orgName.trim(),
+          organizationIndustry: formData.industry,
+          organizationLocation: formData.location.trim(),
+          organizationDescription: formData.description.trim(),
+          organizationSpecialties: formData.specialties || [],
+          organizationHourlyRate: formData.hourlyRate ? parseFloat(formData.hourlyRate) : 0,
+          organizationTeamSize: formData.availability ? parseInt(formData.availability) : 0,
+          organizationWebsiteUrl: '',
+          organizationContactEmail: '',
+          organizationPhoneNumber: '',
+          organizationImage: logoUrl ? [logoUrl] : [],
+          orgOwnerUserId: null,
+          deletedAt: null,
+        };
+
+        await createOrg({
+          variables: { input: createInput },
+        });
+      }
     } catch (error) {
       // Error handled in onError callback
     }

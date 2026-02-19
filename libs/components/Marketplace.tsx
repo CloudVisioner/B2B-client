@@ -455,23 +455,8 @@ const Marketplace: React.FC<MarketplaceProps> = ({
       fetchPolicy: 'cache-and-network',
       notifyOnNetworkStatusChange: true,
       skip: !backendCategoryId, // Skip query if category is not set
-      onCompleted: (data) => {
-        if (process.env.NODE_ENV === 'development') {
-          console.log('Query completed:', {
-            hasData: !!data,
-            listLength: useSortedQuery 
-              ? data?.getProvidersSorted?.list?.length || 0
-              : data?.getProvidersByCategory?.list?.length || 0,
-            firstProvider: useSortedQuery 
-              ? data?.getProvidersSorted?.list?.[0]
-              : data?.getProvidersByCategory?.list?.[0],
-          });
-        }
-      },
       onError: (error) => {
-        if (process.env.NODE_ENV === 'development') {
-          console.error('Query error:', error);
-        }
+        console.error('Marketplace query error:', error);
       },
     }
   );
@@ -483,43 +468,12 @@ const Marketplace: React.FC<MarketplaceProps> = ({
     const list = useSortedQuery 
       ? data?.getProvidersSorted?.list || []
       : data?.getProvidersByCategory?.list || [];
-    
-    // Debug: Log raw backend data
-    if (process.env.NODE_ENV === 'development' && list.length > 0) {
-      console.log('🔍 Raw backend data (first provider):', {
-        orgName: list[0]?.orgName,
-        categoryId: list[0]?.categoryId,
-        categoryIdType: typeof list[0]?.categoryId,
-        categoryIdIsArray: Array.isArray(list[0]?.categoryId),
-        subCategory: list[0]?.subCategory,
-        subCategoryType: typeof list[0]?.subCategory,
-        subCategoryIsArray: Array.isArray(list[0]?.subCategory),
-      });
-    }
-    
+
     let mappedProviders = list.map(mapBackendProviderToList);
-    
-    // Debug: Log mapped data
-    if (process.env.NODE_ENV === 'development' && mappedProviders.length > 0) {
-      console.log('🔍 Mapped provider (first):', {
-        name: mappedProviders[0]?.name,
-        categoryId: mappedProviders[0]?.categoryId,
-        categoryIdType: typeof mappedProviders[0]?.categoryId,
-        categoryIdIsArray: Array.isArray(mappedProviders[0]?.categoryId),
-        subCategory: mappedProviders[0]?.subCategory,
-        subCategoryType: typeof mappedProviders[0]?.subCategory,
-        subCategoryIsArray: Array.isArray(mappedProviders[0]?.subCategory),
-      });
-      console.log('🔍 Active filters:', {
-        selectedCategory: selectedCatId,
-        activeSubCats,
-      });
-    }
-    
+
     // Apply client-side filtering
     // 1. Filter by categoryId (provider must belong to selected category)
     // 2. Filter by subCategory (provider must have selected subcategory)
-    const beforeFilter = mappedProviders.length;
     mappedProviders = mappedProviders.filter(provider => {
       // Step 1: Check if provider belongs to the selected category
       const providerCategoryIds = Array.isArray(provider.categoryId) 
@@ -548,36 +502,11 @@ const Marketplace: React.FC<MarketplaceProps> = ({
       }
       
       // Provider must match both category AND subcategory (if subcategory filter is active)
-      const matches = categoryMatches && subCategoryMatches;
-      
-      // Debug logging
-      if (process.env.NODE_ENV === 'development') {
-        console.log('🔍 Provider filter check:', {
-          providerName: provider.name,
-          providerCategoryIds,
-          selectedCatId,
-          categoryMatches,
-          providerSubCats: Array.isArray(provider.subCategory) ? provider.subCategory : [provider.subCategory],
-          activeSubCats,
-          subCategoryMatches,
-          finalMatch: matches
-        });
-      }
-      
-      return matches;
+      return categoryMatches && subCategoryMatches;
     });
-    
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`Filtering: ${beforeFilter} → ${mappedProviders.length} providers`, {
-        selectedCategory: selectedCatId,
-        activeSubCats,
-        totalProviders: beforeFilter,
-        filteredProviders: mappedProviders.length
-      });
-    }
-    
+
     return mappedProviders;
-  }, [data, useSortedQuery, activeSubCats]);
+  }, [data, useSortedQuery, activeSubCats, selectedCatId]);
   
   // Get total count for pagination (use filtered providers count since we filter client-side)
   const totalCount = useMemo(() => {

@@ -4,6 +4,7 @@ import { useApollo } from '../apollo/client';
 import { ThemeProvider } from '../libs/contexts/ThemeContext';
 import '../styles/globals.css';
 import '../scss/app.scss';
+import { CssBaseline } from '@mui/material';
 
 export default function App({ Component, pageProps }: AppProps) {
   const apolloClient = useApollo(pageProps.initialApolloState);
@@ -11,6 +12,7 @@ export default function App({ Component, pageProps }: AppProps) {
   return (
     <ApolloProvider client={apolloClient}>
       <ThemeProvider>
+        <CssBaseline />
         <Component {...pageProps} />
       </ThemeProvider>
     </ApolloProvider>

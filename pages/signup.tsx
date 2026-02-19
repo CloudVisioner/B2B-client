@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { useReactiveVar } from '@apollo/client';
 import { userVar } from '../apollo/store';
-import { signUpNew } from '../libs/auth';
+import { signUpNew, normalizeRole, isValidRole } from '../libs/auth';
 
 export default function SignupPage() {
   const router = useRouter();
@@ -62,21 +62,23 @@ export default function SignupPage() {
         memberType: selectedRole,
       });
 
-      // Wait a moment for userVar to update
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      // Get the actual user role from the reactive variable
+      await new Promise(resolve => setTimeout(resolve, 200));
+
       const actualUser = userVar();
-      const userRole = actualUser?.userRole;
-      
-      // Redirect based on actual user role from backend
-      if (userRole === 'PROVIDER' || userRole === 'provider') {
+      const userRole = normalizeRole(actualUser?.userRole);
+
+      if (!userRole || !isValidRole(userRole)) {
+        setError('Account created but unable to determine role. Please try logging in.');
+        setLoading(false);
+        return;
+      }
+
+      if (userRole === 'PROVIDER') {
         router.push('/provider/dashboard');
       } else {
         router.push('/dashboard');
       }
     } catch (err: any) {
-      // Display detailed error message
       const errorMessage = err?.message || 'Signup failed. Please try again.';
       setError(errorMessage);
       console.error('Signup error:', {
@@ -85,7 +87,6 @@ export default function SignupPage() {
         networkError: err?.networkError,
         fullError: err,
       });
-    } finally {
       setLoading(false);
     }
   };

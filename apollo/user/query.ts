@@ -62,7 +62,7 @@ export const GET_PROVIDER_DETAIL = gql`
       startingRate
       minProjectSize
       establishmentYear
-      orgTeamSize
+      teamSize
       industries
       orgCountry
       orgCity
@@ -301,25 +301,6 @@ export const GET_LANDING_STATISTICS = gql`
   }
 `;
 
-/**
- * Get Featured Testimonials for Landing Page
- * Public query - fetches highlighted testimonials for the homepage
- */
-export const GET_FEATURED_TESTIMONIALS = gql`
-  query GetFeaturedTestimonials($limit: Int) {
-    getFeaturedTestimonials(limit: $limit) {
-      _id
-      text
-      rating
-      authorName
-      authorRole
-      authorCompany
-      authorAvatar
-      isVerified
-      createdAt
-    }
-  }
-`;
 
 /**
  * Get Featured Portfolios for Landing Page
@@ -436,25 +417,66 @@ export const GET_MEMBER = gql`
 `;
 
 // ============================================
+// USER PROFILE QUERIES
+// ============================================
+
+/**
+ * Get My Profile
+ * Fetches the current user's profile information
+ * Requires authentication - uses authenticated user's ID automatically
+ */
+export const GET_MY_PROFILE = gql`
+  query GetMyProfile($userId: String!) {
+    getUser(userId: $userId) {
+      _id
+      userNick
+      userEmail
+      userPhone
+      userImage
+      userDescription
+      createdAt
+      updatedAt
+    }
+  }
+`;
+
+// ============================================
 // BUYER ORGANIZATION QUERIES
 // ============================================
 
 /**
  * Get Buyer Organization
  * Fetches the organization details for the logged-in buyer
- * Note: Backend returns orgIndustry and orgDescription, but we map them to industry and description for frontend consistency
+ * ⚠️ IMPORTANT: Uses NEW field names (organizationName, organizationIndustry, etc.)
+ * DO NOT use old field names (orgName, orgIndustry, etc.) - they no longer exist!
+ * 
+ * Fields Returned:
+ * - _id - Organization ID
+ * - orgType - Always "BUYER"
+ * - orgStatus - "ACTIVE" | "INACTIVE"
+ * - orgOwnerUserId - User ID who owns this organization
+ * - organizationName - Company Name (Required)
+ * - organizationIndustry - Industry (Required)
+ * - organizationLocation - Location (Required)
+ * - organizationDescription - Description (Required)
+ * - organizationImage - Company Logo/Image (Optional)
+ * - budgetRange - Budget Range (Optional)
+ * - createdAt - Created timestamp
+ * - updatedAt - Updated timestamp
  */
 export const GET_BUYER_ORGANIZATION = gql`
   query GetBuyerOrganization {
     getBuyerOrganization {
       _id
-      orgName
-      orgIndustry
-      location
-      orgDescription
-      orgWebsiteUrl
-      orgLogoImages
-      orgVerified
+      orgType
+      orgStatus
+      orgOwnerUserId
+      organizationName
+      organizationIndustry
+      organizationLocation
+      organizationDescription
+      organizationImage
+      budgetRange
       createdAt
       updatedAt
     }
@@ -468,35 +490,25 @@ export const GET_BUYER_ORGANIZATION = gql`
 /**
  * Get Buyer Service Requests (My Requests)
  * Fetches all service requests created by the logged-in buyer
+ * Uses backend field names: reqTitle, reqStatus, reqBudgetRange, etc.
  */
 export const GET_BUYER_SERVICE_REQUESTS = gql`
-  query GetBuyerServiceRequests($input: ServiceRequestFilterInput) {
+  query GetBuyerServiceRequests($input: BuyerServiceRequestFilterInput) {
     getBuyerServiceRequests(input: $input) {
       list {
         _id
-        title
-        description
-        category
-        subCategory
-        budgetMin
-        budgetMax
-        deadline
-        urgency
-        skills
-        status
-        quotesCount
-        newQuotesCount
-        organizationId
-        buyerId
-        providerId
-        provider {
-          _id
-          orgName
-          orgAverageRating
-          reviewsCount
-          avatar
-        }
-        phase
+        reqTitle
+        reqDescription
+        reqStatus
+        reqBudgetRange
+        reqDeadline
+        reqUrgency
+        reqTotalQuotes
+        reqNewQuotesCount
+        reqCategory
+        reqSubCategory
+        reqSkillsNeeded
+        reqBuyerOrgId
         createdAt
         updatedAt
       }

@@ -2,11 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { useReactiveVar, useMutation, useQuery } from '@apollo/client';
 import { userVar } from '../apollo/store';
-import { isLoggedIn, getJwtToken } from '../libs/auth';
+import { isLoggedIn, getJwtToken, updateUserInfo, decodeJWT } from '../libs/auth';
 import { Sidebar } from '../libs/components/dashboard/Sidebar';
 import { Header } from '../libs/components/dashboard/Header';
-import { CREATE_OR_UPDATE_ORGANIZATION } from '../apollo/user/mutation';
-import { GET_BUYER_ORGANIZATION } from '../apollo/user/query';
+import { CREATE_ORGANIZATION, UPDATE_ORGANIZATION, UPDATE_MY_PROFILE, CHANGE_MY_PASSWORD, UPLOAD_PROFILE_IMAGE } from '../apollo/user/mutation';
+import { GET_BUYER_ORGANIZATION, GET_MY_PROFILE } from '../apollo/user/query';
 import { getHeaders } from '../apollo/utils';
 
 /* ═══════════════════════════════════════════════════════════
@@ -26,49 +26,61 @@ type TabId = (typeof TABS)[number]['id'];
    ═══════════════════════════════════════════════════════════ */
 function OrganizationTab() {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [formData, setFormData] = useState({
     orgName: '',
     industry: '',
     location: '',
     description: '',
     budgetRange: '',
-    jobCategories: [] as string[],
     logoUrl: '',
   });
   const [isEditMode, setIsEditMode] = useState(false);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const [isCreated, setIsCreated] = useState(false);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [logoPreview, setLogoPreview] = useState<string>('');
   const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [categoryInput, setCategoryInput] = useState('');
+
+  useEffect(() => {
+    return () => {
+      if (successTimeoutRef.current) {
+        clearTimeout(successTimeoutRef.current);
+        successTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   const { data: orgData, loading: orgLoading, refetch } = useQuery(GET_BUYER_ORGANIZATION, {
     skip: !isLoggedIn(),
-    fetchPolicy: 'cache-and-network',
+    fetchPolicy: 'network-only',
     errorPolicy: 'all',
     context: {
       headers: isLoggedIn() ? getHeaders() : {},
     },
     onCompleted: (data) => {
-      if (data?.getBuyerOrganization && !isEditMode && !logoFile) {
+      if (data?.getBuyerOrganization) {
         const org = data.getBuyerOrganization;
-        const logoUrl = org.orgLogoImages && org.orgLogoImages.length > 0 ? org.orgLogoImages[0] : '';
-        setFormData((prev) => ({
-          orgName: org.orgName || '',
-          industry: org.orgIndustry || '',
-          location: org.location || '',
-          description: org.orgDescription || '',
-          budgetRange: org.budgetRange || '',
-          jobCategories: org.jobCategories || [],
-          logoUrl: logoUrl,
-        }));
-        if (logoUrl) {
-          setLogoPreview((prev) => {
-            if (prev && prev.startsWith('blob:')) {
-              URL.revokeObjectURL(prev);
-            }
-            return logoUrl;
+        const logoUrl = org.organizationImage && org.organizationImage.length > 0 ? org.organizationImage[0] : '';
+        
+        if (!isEditMode && !logoFile) {
+          setFormData({
+            orgName: org.organizationName || '',
+            industry: org.organizationIndustry || '',
+            location: org.organizationLocation || '',
+            description: org.organizationDescription || '',
+            budgetRange: org.budgetRange || '',
+            logoUrl: logoUrl,
           });
+          
+          if (logoUrl) {
+            if (logoPreview && logoPreview.startsWith('blob:')) {
+              URL.revokeObjectURL(logoPreview);
+            }
+            setLogoPreview(logoUrl);
+          } else if (!logoFile) {
+            setLogoPreview('');
+          }
         }
       }
     },
@@ -76,44 +88,89 @@ function OrganizationTab() {
 
   const organizationExists = orgData?.getBuyerOrganization?._id;
 
-  const [createOrUpdateOrg, { loading: isSaving }] = useMutation(CREATE_OR_UPDATE_ORGANIZATION, {
+  useEffect(() => {
+    if (orgData?.getBuyerOrganization && !isEditMode && !logoFile) {
+      const org = orgData.getBuyerOrganization;
+      const logoUrl = org.organizationImage && org.organizationImage.length > 0 ? org.organizationImage[0] : '';
+      
+      setFormData({
+        orgName: org.organizationName || '',
+        industry: org.organizationIndustry || '',
+        location: org.organizationLocation || '',
+        description: org.organizationDescription || '',
+        budgetRange: org.budgetRange || '',
+        logoUrl: logoUrl,
+      });
+      
+      if (logoUrl) {
+        if (logoPreview && logoPreview.startsWith('blob:')) {
+          URL.revokeObjectURL(logoPreview);
+        }
+        setLogoPreview(logoUrl);
+      } else if (!logoFile) {
+        setLogoPreview('');
+      }
+    }
+  }, [orgData, isEditMode, logoFile]);
+
+  const [createOrg, { loading: isCreating }] = useMutation(CREATE_ORGANIZATION, {
     context: {
       headers: isLoggedIn() ? getHeaders() : {},
     },
-    onCompleted: (data) => {
+    onCompleted: async (data) => {
       setShowSuccessMessage(true);
+      setIsCreated(true);
       setIsEditMode(false);
       setLogoFile(null);
-      const newLogoUrl = data.createOrUpdateBuyerOrganization?.orgLogoImages?.[0] || '';
-      setFormData((prev) => ({ ...prev, logoUrl: newLogoUrl }));
-      setLogoPreview(newLogoUrl);
-      refetch();
-      setTimeout(() => setShowSuccessMessage(false), 3000);
+      
+      const org = data?.createOrUpdateBuyerOrganization;
+      const newLogoUrl = org?.organizationImage?.[0] || '';
+      
+      await refetch();
+
+      if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current);
+      successTimeoutRef.current = setTimeout(() => {
+        setShowSuccessMessage(false);
+        setIsCreated(false);
+      }, 3000);
     },
     onError: (error) => {
-      console.error('Error saving organization:', error);
-      alert('Failed to save organization. Please try again.');
+      console.error('Error creating organization:', error);
+      alert('Failed to create organization. Please try again.');
     },
   });
+
+  const [updateOrg, { loading: isUpdating }] = useMutation(UPDATE_ORGANIZATION, {
+    context: {
+      headers: isLoggedIn() ? getHeaders() : {},
+    },
+    onCompleted: async (data) => {
+      setShowSuccessMessage(true);
+      setIsCreated(false);
+      setIsEditMode(false);
+      setLogoFile(null);
+      
+      await refetch();
+
+      if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current);
+      successTimeoutRef.current = setTimeout(() => {
+        setShowSuccessMessage(false);
+        setIsCreated(false);
+      }, 3000);
+    },
+    onError: (error) => {
+      console.error('Error updating organization:', error);
+      alert('Failed to update organization. Please try again.');
+    },
+  });
+
+  const isSaving = isCreating || isUpdating;
 
   const handleInputChange = (field: string, value: string | string[]) => {
     if (!isEditMode) return;
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleAddCategory = () => {
-    if (!categoryInput.trim() || !isEditMode) return;
-    const newCategory = categoryInput.trim();
-    if (!formData.jobCategories.includes(newCategory)) {
-      handleInputChange('jobCategories', [...formData.jobCategories, newCategory]);
-      setCategoryInput('');
-    }
-  };
-
-  const handleRemoveCategory = (category: string) => {
-    if (!isEditMode) return;
-    handleInputChange('jobCategories', formData.jobCategories.filter((c) => c !== category));
-  };
 
   const handleSave = async () => {
     if (!formData.orgName || !formData.industry || !formData.location) {
@@ -137,19 +194,46 @@ function OrganizationTab() {
         }
       }
 
-      await createOrUpdateOrg({
-        variables: {
-          input: {
-            orgName: formData.orgName.trim(),
-            orgIndustry: formData.industry,
-            location: formData.location.trim(),
-            orgDescription: formData.description.trim(),
-            orgLogoImages: logoUrl ? [logoUrl] : [],
-            budgetRange: formData.budgetRange,
-            jobCategories: formData.jobCategories,
-          },
-        },
-      });
+      if (organizationExists) {
+        const updateInput: any = {
+          orgId: orgData.getBuyerOrganization._id,
+          organizationName: formData.orgName.trim(),
+          organizationIndustry: formData.industry,
+          organizationLocation: formData.location.trim(),
+          organizationDescription: formData.description.trim(),
+        };
+
+        if (formData.budgetRange.trim()) {
+          updateInput.budgetRange = formData.budgetRange.trim();
+        }
+
+        if (logoUrl) {
+          updateInput.organizationImage = [logoUrl];
+        }
+
+        await updateOrg({
+          variables: { input: updateInput },
+        });
+      } else {
+        const createInput: any = {
+          organizationName: formData.orgName.trim(),
+          organizationIndustry: formData.industry,
+          organizationLocation: formData.location.trim(),
+          organizationDescription: formData.description.trim(),
+        };
+
+        if (formData.budgetRange.trim()) {
+          createInput.budgetRange = formData.budgetRange.trim();
+        }
+
+        if (logoUrl) {
+          createInput.organizationImage = [logoUrl];
+        }
+
+        await createOrg({
+          variables: { input: createInput },
+        });
+      }
     } catch (error) {
       // Error handled in onError callback
     }
@@ -245,7 +329,9 @@ function OrganizationTab() {
             <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
             <div>
               <p className="font-bold text-sm">Success!</p>
-              <p className="text-xs text-emerald-50">Organization updated successfully</p>
+              <p className="text-xs text-emerald-50">
+                {isCreated ? 'Organization created successfully' : 'Organization updated successfully'}
+              </p>
             </div>
             <button onClick={() => setShowSuccessMessage(false)} className="ml-auto text-white/80 hover:text-white">
               <span className="material-symbols-outlined text-lg">close</span>
@@ -329,14 +415,23 @@ function OrganizationTab() {
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
                 Industry/Category <span className="text-red-400">*</span>
               </label>
-              <input
-                type="text"
+              <select
                 value={formData.industry}
                 onChange={(e) => handleInputChange('industry', e.target.value)}
-                placeholder="E-commerce"
                 disabled={!isEditMode}
                 className="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm font-medium text-slate-900 focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50 disabled:bg-white disabled:cursor-not-allowed"
-              />
+              >
+                <option value="">Select Industry</option>
+                <option value="Technology & Software">Technology & Software</option>
+                <option value="Finance & Banking">Finance & Banking</option>
+                <option value="Healthcare">Healthcare</option>
+                <option value="E-Commerce">E-Commerce</option>
+                <option value="Manufacturing">Manufacturing</option>
+                <option value="Retail">Retail</option>
+                <option value="Education">Education</option>
+                <option value="Real Estate">Real Estate</option>
+                <option value="Other">Other</option>
+              </select>
             </div>
             <div className="col-span-2">
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
@@ -353,16 +448,19 @@ function OrganizationTab() {
             </div>
             <div className="col-span-2">
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-                Short Description
+                Description
               </label>
               <textarea
-                rows={4}
+                rows={12}
                 value={formData.description}
                 onChange={(e) => handleInputChange('description', e.target.value)}
-                placeholder="Growing e-commerce brand seeking digital partners..."
+                placeholder="Provide a detailed description of your organization, including what you do, your mission, values, and any other relevant information that would help service providers understand your business..."
                 disabled={!isEditMode}
-                className="w-full border border-slate-200 rounded-lg px-4 py-3.5 text-sm font-medium text-slate-900 focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50 resize-y disabled:bg-white disabled:cursor-not-allowed"
+                className="w-full border border-slate-200 rounded-lg px-4 py-3.5 text-sm font-medium text-slate-900 focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50 resize-y min-h-[300px] disabled:bg-white disabled:cursor-not-allowed"
               />
+              <p className="text-xs text-slate-400 mt-1.5 text-right">
+                {formData.description.length} / 2000 characters
+              </p>
             </div>
             <div className="col-span-2">
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
@@ -376,38 +474,6 @@ function OrganizationTab() {
                 disabled={!isEditMode}
                 className="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm font-medium text-slate-900 focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50 disabled:bg-white disabled:cursor-not-allowed"
               />
-            </div>
-            <div className="col-span-2">
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-                Job Categories
-              </label>
-              <div className="flex flex-wrap gap-2 mb-2">
-                {formData.jobCategories.map((cat) => (
-                  <span key={cat} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-semibold">
-                    {cat}
-                    {isEditMode && (
-                      <button onClick={() => handleRemoveCategory(cat)} className="text-indigo-500 hover:text-indigo-700">
-                        <span className="material-symbols-outlined text-sm">close</span>
-                      </button>
-                    )}
-                  </span>
-                ))}
-              </div>
-              {isEditMode && (
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={categoryInput}
-                    onChange={(e) => setCategoryInput(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleAddCategory()}
-                    placeholder="Web Development, Mobile Apps, Marketing..."
-                    className="flex-1 border border-slate-200 rounded-lg px-4 py-2.5 text-sm font-medium text-slate-900 focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50"
-                  />
-                  <button onClick={handleAddCategory} className="px-4 py-2.5 bg-indigo-50 text-indigo-700 rounded-lg text-sm font-semibold hover:bg-indigo-100 transition-colors">
-                    Add
-                  </button>
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -442,124 +508,588 @@ function OrganizationTab() {
    Profile Tab
    ═══════════════════════════════════════════════════════════ */
 function ProfileTab() {
+  const currentUser = useReactiveVar(userVar);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const passwordTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string>('');
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [showPasswordSection, setShowPasswordSection] = useState(false);
+  const [showPasswords, setShowPasswords] = useState(false);
+  
+  const [formData, setFormData] = useState({
+    userNick: '',
+    userEmail: '',
+    userPhone: '',
+    userDescription: '',
+    userImage: '',
+  });
+
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+
+  useEffect(() => {
+    return () => {
+      if (passwordTimeoutRef.current) {
+        clearTimeout(passwordTimeoutRef.current);
+        passwordTimeoutRef.current = null;
+      }
+      if (imagePreview && imagePreview.startsWith('blob:')) {
+        URL.revokeObjectURL(imagePreview);
+      }
+    };
+  }, [imagePreview]);
+
+  const { data: profileData, loading: profileLoading, refetch: refetchProfile } = useQuery(GET_MY_PROFILE, {
+    skip: !isLoggedIn() || !currentUser?._id,
+    variables: { userId: currentUser?._id || '' },
+    fetchPolicy: 'network-only',
+    errorPolicy: 'all',
+    context: {
+      headers: isLoggedIn() ? getHeaders() : {},
+    },
+    onCompleted: (data) => {
+      if (data?.getUser && !isEditMode && !imageFile) {
+        const user = data.getUser;
+        setFormData({
+          userNick: user.userNick || '',
+          userEmail: user.userEmail || '',
+          userPhone: user.userPhone || '',
+          userDescription: user.userDescription || '',
+          userImage: user.userImage || '',
+        });
+        if (user.userImage) {
+          if (imagePreview && imagePreview.startsWith('blob:')) {
+            URL.revokeObjectURL(imagePreview);
+          }
+          setImagePreview(user.userImage);
+        } else {
+          setImagePreview('');
+        }
+      }
+    },
+  });
+
+  useEffect(() => {
+    if (profileData?.getUser && !isEditMode && !imageFile) {
+      const user = profileData.getUser;
+      setFormData({
+        userNick: user.userNick || '',
+        userEmail: user.userEmail || '',
+        userPhone: user.userPhone || '',
+        userDescription: user.userDescription || '',
+        userImage: user.userImage || '',
+      });
+      if (user.userImage) {
+        if (imagePreview && imagePreview.startsWith('blob:')) {
+          URL.revokeObjectURL(imagePreview);
+        }
+        setImagePreview(user.userImage);
+      } else {
+        setImagePreview('');
+      }
+    }
+  }, [profileData, isEditMode, imageFile]);
+
+  const [updateProfile, { loading: isUpdatingProfile }] = useMutation(UPDATE_MY_PROFILE, {
+    context: {
+      headers: isLoggedIn() ? getHeaders() : {},
+    },
+    onCompleted: async (data) => {
+      setShowSuccessMessage(true);
+      setIsEditMode(false);
+      setImageFile(null);
+      
+      if (data?.updateUser?.accessToken) {
+        updateUserInfo(data.updateUser.accessToken);
+      }
+      
+      await refetchProfile();
+
+      if (passwordTimeoutRef.current) clearTimeout(passwordTimeoutRef.current);
+      passwordTimeoutRef.current = setTimeout(() => {
+        setShowSuccessMessage(false);
+      }, 3000);
+    },
+    onError: (error) => {
+      console.error('Error updating profile:', error);
+      alert('Failed to update profile. Please try again.');
+    },
+  });
+
+  const [changePassword, { loading: isChangingPassword }] = useMutation(CHANGE_MY_PASSWORD, {
+    context: {
+      headers: isLoggedIn() ? getHeaders() : {},
+    },
+    onCompleted: () => {
+      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      setShowPasswordSection(false);
+      alert('Password changed successfully!');
+    },
+    onError: (error) => {
+      console.error('Error changing password:', error);
+      const errorMessage = error?.graphQLErrors?.[0]?.message || error?.message || 'Failed to change password. Please try again.';
+      alert(errorMessage);
+    },
+  });
+
+  const handleInputChange = (field: string, value: string) => {
+    if (!isEditMode) return;
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handlePasswordChange = (field: string, value: string) => {
+    setPasswordData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!isEditMode) return;
+    const image = e.target.files?.[0];
+    if (!image) return;
+    if (!image.type.match(/^image\/(jpg|jpeg|png)$/i)) {
+      alert('Please upload a valid image file (JPG, JPEG, or PNG)');
+      return;
+    }
+    if (image.size > 5 * 1024 * 1024) {
+      alert('Image size must be less than 5MB');
+      return;
+    }
+    if (imagePreview && imagePreview.startsWith('blob:')) {
+      URL.revokeObjectURL(imagePreview);
+    }
+    setImageFile(image);
+    const previewUrl = URL.createObjectURL(image);
+    setImagePreview(previewUrl);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const uploadImageToBackend = async (file: File): Promise<string> => {
+    const formData = new FormData();
+    const token = getJwtToken();
+    const apiUrl = process.env.NEXT_PUBLIC_API_GRAPHQL_URL || process.env.REACT_APP_API_GRAPHQL_URL || 'http://localhost:3010/graphql';
+    formData.append('operations', JSON.stringify({
+      query: `mutation UploadProfileImage($file: Upload!, $target: String!) {
+        imageUploader(file: $file, target: $target)
+      }`,
+      variables: { file: null, target: 'user' }
+    }));
+    formData.append('map', JSON.stringify({ '0': ['variables.file'] }));
+    formData.append('0', file);
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'apollo-require-preflight': 'true',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: formData,
+    });
+    if (!response.ok) {
+      throw new Error(`Upload failed: ${response.statusText}`);
+    }
+    const result = await response.json();
+    if (result.errors) {
+      throw new Error(result.errors[0]?.message || 'Upload failed');
+    }
+    const uploadedUrl = result.data?.imageUploader;
+    if (!uploadedUrl) {
+      throw new Error('No URL returned from upload');
+    }
+    return uploadedUrl;
+  };
+
+  const getInitials = (name: string) => {
+    if (!name) return 'U';
+    return name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2) || 'U';
+  };
+
+  const handleSave = async () => {
+    if (!formData.userNick || !formData.userEmail) {
+      alert('Please fill in all required fields (Display Name, Email).');
+      return;
+    }
+
+    // Get user ID from multiple sources as fallback
+    const getUserIdFromToken = (): string | null => {
+      const token = getJwtToken();
+      if (token) {
+        try {
+          const claims = decodeJWT(token);
+          return claims?._id || claims?.userId || null;
+        } catch (e) {
+          return null;
+        }
+      }
+      return null;
+    };
+
+    const userIdToSave = profileData?.getUser?._id || 
+                         currentUser?._id || 
+                         getUserIdFromToken();
+    
+    if (!userIdToSave) {
+      console.error('User ID not found:', { 
+        profileData: profileData?.getUser?._id, 
+        currentUser: currentUser?._id,
+        currentUserFull: currentUser 
+      });
+      alert('User ID not found. Please refresh the page and try again.');
+      return;
+    }
+
+    try {
+      let imageUrl = formData.userImage;
+      if (imageFile) {
+        setIsUploadingImage(true);
+        try {
+          imageUrl = await uploadImageToBackend(imageFile);
+        } catch (error: any) {
+          console.error('Error uploading image:', error);
+          alert(`Failed to upload image: ${error.message || 'Please try again'}`);
+          setIsUploadingImage(false);
+          return;
+        } finally {
+          setIsUploadingImage(false);
+        }
+      }
+
+      const updateInput: any = {
+        _id: userIdToSave,
+        userNick: formData.userNick.trim(),
+        userEmail: formData.userEmail.trim(),
+      };
+
+      if (formData.userPhone.trim()) {
+        updateInput.userPhone = formData.userPhone.trim();
+      }
+
+      if (formData.userDescription.trim()) {
+        updateInput.userDescription = formData.userDescription.trim();
+      }
+
+      if (imageUrl) {
+        updateInput.userImage = imageUrl;
+      }
+
+      await updateProfile({
+        variables: { input: updateInput },
+      });
+    } catch (error) {
+      // Error handled in onError callback
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
+      alert('Please fill in all password fields.');
+      return;
+    }
+
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      alert('New password and confirm password do not match.');
+      return;
+    }
+
+    if (passwordData.newPassword.length < 5 || passwordData.newPassword.length > 12) {
+      alert('New password must be between 5 and 12 characters.');
+      return;
+    }
+
+    try {
+      await changePassword({
+        variables: {
+          input: {
+            currentPassword: passwordData.currentPassword,
+            newPassword: passwordData.newPassword,
+          },
+        },
+      });
+    } catch (error) {
+      // Error handled in onError callback
+    }
+  };
+
+  const handleRemoveImage = () => {
+    if (!isEditMode) return;
+    if (imagePreview && imagePreview.startsWith('blob:')) {
+      URL.revokeObjectURL(imagePreview);
+    }
+    setImageFile(null);
+    setImagePreview('');
+    setFormData((prev) => ({ ...prev, userImage: '' }));
+  };
+
+  if (profileLoading) {
+    return (
+      <div className="space-y-8">
+        <div className="bg-white border border-slate-200 rounded-xl p-8 text-center">
+          <span className="material-symbols-outlined text-slate-400 animate-spin text-4xl">sync</span>
+          <p className="text-sm text-slate-500 mt-4">Loading profile...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
+      {showSuccessMessage && (
+        <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-top-5 fade-in duration-300">
+          <div className="bg-emerald-500 text-white px-6 py-4 rounded-lg shadow-lg flex items-center gap-3 min-w-[300px]">
+            <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+            <div>
+              <p className="font-bold text-sm">Success!</p>
+              <p className="text-xs text-emerald-50">Profile updated successfully</p>
+            </div>
+            <button onClick={() => setShowSuccessMessage(false)} className="ml-auto text-white/80 hover:text-white">
+              <span className="material-symbols-outlined text-lg">close</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Avatar & Personal Info */}
       <div className="bg-white border border-slate-200 rounded-xl p-8">
-        <h3 className="text-lg font-bold text-slate-900 mb-1">Personal Information</h3>
-        <p className="text-sm text-slate-500 mb-8">Update your personal details and profile photo</p>
+        <div className="flex items-start justify-between mb-6">
+          <div>
+            <h3 className="text-lg font-bold text-slate-900">Personal Information</h3>
+            <p className="text-sm text-slate-500 mt-0.5">Update your personal details and profile photo</p>
+          </div>
+          {!isEditMode && (
+            <button
+              onClick={() => setIsEditMode(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold text-[var(--primary)] hover:bg-indigo-50 border border-indigo-200 transition-colors"
+            >
+              <span className="material-symbols-outlined text-lg">edit</span>
+              Edit
+            </button>
+          )}
+          {isEditMode && (
+            <button
+              onClick={() => {
+                setIsEditMode(false);
+                refetchProfile();
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-50 border border-slate-200 transition-colors"
+            >
+              <span className="material-symbols-outlined text-lg">close</span>
+              Cancel
+            </button>
+          )}
+        </div>
 
         <div className="flex items-start gap-8">
           {/* Photo */}
           <div className="flex flex-col items-center gap-3">
             <div className="relative">
-              <div className="w-24 h-24 rounded-full bg-gradient-to-br from-indigo-400 to-indigo-600 flex items-center justify-center text-white text-2xl font-bold shadow-lg shadow-indigo-200 overflow-hidden">
-                A
-              </div>
-              <button className="absolute -bottom-1 -right-1 w-8 h-8 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-sm hover:bg-slate-50 transition-colors">
-                <span className="material-symbols-outlined text-slate-500 text-sm">photo_camera</span>
-              </button>
+              {imagePreview ? (
+                <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-slate-200 shadow-lg">
+                  <img src={imagePreview} alt="Profile" className="w-full h-full object-cover" />
+                  {isUploadingImage && (
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                      <span className="material-symbols-outlined text-white animate-spin">sync</span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-indigo-400 to-indigo-600 flex items-center justify-center text-white text-2xl font-bold shadow-lg shadow-indigo-200">
+                  {getInitials(formData.userNick || currentUser?.userNick || 'User')}
+                </div>
+              )}
+              {isEditMode && (
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="absolute -bottom-1 -right-1 w-8 h-8 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-sm hover:bg-slate-50 transition-colors"
+                >
+                  <span className="material-symbols-outlined text-slate-500 text-sm">photo_camera</span>
+                </button>
+              )}
             </div>
-            <button className="text-xs font-bold text-red-500 hover:underline">Remove</button>
+            {isEditMode && (
+              <>
+                <input ref={fileInputRef} type="file" hidden onChange={handleImageSelect} accept="image/jpg, image/jpeg, image/png" disabled={isUploadingImage} />
+                <button
+                  onClick={handleRemoveImage}
+                  className="text-xs font-bold text-red-500 hover:underline"
+                  disabled={!imagePreview}
+                >
+                  Remove
+                </button>
+              </>
+            )}
           </div>
 
           {/* Fields */}
           <div className="flex-1 grid grid-cols-2 gap-6">
             <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Full Name</label>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                Display Name <span className="text-red-400">*</span>
+              </label>
               <input
                 type="text"
-                defaultValue="Azamat"
-                className="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm font-medium text-slate-900 focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50"
+                value={formData.userNick}
+                onChange={(e) => handleInputChange('userNick', e.target.value)}
+                placeholder="John Doe"
+                disabled={!isEditMode}
+                className="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm font-medium text-slate-900 focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50 disabled:bg-white disabled:cursor-not-allowed"
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Display Name</label>
-              <input
-                type="text"
-                defaultValue="azamat"
-                className="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm font-medium text-slate-900 focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Email Address</label>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                Email Address <span className="text-red-400">*</span>
+              </label>
               <input
                 type="email"
-                defaultValue="azamat@acmecorp.com"
-                className="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm font-medium text-slate-900 focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50"
+                value={formData.userEmail}
+                onChange={(e) => handleInputChange('userEmail', e.target.value)}
+                placeholder="john@example.com"
+                disabled={!isEditMode}
+                className="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm font-medium text-slate-900 focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50 disabled:bg-white disabled:cursor-not-allowed"
               />
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Phone Number</label>
               <input
                 type="tel"
-                defaultValue="+1 (555) 000-0000"
-                className="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm font-medium text-slate-900 focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50"
+                value={formData.userPhone}
+                onChange={(e) => handleInputChange('userPhone', e.target.value)}
+                placeholder="+1 (555) 000-0000"
+                disabled={!isEditMode}
+                className="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm font-medium text-slate-900 focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50 disabled:bg-white disabled:cursor-not-allowed"
+              />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Bio / Description</label>
+              <textarea
+                rows={4}
+                value={formData.userDescription}
+                onChange={(e) => handleInputChange('userDescription', e.target.value)}
+                placeholder="Tell us about yourself..."
+                disabled={!isEditMode}
+                className="w-full border border-slate-200 rounded-lg px-4 py-3.5 text-sm font-medium text-slate-900 focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50 resize-y disabled:bg-white disabled:cursor-not-allowed"
               />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Password */}
+      {/* Password Section (Optional) */}
       <div className="bg-white border border-slate-200 rounded-xl p-8">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h3 className="text-lg font-bold text-slate-900">Security</h3>
-            <p className="text-sm text-slate-500 mt-0.5">Manage your password and two-factor authentication</p>
+            <p className="text-sm text-slate-500 mt-0.5">Change your password (optional)</p>
           </div>
-          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-100">
-            <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>shield</span>
-            Secure
-          </span>
-        </div>
-        <div className="grid grid-cols-3 gap-6">
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Current Password</label>
-            <input
-              type="password"
-              placeholder="••••••••"
-              className="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">New Password</label>
-            <input
-              type="password"
-              placeholder="••••••••"
-              className="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Confirm New Password</label>
-            <input
-              type="password"
-              placeholder="••••••••"
-              className="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50"
-            />
-          </div>
-        </div>
-        <div className="flex items-center justify-between mt-6 pt-6 border-t border-slate-100">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center">
-              <span className="material-symbols-outlined text-indigo-600">security</span>
-            </div>
-            <div>
-              <p className="text-sm font-bold text-slate-900">Two-Factor Authentication</p>
-              <p className="text-xs text-slate-500">Add an extra layer of security to your account</p>
-            </div>
-          </div>
-          <button className="px-4 py-2 border border-slate-200 rounded-lg text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors">
-            Enable 2FA
+          <button
+            onClick={() => setShowPasswordSection(!showPasswordSection)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-50 border border-slate-200 transition-colors"
+          >
+            <span className="material-symbols-outlined text-lg">{showPasswordSection ? 'expand_less' : 'expand_more'}</span>
+            {showPasswordSection ? 'Hide' : 'Change Password'}
           </button>
         </div>
+        
+        {showPasswordSection && (
+          <div className="space-y-4 pt-4 border-t border-slate-100">
+            <div className="flex justify-end mb-2">
+              <button
+                type="button"
+                onClick={() => setShowPasswords(!showPasswords)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                <span className="material-symbols-outlined text-sm">
+                  {showPasswords ? 'visibility_off' : 'visibility'}
+                </span>
+                {showPasswords ? 'Hide passwords' : 'Show passwords'}
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-6">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Current Password</label>
+                <input
+                  type={showPasswords ? 'text' : 'password'}
+                  value={passwordData.currentPassword}
+                  onChange={(e) => handlePasswordChange('currentPassword', e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm font-medium text-slate-900 focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50 placeholder:text-slate-400"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">New Password</label>
+                <input
+                  type={showPasswords ? 'text' : 'password'}
+                  value={passwordData.newPassword}
+                  onChange={(e) => handlePasswordChange('newPassword', e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm font-medium text-slate-900 focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50 placeholder:text-slate-400"
+                />
+                <p className="text-xs text-slate-400 mt-1">5-12 characters</p>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Confirm New Password</label>
+                <input
+                  type={showPasswords ? 'text' : 'password'}
+                  value={passwordData.confirmPassword}
+                  onChange={(e) => handlePasswordChange('confirmPassword', e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm font-medium text-slate-900 focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50 placeholder:text-slate-400"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <button
+                onClick={handleChangePassword}
+                disabled={isChangingPassword || !passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword}
+                className="bg-[var(--primary)] hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-6 py-2.5 rounded-lg font-bold text-sm transition-all shadow-sm flex items-center gap-2"
+              >
+                {isChangingPassword ? (
+                  <>
+                    <span className="material-symbols-outlined text-lg animate-spin">sync</span>
+                    Changing...
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-lg">lock</span>
+                    Update Password
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
-      <div className="flex justify-end">
-        <button className="bg-[var(--primary)] hover:bg-indigo-700 text-white px-6 py-2.5 rounded-lg font-bold text-sm transition-all shadow-sm">
-          Save Changes
-        </button>
-      </div>
+      {isEditMode && (
+        <div className="flex justify-end">
+          <button
+            onClick={handleSave}
+            disabled={isUpdatingProfile || isUploadingImage || !formData.userNick || !formData.userEmail}
+            className="bg-[var(--primary)] hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-6 py-2.5 rounded-lg font-bold text-sm transition-all shadow-sm flex items-center gap-2"
+          >
+            {isUpdatingProfile || isUploadingImage ? (
+              <>
+                <span className="material-symbols-outlined text-lg animate-spin">sync</span>
+                {isUploadingImage ? 'Uploading Image...' : 'Saving...'}
+              </>
+            ) : (
+              <>
+                <span className="material-symbols-outlined text-lg">save</span>
+                Save Changes
+              </>
+            )}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -567,145 +1097,170 @@ function ProfileTab() {
 /* ═══════════════════════════════════════════════════════════
    Notifications Tab
    ═══════════════════════════════════════════════════════════ */
-function ToggleSwitch({ defaultOn = false }: { defaultOn?: boolean }) {
-  const [on, setOn] = useState(defaultOn);
+function ToggleSwitch({ 
+  isOn, 
+  onToggle 
+}: { 
+  isOn: boolean; 
+  onToggle: () => void;
+}) {
   return (
     <button
-      onClick={() => setOn(!on)}
-      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${on ? 'bg-[var(--primary)]' : 'bg-slate-200'}`}
+      type="button"
+      onClick={onToggle}
+      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:ring-offset-2 ${
+        isOn ? 'bg-[var(--primary)]' : 'bg-slate-200'
+      }`}
     >
-      <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${on ? 'translate-x-6' : 'translate-x-1'}`} />
+      <span
+        className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${
+          isOn ? 'translate-x-6' : 'translate-x-1'
+        }`}
+      />
     </button>
   );
 }
 
 function NotificationsTab() {
-  const categories = [
+  const [notifications, setNotifications] = useState({
+    orderUpdates: true,
+    messages: true,
+    billing: true,
+  });
+  const [isSaving, setIsSaving] = useState(false);
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (successTimeoutRef.current) {
+        clearTimeout(successTimeoutRef.current);
+        successTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
+  const handleToggle = (key: keyof typeof notifications) => {
+    setNotifications((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      // TODO: Add API call to save notification preferences
+      // await saveNotificationPreferences(notifications);
+      
+      // Simulate API call
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      
+      setShowSuccessMessage(true);
+      if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current);
+      successTimeoutRef.current = setTimeout(() => {
+        setShowSuccessMessage(false);
+      }, 3000);
+    } catch (error) {
+      console.error('Error saving notification preferences:', error);
+      alert('Failed to save notification preferences. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const notificationItems = [
     {
-      title: 'Quote Notifications',
-      description: 'When providers submit or update quotes on your requests',
-      icon: 'request_quote',
-      iconBg: 'bg-amber-50',
-      iconColor: 'text-amber-600',
-      email: true, sms: false, push: true,
-    },
-    {
+      key: 'orderUpdates' as const,
       title: 'Order Updates',
-      description: 'Milestone completions, delivery updates, and status changes',
+      description: 'Quotes and status changes',
       icon: 'local_shipping',
       iconBg: 'bg-indigo-50',
       iconColor: 'text-indigo-600',
-      email: true, sms: true, push: true,
     },
     {
+      key: 'messages' as const,
       title: 'Messages',
-      description: 'New messages from providers and team members',
+      description: 'Provider chats',
       icon: 'chat',
       iconBg: 'bg-emerald-50',
       iconColor: 'text-emerald-600',
-      email: true, sms: false, push: true,
     },
     {
-      title: 'Billing & Payments',
-      description: 'Invoice reminders, payment confirmations, and receipts',
+      key: 'billing' as const,
+      title: 'Billing',
+      description: 'Payments and invoices',
       icon: 'payments',
       iconBg: 'bg-rose-50',
       iconColor: 'text-rose-600',
-      email: true, sms: true, push: false,
-    },
-    {
-      title: 'System Announcements',
-      description: 'Platform updates, maintenance notices, and policy changes',
-      icon: 'campaign',
-      iconBg: 'bg-slate-100',
-      iconColor: 'text-slate-500',
-      email: true, sms: false, push: false,
     },
   ];
 
   return (
     <div className="space-y-8">
-      {/* Channel toggles */}
-      <div className="bg-white border border-slate-200 rounded-xl p-8">
-        <h3 className="text-lg font-bold text-slate-900 mb-1">Notification Channels</h3>
-        <p className="text-sm text-slate-500 mb-8">Choose how you want to be notified for each category</p>
-
-        {/* Header */}
-        <div className="grid grid-cols-12 gap-4 mb-4 px-4">
-          <div className="col-span-6">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Category</span>
-          </div>
-          <div className="col-span-2 text-center">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Email</span>
-          </div>
-          <div className="col-span-2 text-center">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">SMS</span>
-          </div>
-          <div className="col-span-2 text-center">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Push</span>
+      {showSuccessMessage && (
+        <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-top-5 fade-in duration-300">
+          <div className="bg-emerald-500 text-white px-6 py-4 rounded-lg shadow-lg flex items-center gap-3 min-w-[300px]">
+            <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+            <div>
+              <p className="font-bold text-sm">Success!</p>
+              <p className="text-xs text-emerald-50">Notification preferences saved</p>
+            </div>
+            <button onClick={() => setShowSuccessMessage(false)} className="ml-auto text-white/80 hover:text-white">
+              <span className="material-symbols-outlined text-lg">close</span>
+            </button>
           </div>
         </div>
+      )}
 
-        {/* Rows */}
-        <div className="space-y-2">
-          {categories.map((cat) => (
-            <div key={cat.title} className="grid grid-cols-12 gap-4 items-center p-4 border border-slate-100 rounded-lg hover:border-slate-200 transition-colors">
-              <div className="col-span-6 flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-lg ${cat.iconBg} flex items-center justify-center flex-shrink-0`}>
-                  <span className={`material-symbols-outlined ${cat.iconColor}`}>{cat.icon}</span>
+      <div className="bg-white border border-slate-200 rounded-xl p-8">
+        <div className="mb-6">
+          <h3 className="text-lg font-bold text-slate-900 mb-1">🔔 Notifications</h3>
+          <p className="text-sm text-slate-500">Manage your notification preferences</p>
+        </div>
+
+        <div className="space-y-3">
+          {notificationItems.map((item) => (
+            <div
+              key={item.key}
+              className="flex items-center justify-between p-4 border border-slate-100 rounded-lg hover:border-slate-200 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-lg ${item.iconBg} flex items-center justify-center flex-shrink-0`}>
+                  <span className={`material-symbols-outlined ${item.iconColor}`}>{item.icon}</span>
                 </div>
                 <div>
-                  <p className="text-sm font-bold text-slate-900">{cat.title}</p>
-                  <p className="text-xs text-slate-500">{cat.description}</p>
+                  <p className="text-sm font-bold text-slate-900">{item.title}</p>
+                  <p className="text-xs text-slate-500">{item.description}</p>
                 </div>
               </div>
-              <div className="col-span-2 flex justify-center">
-                <ToggleSwitch defaultOn={cat.email} />
-              </div>
-              <div className="col-span-2 flex justify-center">
-                <ToggleSwitch defaultOn={cat.sms} />
-              </div>
-              <div className="col-span-2 flex justify-center">
-                <ToggleSwitch defaultOn={cat.push} />
-              </div>
+              <ToggleSwitch
+                isOn={notifications[item.key]}
+                onToggle={() => handleToggle(item.key)}
+              />
             </div>
           ))}
         </div>
-      </div>
 
-      {/* Digest Settings */}
-      <div className="bg-white border border-slate-200 rounded-xl p-8">
-        <h3 className="text-lg font-bold text-slate-900 mb-1">Email Digest</h3>
-        <p className="text-sm text-slate-500 mb-6">Get a summary of your activity delivered to your inbox</p>
-
-        <div className="grid grid-cols-3 gap-4">
-          {[
-            { label: 'Real-time', desc: 'Get notified immediately', icon: 'bolt', active: false },
-            { label: 'Daily Digest', desc: 'Once per day at 9:00 AM', icon: 'today', active: true },
-            { label: 'Weekly Digest', desc: 'Every Monday morning', icon: 'date_range', active: false },
-          ].map((option) => (
-            <button
-              key={option.label}
-              className={`p-5 border rounded-xl text-left transition-all ${
-                option.active
-                  ? 'border-[var(--primary)] bg-indigo-50/50 ring-1 ring-indigo-200'
-                  : 'border-slate-200 hover:border-slate-300'
-              }`}
-            >
-              <div className={`w-10 h-10 rounded-lg ${option.active ? 'bg-indigo-100' : 'bg-slate-100'} flex items-center justify-center mb-3`}>
-                <span className={`material-symbols-outlined ${option.active ? 'text-indigo-600' : 'text-slate-400'}`}>{option.icon}</span>
-              </div>
-              <p className="text-sm font-bold text-slate-900">{option.label}</p>
-              <p className="text-xs text-slate-500 mt-0.5">{option.desc}</p>
-            </button>
-          ))}
+        <div className="flex justify-end mt-8 pt-6 border-t border-slate-100">
+          <button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="bg-[var(--primary)] hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-6 py-2.5 rounded-lg font-bold text-sm transition-all shadow-sm flex items-center gap-2"
+          >
+            {isSaving ? (
+              <>
+                <span className="material-symbols-outlined text-lg animate-spin">sync</span>
+                Saving...
+              </>
+            ) : (
+              <>
+                <span className="material-symbols-outlined text-lg">save</span>
+                Save
+              </>
+            )}
+          </button>
         </div>
-      </div>
-
-      <div className="flex justify-end">
-        <button className="bg-[var(--primary)] hover:bg-indigo-700 text-white px-6 py-2.5 rounded-lg font-bold text-sm transition-all shadow-sm">
-          Save Preferences
-        </button>
       </div>
     </div>
   );
@@ -717,116 +1272,151 @@ function NotificationsTab() {
 function BillingTab() {
   return (
     <div className="space-y-8">
-      {/* Usage Overview */}
-      <div className="grid grid-cols-3 gap-4">
-        {[
-          { label: 'Monthly Spend', value: '$24,500', sub: 'Oct 2023', icon: 'trending_up', iconBg: 'bg-indigo-50', iconColor: 'text-indigo-600' },
-          { label: 'Active Contracts', value: '8', sub: '$42,300 total value', icon: 'handshake', iconBg: 'bg-emerald-50', iconColor: 'text-emerald-600' },
-          { label: 'Pending Invoices', value: '3', sub: '$6,200 due', icon: 'receipt_long', iconBg: 'bg-amber-50', iconColor: 'text-amber-600' },
-        ].map((stat) => (
-          <div key={stat.label} className="bg-white border border-slate-200 rounded-xl p-6">
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">{stat.label}</span>
-              <div className={`w-9 h-9 rounded-lg ${stat.iconBg} flex items-center justify-center`}>
-                <span className={`material-symbols-outlined ${stat.iconColor} text-xl`}>{stat.icon}</span>
-              </div>
+      {/* Billing Summary */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-2xl p-6 shadow-xl border border-indigo-500/20">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-sm font-bold text-white/80 uppercase tracking-wider">This Month</span>
+            <div className="w-10 h-10 rounded-lg bg-white/20 backdrop-blur-sm flex items-center justify-center">
+              <span className="material-symbols-outlined text-white text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>receipt_long</span>
             </div>
-            <p className="text-3xl font-bold text-slate-900">{stat.value}</p>
-            <p className="text-sm text-slate-500 font-medium mt-1">{stat.sub}</p>
           </div>
-        ))}
-      </div>
-
-      {/* Payment Methods */}
-      <div className="bg-white border border-slate-200 rounded-xl p-8">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h3 className="text-lg font-bold text-slate-900">Payment Methods</h3>
-            <p className="text-sm text-slate-500 mt-0.5">Manage your payment cards and bank accounts</p>
-          </div>
-          <button className="bg-[var(--primary)] hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all shadow-sm">
-            <span className="material-symbols-outlined text-lg">add</span>
-            Add Method
-          </button>
+          <p className="text-3xl font-bold text-white mb-1">$2,450.00</p>
+          <p className="text-xs text-white/70 font-medium">Total billed</p>
         </div>
 
-        <div className="space-y-3">
-          {[
-            { type: 'Visa', last4: '4242', exp: '12/25', isDefault: true },
-            { type: 'Mastercard', last4: '8888', exp: '03/26', isDefault: false },
-          ].map((card) => (
-            <div key={card.last4} className="flex items-center justify-between p-4 border border-slate-100 rounded-lg hover:border-slate-200 transition-colors">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-8 rounded bg-gradient-to-r from-slate-800 to-slate-600 flex items-center justify-center">
-                  <span className="text-white text-[10px] font-bold">{card.type.toUpperCase()}</span>
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-slate-900">
-                    {card.type} ending in {card.last4}
-                  </p>
-                  <p className="text-xs text-slate-500">Expires {card.exp}</p>
-                </div>
-              </div>
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Next Billing</span>
+            <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center">
+              <span className="material-symbols-outlined text-emerald-600 text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>calendar_today</span>
+            </div>
+          </div>
+          <p className="text-3xl font-bold text-slate-900 mb-1">Jan 15, 2024</p>
+          <p className="text-xs text-slate-500 font-medium">Auto-renewal date</p>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Current Plan</span>
+            <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center">
+              <span className="material-symbols-outlined text-indigo-600 text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>workspace_premium</span>
+            </div>
+          </div>
+          <p className="text-2xl font-bold text-slate-900 mb-1">Professional</p>
+          <p className="text-xs text-slate-500 font-medium">$99/month</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Payment Method */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-8 shadow-sm">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h3 className="text-lg font-bold text-slate-900 mb-1">Payment Method</h3>
+              <p className="text-sm text-slate-500">Your default payment method</p>
+            </div>
+            <button className="px-4 py-2 border border-slate-200 rounded-lg text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors">
+              Edit
+            </button>
+          </div>
+
+          <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 shadow-lg border border-slate-700">
+            <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
-                {card.isDefault && (
-                  <span className="px-2.5 py-1 rounded-md text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-100 uppercase tracking-wider">
-                    Default
-                  </span>
-                )}
-                <button className="text-slate-400 hover:text-slate-600">
-                  <span className="material-symbols-outlined text-lg">more_horiz</span>
-                </button>
+                <div className="w-12 h-8 rounded bg-white/10 backdrop-blur-sm flex items-center justify-center">
+                  <span className="text-white text-xs font-bold">VISA</span>
+                </div>
+                <span className="px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 uppercase tracking-wider">
+                  Default
+                </span>
               </div>
             </div>
-          ))}
+            <div className="mb-4">
+              <p className="text-2xl font-bold text-white tracking-wider mb-2">•••• •••• •••• 4242</p>
+              <div className="flex items-center gap-4 text-white/70 text-sm">
+                <span>John Doe</span>
+                <span>•</span>
+                <span>Expires 12/25</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Billing Address */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-8 shadow-sm">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h3 className="text-lg font-bold text-slate-900 mb-1">Billing Address</h3>
+              <p className="text-sm text-slate-500">Where invoices are sent</p>
+            </div>
+            <button className="px-4 py-2 border border-slate-200 rounded-lg text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors">
+              Edit
+            </button>
+          </div>
+
+          <div className="space-y-1">
+            <p className="text-sm font-bold text-slate-900">ABC Corporation</p>
+            <p className="text-sm text-slate-600">123 Business Street</p>
+            <p className="text-sm text-slate-600">Suite 400</p>
+            <p className="text-sm text-slate-600">New York, NY 10001</p>
+            <p className="text-sm text-slate-600 mt-2">United States</p>
+          </div>
         </div>
       </div>
 
-      {/* Invoice History */}
-      <div className="bg-white border border-slate-200 rounded-xl p-8">
+      {/* Recent Invoices */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-8 shadow-sm">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h3 className="text-lg font-bold text-slate-900">Invoice History</h3>
-            <p className="text-sm text-slate-500 mt-0.5">Download and review past invoices</p>
+            <h3 className="text-lg font-bold text-slate-900 mb-1">Recent Invoices</h3>
+            <p className="text-sm text-slate-500">Download and review past invoices</p>
           </div>
-          <button className="px-4 py-2 border border-slate-200 rounded-lg text-sm font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors">
+          <button className="px-4 py-2 border border-slate-200 rounded-lg text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2">
             <span className="material-symbols-outlined text-lg">download</span>
             Export All
           </button>
         </div>
 
-        <div className="overflow-hidden rounded-lg border border-slate-100">
+        <div className="overflow-hidden rounded-xl border border-slate-100">
           <table className="w-full">
             <thead>
               <tr className="bg-slate-50/80">
-                <th className="px-5 py-3 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Invoice</th>
-                <th className="px-5 py-3 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Date</th>
-                <th className="px-5 py-3 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Amount</th>
-                <th className="px-5 py-3 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Status</th>
-                <th className="px-5 py-3 text-right text-xs font-bold text-slate-400 uppercase tracking-wider">Action</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Invoice</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Date</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Amount</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-4 text-right text-xs font-bold text-slate-400 uppercase tracking-wider">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {[
-                { id: 'INV-2048', date: 'Oct 15, 2023', amount: '$18,500.00', status: 'Paid' },
-                { id: 'INV-2031', date: 'Sep 30, 2023', amount: '$4,200.00', status: 'Paid' },
-                { id: 'INV-2019', date: 'Sep 15, 2023', amount: '$2,800.00', status: 'Pending' },
+                { id: 'INV-2024-001', date: 'Dec 15, 2023', amount: '$99.00', status: 'Paid', statusColor: 'emerald' },
+                { id: 'INV-2023-098', date: 'Nov 15, 2023', amount: '$99.00', status: 'Paid', statusColor: 'emerald' },
+                { id: 'INV-2023-087', date: 'Oct 15, 2023', amount: '$99.00', status: 'Paid', statusColor: 'emerald' },
+                { id: 'INV-2023-076', date: 'Sep 15, 2023', amount: '$99.00', status: 'Paid', statusColor: 'emerald' },
               ].map((inv) => (
                 <tr key={inv.id} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="px-5 py-4 text-sm font-bold text-slate-900">{inv.id}</td>
-                  <td className="px-5 py-4 text-sm text-slate-600 font-medium">{inv.date}</td>
-                  <td className="px-5 py-4 text-sm font-bold text-slate-900">{inv.amount}</td>
-                  <td className="px-5 py-4">
-                    <span className={`px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider ${
-                      inv.status === 'Paid'
+                  <td className="px-6 py-4">
+                    <p className="text-sm font-bold text-slate-900">{inv.id}</p>
+                  </td>
+                  <td className="px-6 py-4">
+                    <p className="text-sm text-slate-600 font-medium">{inv.date}</p>
+                  </td>
+                  <td className="px-6 py-4">
+                    <p className="text-sm font-bold text-slate-900">{inv.amount}</p>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className={`px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider ${
+                      inv.statusColor === 'emerald'
                         ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
                         : 'bg-amber-50 text-amber-700 border border-amber-100'
                     }`}>
                       {inv.status}
                     </span>
                   </td>
-                  <td className="px-5 py-4 text-right">
-                    <button className="text-[var(--primary)] font-semibold text-sm hover:underline flex items-center gap-1 ml-auto">
+                  <td className="px-6 py-4 text-right">
+                    <button className="text-[var(--primary)] font-semibold text-sm hover:underline flex items-center gap-1.5 ml-auto inline-flex">
                       <span className="material-symbols-outlined text-base">download</span>
                       PDF
                     </button>
