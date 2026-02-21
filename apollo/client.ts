@@ -8,6 +8,31 @@ import { getHeaders } from './utils';
 
 let apolloClient: ApolloClient<any>;
 
+// Suppress canonizeResults deprecation warning from Apollo Client 3.14.0
+// This is an internal Apollo Client issue that will be fixed in future versions
+// The warning comes from Apollo's internal cache.diff operations, not our code
+if (typeof window !== 'undefined') {
+  const originalError = console.error;
+  console.error = (...args: any[]) => {
+    // Check if this is the specific Apollo Client canonizeResults deprecation warning
+    const firstArg = args[0];
+    const isApolloCanonizeWarning = 
+      (typeof firstArg === 'string' && 
+       firstArg.includes('An error occurred!') && 
+       firstArg.includes('cache.diff') && 
+       firstArg.includes('canonizeResults')) ||
+      (typeof firstArg === 'string' && 
+       firstArg.includes('canonizeResults') && 
+       firstArg.includes('Please remove this option'));
+    
+    // Only suppress the specific canonizeResults warning, allow all other errors
+    if (isApolloCanonizeWarning) {
+      return;
+    }
+    originalError.apply(console, args);
+  };
+}
+
 const errorLink = onError(({ graphQLErrors, networkError, operation, forward }) => {
   if (graphQLErrors) {
     graphQLErrors.forEach(({ message, locations, path, extensions }) => {

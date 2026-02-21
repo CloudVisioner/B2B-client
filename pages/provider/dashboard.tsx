@@ -1,21 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { useReactiveVar } from '@apollo/client';
+import { useReactiveVar, useQuery } from '@apollo/client';
 import { userVar } from '../../apollo/store';
 import { isLoggedIn } from '../../libs/auth';
+import { getHeaders } from '../../apollo/utils';
 import { ProviderSidebar } from '../../libs/components/dashboard/ProviderSidebar';
 import { ProviderHeader } from '../../libs/components/dashboard/ProviderHeader';
-import { ProviderStatsCard } from '../../libs/components/dashboard/ProviderStatsCard';
-import { ProviderActivityFeed } from '../../libs/components/dashboard/ProviderActivityFeed';
-import { ProviderQuickLinks } from '../../libs/components/dashboard/ProviderQuickLinks';
-import { ProviderStatusCard } from '../../libs/components/dashboard/ProviderStatusCard';
 
+/* ─── Format date helper ─── */
+function formatDate(dateString: string): string {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Provider Dashboard - Professional Overview
+   ═══════════════════════════════════════════════════════════ */
 export default function ProviderDashboardPage() {
   const router = useRouter();
   const currentUser = useReactiveVar(userVar);
   const [mounted, setMounted] = useState(false);
 
-  // Handle client-side mounting to prevent hydration mismatch
+  // TODO: Replace with actual provider queries when available
+  // For now using mock data structure
+  const [availableRequests, setAvailableRequests] = useState<any[]>([]);
+  const [myQuotes, setMyQuotes] = useState<any[]>([]);
+  const [activeOrders, setActiveOrders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
   useEffect(() => {
     setMounted(true);
     if (!isLoggedIn()) {
@@ -23,131 +35,234 @@ export default function ProviderDashboardPage() {
       return;
     }
 
-    // Check if user is a provider, if not redirect to buyer dashboard
+    // Check if user is a provider
     const userRole = currentUser?.userRole;
     if (userRole && userRole !== 'PROVIDER' && userRole !== 'provider') {
       router.push('/dashboard');
     }
+
+    // TODO: Fetch actual data from GraphQL queries
+    // Mock data for now
+    setAvailableRequests([
+      { _id: '1', reqTitle: 'Web Design', reqBudgetRange: '$3,500', reqDeadline: '2024-03-15' },
+      { _id: '2', reqTitle: 'Logo', reqBudgetRange: '$800', reqDeadline: '2024-02-28' },
+    ]);
+    setMyQuotes([
+      { _id: '123', reqTitle: 'Web Design', status: 'PENDING' },
+      { _id: '124', reqTitle: 'Logo', status: 'ACCEPTED' },
+    ]);
+    setActiveOrders([
+      { _id: '127', reqTitle: 'Legal Review', status: 'IN_PROGRESS', progress: 50 },
+    ]);
   }, [router, currentUser]);
 
-  // During SSR or before mount, render empty div to match client
   if (!mounted) {
     return (
-      <div className="flex h-screen w-full bg-slate-50 dark:bg-slate-900 overflow-hidden">
-        <div className="w-64 flex-shrink-0 h-full border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"></div>
+      <div className="flex h-screen w-full bg-slate-50 overflow-hidden">
+        <div className="w-64 flex-shrink-0 h-full border-r border-slate-200 bg-white"></div>
         <div className="flex flex-1 flex-col overflow-hidden">
-          <div className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shrink-0"></div>
+          <div className="h-16 bg-white border-b"></div>
           <main className="flex-1 overflow-y-auto"></main>
         </div>
       </div>
     );
   }
 
-  // If not logged in after mount, don't render anything
-  if (!isLoggedIn()) {
+  if (!isLoggedIn()) return null;
+
+  const userRole = currentUser?.userRole;
+  if (userRole && userRole !== 'PROVIDER' && userRole !== 'provider') {
     return null;
   }
 
-  // Check user role
-  const userRole = currentUser?.userRole;
-  if (userRole && userRole !== 'PROVIDER' && userRole !== 'provider') {
-    return null; // Will redirect in useEffect
-  }
-
   return (
-    <div className="flex h-screen w-full bg-slate-50 dark:bg-slate-900 overflow-hidden antialiased">
-      {/* Sidebar - Fixed Width, No Overlap */}
+    <div className="flex h-screen w-full bg-[#F9FAFB] overflow-hidden antialiased">
+      {/* Sidebar - Navigation */}
       <ProviderSidebar />
 
-      {/* Main Content Area - Fills remaining space */}
-      <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Header - Stays at top */}
-        <ProviderHeader />
+      {/* Main Content */}
+      <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
+        {/* ── Header (Same as other provider pages) ── */}
+        <ProviderHeader title="Dashboard" />
 
-        {/* Scrollable Section */}
-        <main className="flex-1 overflow-y-auto p-8 bg-slate-50 dark:bg-slate-900">
-          <div className="max-w-7xl mx-auto space-y-8">
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <ProviderStatsCard
-                icon="assignment"
-                title="Active Projects"
-                value="8"
-                linkText="View All"
-                linkHref="/provider/projects"
-              />
-              <ProviderStatsCard
-                icon="payments"
-                iconBg="bg-green-50 dark:bg-green-900/20"
-                iconColor="text-green-600 dark:text-green-400"
-                title="Revenue this Month"
-                value="$12,400"
-                badge="+12%"
-                badgeColor="text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20"
-              />
-              <ProviderStatsCard
-                icon="pending_actions"
-                iconBg="bg-primary"
-                iconColor="text-white"
-                title="New Proposals"
-                value="3"
-                badge="URGENT"
-                badgeColor="text-primary bg-primary/10"
-                highlight={true}
-              />
-              <ProviderStatsCard
-                icon="mail"
-                iconBg="bg-amber-50 dark:bg-amber-900/20"
-                iconColor="text-amber-600 dark:text-amber-400"
-                title="Recent Messages"
-                value="5"
-                linkText="Inbox"
-                linkHref="/provider/messages"
-              />
-            </div>
-
-            {/* Bottom Section: Recent Activity & Quick Links */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Recent Activity Feed */}
-              <ProviderActivityFeed />
-
-              {/* Quick Actions / Shortcuts */}
-              <div className="space-y-6">
-                <ProviderQuickLinks />
-
-                {/* Platform Status Card */}
-                <ProviderStatusCard
-                  title="SME Connect Hub"
-                  message="Your provider status is currently excellent. Keep up the great response time!"
-                  progress={92}
-                />
+        {/* ── Scrollable Body ── */}
+        <main className="flex-1 overflow-y-auto bg-[#F9FAFB]">
+          <div className="max-w-6xl mx-auto px-8 py-10">
+            {/* Overview Section */}
+            <div className="mb-10">
+              <div className="mb-8">
+                <h2 className="text-2xl font-bold text-slate-900 mb-1">Overview</h2>
+                <p className="text-sm text-slate-500">Quick snapshot of your opportunities and work</p>
               </div>
-            </div>
 
-            {/* Footer - Matching Buyer Dashboard Style */}
-            <div className="flex flex-wrap items-center gap-4 pt-8 border-t border-[var(--border)]">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mr-4">Management</p>
-              <button
-                onClick={() => router.push('/provider/jobs')}
-                className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-md text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
-              >
-                <span className="material-symbols-outlined text-lg">work</span>
-                Find Jobs
-              </button>
-              <button
-                onClick={() => router.push('/provider/organizations')}
-                className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-md text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
-              >
-                <span className="material-symbols-outlined text-lg">settings_suggest</span>
-                Manage Organizations
-              </button>
-              <button className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-md text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
-                <span className="material-symbols-outlined text-lg">help</span>
-                Help & Support
-              </button>
-            </div>
-            <div className="pb-8">
-              <p className="text-xs text-slate-400 font-medium">© 2026 SME Marketplace Provider v2.1</p>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* CARD 1: Available Requests */}
+                <div className="bg-white border border-slate-200 rounded-lg hover:border-slate-300 hover:shadow-sm transition-all duration-200">
+                  <div className="p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center">
+                          <span className="material-symbols-outlined text-slate-600 text-xl">description</span>
+                        </div>
+                        <h3 className="text-lg font-bold text-slate-900">Available Requests ({availableRequests.length})</h3>
+                      </div>
+                    </div>
+                    {loading ? (
+                      <div className="space-y-2">
+                        <div className="h-12 bg-slate-100 rounded animate-pulse"></div>
+                        <div className="h-12 bg-slate-100 rounded animate-pulse"></div>
+                      </div>
+                    ) : availableRequests.length === 0 ? (
+                      <p className="text-sm text-slate-500 text-center py-4">No available requests</p>
+                    ) : (
+                      <div className="space-y-2 mb-4">
+                        {availableRequests.slice(0, 3).map((req: any) => (
+                          <div
+                            key={req._id}
+                            className="p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                            onClick={() => router.push(`/provider/jobs?id=${req._id}`)}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold text-slate-900 truncate">{req.reqTitle}</p>
+                                <div className="flex items-center gap-2 mt-1 text-xs text-slate-600">
+                                  <span>{req.reqBudgetRange || 'N/A'}</span>
+                                  <span>•</span>
+                                  <span>{req.reqDeadline ? formatDate(req.reqDeadline) : 'No deadline'}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <button
+                      onClick={() => router.push('/provider/jobs')}
+                      className="w-full mt-4 px-4 py-2 text-sm font-semibold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"
+                    >
+                      ➕ View All
+                    </button>
+                  </div>
+                </div>
+
+                {/* CARD 2: My Quotes */}
+                <div className="bg-white border border-slate-200 rounded-lg hover:border-slate-300 hover:shadow-sm transition-all duration-200">
+                  <div className="p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center">
+                          <span className="material-symbols-outlined text-slate-600 text-xl">request_quote</span>
+                        </div>
+                        <h3 className="text-lg font-bold text-slate-900">My Quotes ({myQuotes.length})</h3>
+                      </div>
+                    </div>
+                    {loading ? (
+                      <div className="space-y-2">
+                        <div className="h-12 bg-slate-100 rounded animate-pulse"></div>
+                        <div className="h-12 bg-slate-100 rounded animate-pulse"></div>
+                      </div>
+                    ) : myQuotes.length === 0 ? (
+                      <p className="text-sm text-slate-500 text-center py-4">No quotes submitted</p>
+                    ) : (
+                      <div className="space-y-2 mb-4">
+                        {myQuotes.slice(0, 3).map((quote: any) => (
+                          <div
+                            key={quote._id}
+                            className="p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                            onClick={() => router.push(`/provider/jobs?id=${quote._id}`)}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-mono font-bold text-slate-400">#{quote._id}</span>
+                                  <span className="text-sm font-semibold text-slate-900 truncate">{quote.reqTitle}</span>
+                                </div>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <span className="text-xs text-slate-600">→</span>
+                                  <span className={`text-xs font-semibold ${
+                                    quote.status === 'ACCEPTED' 
+                                      ? 'text-emerald-600' 
+                                      : quote.status === 'REJECTED'
+                                      ? 'text-red-600'
+                                      : 'text-slate-600'
+                                  }`}>
+                                    {quote.status === 'ACCEPTED' ? 'Accepted ✓' : quote.status === 'REJECTED' ? 'Rejected' : 'Pending'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <button
+                      onClick={() => router.push('/provider/jobs')}
+                      className="w-full mt-4 px-4 py-2 text-sm font-semibold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"
+                    >
+                      👀 Manage
+                    </button>
+                  </div>
+                </div>
+
+                {/* CARD 3: Active Orders */}
+                <div className="bg-white border border-slate-200 rounded-lg hover:border-slate-300 hover:shadow-sm transition-all duration-200">
+                  <div className="p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center">
+                          <span className="material-symbols-outlined text-slate-600 text-xl">work</span>
+                        </div>
+                        <h3 className="text-lg font-bold text-slate-900">Active Orders ({activeOrders.length})</h3>
+                      </div>
+                    </div>
+                    {loading ? (
+                      <div className="space-y-2">
+                        <div className="h-16 bg-slate-100 rounded animate-pulse"></div>
+                      </div>
+                    ) : activeOrders.length === 0 ? (
+                      <p className="text-sm text-slate-500 text-center py-4">No active orders</p>
+                    ) : (
+                      <div className="space-y-3 mb-4">
+                        {activeOrders.slice(0, 3).map((order: any) => (
+                          <div
+                            key={order._id}
+                            className="p-4 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                            onClick={() => router.push(`/provider/projects?id=${order._id}`)}
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-mono font-bold text-slate-400">#{order._id}</span>
+                                <span className="text-sm font-semibold text-slate-900">{order.reqTitle}</span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 mt-2 mb-2">
+                              <span className="text-xs font-semibold text-blue-600">In Progress</span>
+                            </div>
+                            <div className="mt-3">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-xs font-semibold text-slate-600">📊 Progress</span>
+                                <span className="text-xs font-bold text-slate-700">{order.progress || 0}%</span>
+                              </div>
+                              <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                                <div 
+                                  className="h-full bg-blue-500 rounded-full transition-all duration-300" 
+                                  style={{ width: `${order.progress || 0}%` }}
+                                ></div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <button
+                      onClick={() => router.push('/provider/projects')}
+                      className="w-full mt-4 px-4 py-2 text-sm font-semibold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"
+                    >
+                      👀 View All
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </main>

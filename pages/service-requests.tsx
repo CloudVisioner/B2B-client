@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { useReactiveVar, useQuery } from '@apollo/client';
+import { useReactiveVar, useQuery, useMutation } from '@apollo/client';
 import { userVar } from '../apollo/store';
 import { isLoggedIn } from '../libs/auth';
 import { getHeaders } from '../apollo/utils';
 import { Sidebar } from '../libs/components/dashboard/Sidebar';
 import { GET_BUYER_SERVICE_REQUESTS } from '../apollo/user/query';
+import { UPDATE_SERVICE_REQUEST } from '../apollo/user/mutation';
 
 /* ─── Service Request Interface ─── */
+/* ✅ Using correct field names from backend */
 interface ServiceRequest {
   _id: string;
   reqTitle: string;
@@ -18,28 +20,50 @@ interface ServiceRequest {
   reqUrgency: string;
   reqTotalQuotes?: number;
   reqNewQuotesCount?: number;
+  reqTotalLikes?: number;
+  reqTotalViews?: number;
   reqCategory?: string;
   reqSubCategory?: string;
   reqSkillsNeeded?: string[];
+  reqAttachments?: string[];
+  reqBuyerOrgId?: string;
+  reqCreatedByUserId?: string;
   createdAt: string;
   updatedAt: string;
+  // Note: GET_BUYER_SERVICE_REQUESTS may not include buyerOrgData, but interface is ready if backend adds it
+  reqBuyerOrgData?: {
+    _id: string;
+    organizationName?: string;
+    organizationIndustry?: string;
+    organizationLocation?: string;
+    organizationDescription?: string;
+    organizationImage?: string;
+    organizationContactEmail?: string;
+    organizationType?: string;
+    organizationStatus?: string;
+  };
+  reqCreatedByUserData?: {
+    _id: string;
+    userNick?: string;
+    userEmail?: string;
+  };
 }
 
 /* ─── Status badge helper ─── */
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
-    OPEN: 'bg-emerald-50 text-emerald-700 border-emerald-100',
-    PUBLISHED: 'bg-emerald-50 text-emerald-700 border-emerald-100',
-    IN_PROGRESS: 'bg-indigo-50 text-indigo-700 border-indigo-100',
     DRAFT: 'bg-slate-100 text-slate-600 border-slate-200',
+    OPEN: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+    ACTIVE: 'bg-blue-50 text-blue-700 border-blue-100',
+    COMPLETED: 'bg-purple-50 text-purple-700 border-purple-100',
     CLOSED: 'bg-slate-100 text-slate-500 border-slate-200',
     CANCELLED: 'bg-red-50 text-red-700 border-red-100',
   };
   const labels: Record<string, string> = {
-    OPEN: 'Open',
-    PUBLISHED: 'Published',
-    IN_PROGRESS: 'In Progress',
     DRAFT: 'Draft',
+    OPEN: 'Open',
+    ACTIVE: 'Active',
+    COMPLETED: 'Completed',
     CLOSED: 'Closed',
     CANCELLED: 'Cancelled',
   };
@@ -54,18 +78,20 @@ function StatusBadge({ status }: { status: string }) {
 function actionLabel(status: string) {
   switch (status) {
     case 'OPEN':
-    case 'PUBLISHED':
       return 'View Quotes';
-    case 'IN_PROGRESS':
-      return 'Approve Work';
+    case 'ACTIVE':
+      return 'View Progress';
     case 'DRAFT':
       return 'Publish Request';
+    case 'COMPLETED':
+      return 'Review';
     default:
       return 'View Details';
   }
 }
 function actionIcon(status: string) {
   if (status === 'DRAFT') return 'send';
+  if (status === 'ACTIVE') return 'trending_up';
   return '';
 }
 
@@ -87,6 +113,63 @@ function mapCategory(category?: string): string {
   return categoryMap[category] || category.replace(/_/g, ' ');
 }
 
+/* ─── Reverse map category (frontend to backend) ─── */
+function mapCategoryToBackend(category: string): string {
+  const categoryMap: Record<string, string> = {
+    'IT & Software': 'IT_AND_SOFTWARE',
+    'Business Services': 'BUSINESS_SERVICES',
+    'Marketing & Sales': 'MARKETING_AND_SALES',
+    'Design & Creative': 'DESIGN_AND_CREATIVE',
+  };
+  return categoryMap[category] || category.toUpperCase().replace(/\s+/g, '_');
+}
+
+/* ─── Map subcategory to backend ─── */
+function mapSubCategoryToBackend(subcategory: string): string {
+  return subcategory.toUpperCase().replace(/\s+/g, '_').replace(/&/g, 'AND');
+}
+
+/* ─── Map urgency to backend ─── */
+function mapUrgencyToBackend(urgency: string): string {
+  switch (urgency.toLowerCase()) {
+    case 'urgent': return 'URGENT';
+    case 'critical': return 'CRITICAL';
+    default: return 'NORMAL';
+  }
+}
+
+/* ─── Map urgency from backend ─── */
+function mapUrgencyFromBackend(urgency?: string): 'normal' | 'urgent' | 'critical' {
+  if (!urgency) return 'normal';
+  switch (urgency.toUpperCase()) {
+    case 'URGENT': return 'urgent';
+    case 'CRITICAL': return 'critical';
+    default: return 'normal';
+  }
+}
+
+/* ─── Category data for edit form ─── */
+const CATEGORY_MAP: Record<string, { subcategories: string[]; skills: string[] }> = {
+  'IT & Software': {
+    subcategories: ['Web & App Development', 'Data & AI', 'Software Testing & QA', 'Infrastructure & Cloud'],
+    skills: ['React', 'Python', 'Node.js', 'AWS', 'TypeScript', 'Docker', 'SQL', 'REST API'],
+  },
+  'Business Services': {
+    subcategories: ['Admin & Virtual Support', 'Financial & Legal', 'Strategy & Consulting', 'HR & Operations'],
+    skills: ['Business Analysis', 'Financial Modeling', 'Strategic Planning', 'Budgeting', 'Compliance', 'Project Management', 'Market Research', 'Contract Drafting'],
+  },
+  'Marketing & Sales': {
+    subcategories: ['Digital Marketing', 'Social Media Management', 'Content & Copywriting', 'Sales & Lead Generation'],
+    skills: ['SEO', 'Google Ads', 'Content Strategy', 'Copywriting', 'Social Media', 'Email Marketing', 'Google Analytics', 'Lead Generation'],
+  },
+  'Design & Creative': {
+    subcategories: ['Visual Identity & Branding', 'UI/UX & Web Design', 'Motion & Video', 'Illustration & Print'],
+    skills: ['Figma', 'Photoshop', 'Illustrator', 'UI/UX Design', 'Prototyping', 'Logo Design', 'After Effects', 'Brand Guidelines'],
+  },
+};
+
+const CATEGORY_NAMES = Object.keys(CATEGORY_MAP);
+
 /* ═══════════════════════════════════════════════════════════
    Page
    ═══════════════════════════════════════════════════════════ */
@@ -99,6 +182,8 @@ export default function ServiceRequestsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRequest, setSelectedRequest] = useState<ServiceRequest | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingRequest, setEditingRequest] = useState<ServiceRequest | null>(null);
 
   // Fetch service requests from backend
   const { data, loading, error, refetch } = useQuery(GET_BUYER_SERVICE_REQUESTS, {
@@ -124,10 +209,44 @@ export default function ServiceRequestsPage() {
   const metaCounter = data?.getBuyerServiceRequests?.metaCounter || {
     total: 0,
     open: 0,
-    inProgress: 0,
+    active: 0,
+    completed: 0,
     closed: 0,
     draft: 0,
+    cancelled: 0,
   };
+
+  // Update mutation
+  const [updateServiceRequest, { loading: isUpdating }] = useMutation(UPDATE_SERVICE_REQUEST, {
+    context: {
+      headers: isLoggedIn() ? getHeaders() : {},
+    },
+    refetchQueries: [
+      {
+        query: GET_BUYER_SERVICE_REQUESTS,
+        variables: {
+          input: {
+            status: statusFilter !== 'all' ? statusFilter.toUpperCase() : undefined,
+            search: searchQuery || undefined,
+            sortBy: sortBy === 'newest' ? 'createdAt' : sortBy === 'deadline' ? 'reqDeadline' : 'reqBudgetRange',
+            sortOrder: 'desc',
+            page: 1,
+            limit: 50,
+          },
+        },
+      },
+    ],
+    awaitRefetchQueries: true,
+    onCompleted: () => {
+      setIsEditModalOpen(false);
+      setEditingRequest(null);
+    },
+    onError: (error) => {
+      console.error('Error updating service request:', error);
+      const errorMessage = error?.graphQLErrors?.[0]?.message || error?.message || 'Failed to update service request. Please try again.';
+      alert(errorMessage);
+    },
+  });
 
   useEffect(() => {
     setMounted(true);
@@ -243,9 +362,12 @@ export default function ServiceRequestsPage() {
                 className="bg-white border border-slate-200 rounded-lg text-sm font-medium focus:ring-[var(--primary)] focus:border-[var(--primary)] px-3 py-2.5 pr-10 min-w-[140px]"
               >
                 <option value="all">All Statuses</option>
+                <option value="draft">Draft</option>
                 <option value="open">Open</option>
-                <option value="in_progress">In Progress</option>
+                <option value="active">Active</option>
+                <option value="completed">Completed</option>
                 <option value="closed">Closed</option>
+                <option value="cancelled">Cancelled</option>
               </select>
               <select
                 value={sortBy}
@@ -267,9 +389,9 @@ export default function ServiceRequestsPage() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               {[
                 { label: 'Total Requests', value: metaCounter.total || 0, sub: 'Lifetime' },
-                { label: 'Open', value: metaCounter.open || 0, sub: 'Active', subColor: 'text-emerald-600' },
-                { label: 'In Progress', value: metaCounter.inProgress || 0, sub: 'Ongoing' },
-                { label: 'Closed', value: metaCounter.closed || 0, sub: 'Completed' },
+                { label: 'Open', value: metaCounter.open || 0, sub: 'Published', subColor: 'text-emerald-600' },
+                { label: 'Active', value: metaCounter.active || 0, sub: 'In Progress', subColor: 'text-blue-600' },
+                { label: 'Completed', value: metaCounter.completed || 0, sub: 'Delivered', subColor: 'text-purple-600' },
               ].map((card) => (
                 <div key={card.label} className="p-5 bg-white border border-transparent rounded-xl">
                   <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">{card.label}</p>
@@ -317,9 +439,9 @@ export default function ServiceRequestsPage() {
             ) : (
               <div className="space-y-4">
                 {serviceRequests.map((req: ServiceRequest) => {
-                  const isOpen = req.reqStatus === 'OPEN' || req.reqStatus === 'PUBLISHED';
+                  const isOpen = req.reqStatus === 'OPEN';
                   const isDraft = req.reqStatus === 'DRAFT';
-                  const isInProgress = req.reqStatus === 'IN_PROGRESS';
+                  const isActive = req.reqStatus === 'ACTIVE';
 
                   return (
                     <div
@@ -383,6 +505,18 @@ export default function ServiceRequestsPage() {
                         {isDraft && (
                           <div className="p-4 bg-slate-50 rounded-lg border border-dashed border-slate-300 flex items-center justify-center">
                             <p className="text-sm font-medium text-slate-500 italic">Review required before publishing to marketplace</p>
+                          </div>
+                        )}
+
+                        {isActive && (
+                          <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                            <div className="flex items-center justify-between mb-2">
+                              <p className="text-sm font-bold text-blue-700">Work in Progress</p>
+                              <span className="text-xs font-bold text-blue-600">50%</span>
+                            </div>
+                            <div className="w-full h-2 bg-blue-200 rounded-full overflow-hidden">
+                              <div className="h-full bg-blue-500 rounded-full" style={{ width: '50%' }}></div>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -577,7 +711,7 @@ export default function ServiceRequestsPage() {
                 )}
 
                 {/* Quotes Info (if open) */}
-                {(selectedRequest.reqStatus === 'OPEN' || selectedRequest.reqStatus === 'PUBLISHED') && (
+                {selectedRequest.reqStatus === 'OPEN' && (
                   <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5">
                     <div className="flex items-center justify-between">
                       <div>
@@ -624,8 +758,16 @@ export default function ServiceRequestsPage() {
                 Close
               </button>
               <div className="flex items-center gap-3">
-                {selectedRequest.reqStatus === 'DRAFT' && (
-                  <button className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-white rounded-lg transition-colors border border-slate-200">
+                {(selectedRequest.reqStatus === 'DRAFT' || selectedRequest.reqStatus === 'OPEN') && (
+                  <button
+                    onClick={() => {
+                      setIsModalOpen(false);
+                      setEditingRequest(selectedRequest);
+                      setIsEditModalOpen(true);
+                    }}
+                    className="px-5 py-2.5 text-sm font-bold text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-indigo-200 flex items-center gap-2"
+                  >
+                    <span className="material-symbols-outlined text-base">edit</span>
                     Edit
                   </button>
                 )}
@@ -640,6 +782,399 @@ export default function ServiceRequestsPage() {
           </div>
         </div>
       )}
+
+      {/* ── Premium Edit Modal ── */}
+      {isEditModalOpen && editingRequest && (
+        <EditServiceRequestModal
+          request={editingRequest}
+          isOpen={isEditModalOpen}
+          onClose={() => {
+            setIsEditModalOpen(false);
+            setEditingRequest(null);
+          }}
+          onSave={async (formData) => {
+            try {
+              const input: any = {
+                _id: editingRequest._id,
+              };
+
+              if (formData.title) input.reqTitle = formData.title.trim();
+              if (formData.description) input.reqDescription = formData.description.trim();
+              if (formData.budgetRange) input.reqBudgetRange = formData.budgetRange.trim();
+              if (formData.deadline) input.reqDeadline = new Date(formData.deadline).toISOString();
+              if (formData.category) input.reqCategory = mapCategoryToBackend(formData.category);
+              if (formData.subcategory) input.reqSubCategory = mapSubCategoryToBackend(formData.subcategory);
+              if (formData.urgency) input.reqUrgency = mapUrgencyToBackend(formData.urgency);
+              if (formData.skills && formData.skills.length > 0) input.reqSkillsNeeded = formData.skills;
+              // Note: reqStatus is not updated here - only editable when DRAFT or OPEN
+              // Status changes should use UPDATE_SERVICE_REQUEST_STATUS mutation
+
+              await updateServiceRequest({ variables: { input } });
+            } catch (error) {
+              // Error handled in onError callback
+            }
+          }}
+          isSaving={isUpdating}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Premium Edit Modal Component
+   ═══════════════════════════════════════════════════════════ */
+interface EditFormData {
+  title: string;
+  category: string;
+  subcategory: string;
+  budgetRange: string;
+  deadline: string;
+  description: string;
+  skills: string[];
+  urgency: 'normal' | 'urgent' | 'critical';
+}
+
+interface EditServiceRequestModalProps {
+  request: ServiceRequest;
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (formData: EditFormData) => Promise<void>;
+  isSaving: boolean;
+}
+
+function EditServiceRequestModal({ request, isOpen, onClose, onSave, isSaving }: EditServiceRequestModalProps) {
+  const [formData, setFormData] = useState<EditFormData>({
+    title: request.reqTitle || '',
+    category: request.reqCategory ? mapCategory(request.reqCategory) : '',
+    subcategory: request.reqSubCategory ? request.reqSubCategory.replace(/_/g, ' ') : '',
+    budgetRange: request.reqBudgetRange || '',
+    deadline: request.reqDeadline ? new Date(request.reqDeadline).toISOString().split('T')[0] : '',
+    description: request.reqDescription || '',
+    skills: request.reqSkillsNeeded || [],
+    urgency: mapUrgencyFromBackend(request.reqUrgency),
+  });
+
+  const [skillInput, setSkillInput] = useState('');
+
+  useEffect(() => {
+    if (isOpen) {
+      setFormData({
+        title: request.reqTitle || '',
+        category: request.reqCategory ? mapCategory(request.reqCategory) : '',
+        subcategory: request.reqSubCategory ? request.reqSubCategory.replace(/_/g, ' ') : '',
+        budgetRange: request.reqBudgetRange || '',
+        deadline: request.reqDeadline ? new Date(request.reqDeadline).toISOString().split('T')[0] : '',
+        description: request.reqDescription || '',
+        skills: request.reqSkillsNeeded || [],
+        urgency: mapUrgencyFromBackend(request.reqUrgency),
+      });
+      setSkillInput('');
+    }
+  }, [isOpen, request]);
+
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen && !isSaving) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [isOpen, isSaving, onClose]);
+
+  const update = <K extends keyof EditFormData>(key: K, value: EditFormData[K]) => {
+    setFormData((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const addSkill = (skill: string) => {
+    const trimmed = skill.trim();
+    if (trimmed && !formData.skills.includes(trimmed)) {
+      update('skills', [...formData.skills, trimmed]);
+    }
+    setSkillInput('');
+  };
+
+  const removeSkill = (skill: string) => {
+    update('skills', formData.skills.filter((s) => s !== skill));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.title.trim() || !formData.description.trim()) {
+      alert('Please fill in all required fields (Title and Description).');
+      return;
+    }
+    await onSave(formData);
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-300"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[95vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-300"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Premium Header */}
+        <div className="px-8 py-6 border-b border-slate-200 bg-gradient-to-r from-indigo-50 via-white to-indigo-50">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center shadow-lg">
+                  <span className="material-symbols-outlined text-white text-xl">edit</span>
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-slate-900">Edit Service Request</h2>
+                  <p className="text-sm text-slate-500 mt-0.5">Update your request details</p>
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              disabled={isSaving}
+              className="ml-4 p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-400 hover:text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span className="material-symbols-outlined text-2xl">close</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Scrollable Form Body */}
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-8 py-6">
+          <div className="space-y-6">
+            {/* Title */}
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                Request Title <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.title}
+                onChange={(e) => update('title', e.target.value)}
+                placeholder="e.g. Web Design & Brand Identity Refresh"
+                className="w-full border border-slate-200 rounded-lg px-4 py-3.5 text-sm font-medium text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-slate-50/50 placeholder:text-slate-300"
+                required
+                disabled={isSaving}
+              />
+            </div>
+
+            {/* Category & Subcategory */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                  Category <span className="text-red-400">*</span>
+                </label>
+                <select
+                  value={formData.category}
+                  onChange={(e) => {
+                    update('category', e.target.value);
+                    update('subcategory', '');
+                    update('skills', []);
+                  }}
+                  className="w-full border border-slate-200 rounded-lg px-4 py-3.5 text-sm font-medium text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-slate-50/50"
+                  required
+                  disabled={isSaving}
+                >
+                  <option value="">Select Category</option>
+                  {CATEGORY_NAMES.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                  Subcategory
+                </label>
+                <select
+                  value={formData.subcategory}
+                  onChange={(e) => update('subcategory', e.target.value)}
+                  className="w-full border border-slate-200 rounded-lg px-4 py-3.5 text-sm font-medium text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-slate-50/50"
+                  disabled={!formData.category || isSaving}
+                >
+                  <option value="">Select Subcategory</option>
+                  {formData.category && CATEGORY_MAP[formData.category]?.subcategories.map((sub) => (
+                    <option key={sub} value={sub}>
+                      {sub}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Budget & Deadline */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                  Budget Range <span className="text-red-400">*</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">$</span>
+                  <input
+                    type="text"
+                    value={formData.budgetRange}
+                    onChange={(e) => update('budgetRange', e.target.value)}
+                    placeholder="3,500 or Contact to discuss"
+                    className="w-full border border-slate-200 rounded-lg pl-8 pr-4 py-3.5 text-sm font-medium text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-slate-50/50 placeholder:text-slate-300"
+                    required
+                    disabled={isSaving}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                  Deadline <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="date"
+                  value={formData.deadline}
+                  onChange={(e) => update('deadline', e.target.value)}
+                  className="w-full border border-slate-200 rounded-lg px-4 py-3.5 text-sm font-medium text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-slate-50/50"
+                  required
+                  disabled={isSaving}
+                />
+              </div>
+            </div>
+
+            {/* Urgency */}
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                Urgency
+              </label>
+              <div className="flex gap-2">
+                {(['normal', 'urgent', 'critical'] as const).map((u) => (
+                  <button
+                    key={u}
+                    type="button"
+                    onClick={() => update('urgency', u)}
+                    disabled={isSaving}
+                    className={`flex-1 py-3 rounded-lg text-sm font-bold capitalize transition-all border ${
+                      formData.urgency === u
+                        ? u === 'critical'
+                          ? 'bg-red-50 text-red-700 border-red-200 shadow-sm'
+                          : u === 'urgent'
+                            ? 'bg-amber-50 text-amber-700 border-amber-200 shadow-sm'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-200 shadow-sm'
+                        : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'
+                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                  >
+                    {u}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Description */}
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                Description <span className="text-red-400">*</span>
+              </label>
+              <textarea
+                rows={8}
+                value={formData.description}
+                onChange={(e) => update('description', e.target.value)}
+                placeholder="Describe the scope of work, deliverables, and any special requirements..."
+                className="w-full border border-slate-200 rounded-lg px-4 py-3.5 text-sm font-medium text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-slate-50/50 resize-y placeholder:text-slate-300"
+                required
+                disabled={isSaving}
+              />
+              <p className="text-xs text-slate-400 mt-1.5 text-right">{formData.description.length} / 2000</p>
+            </div>
+
+            {/* Skills */}
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                Required Skills
+              </label>
+              <div className="flex flex-wrap items-center gap-2 p-3 border border-slate-200 rounded-lg bg-slate-50/50 mb-4 min-h-[48px]">
+                {formData.skills.map((s) => (
+                  <span
+                    key={s}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-md border border-indigo-100"
+                  >
+                    {s}
+                    {!isSaving && (
+                      <button
+                        type="button"
+                        onClick={() => removeSkill(s)}
+                        className="hover:text-red-500 transition-colors"
+                      >
+                        <span className="material-symbols-outlined text-sm">close</span>
+                      </button>
+                    )}
+                  </span>
+                ))}
+                <input
+                  type="text"
+                  value={skillInput}
+                  onChange={(e) => setSkillInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addSkill(skillInput);
+                    }
+                  }}
+                  placeholder={formData.skills.length ? 'Add more...' : 'Type a skill and press Enter...'}
+                  className="flex-1 min-w-[120px] bg-transparent border-none outline-none text-sm text-slate-900 placeholder:text-slate-300"
+                  disabled={isSaving}
+                />
+              </div>
+              {formData.category && CATEGORY_MAP[formData.category] && (
+                <div className="flex flex-wrap gap-2">
+                  {CATEGORY_MAP[formData.category].skills
+                    .filter((s) => !formData.skills.includes(s))
+                    .map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => addSkill(s)}
+                        disabled={isSaving}
+                        className="px-3 py-1.5 border border-dashed border-slate-200 rounded-lg text-xs font-medium text-slate-500 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        + {s}
+                      </button>
+                    ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </form>
+
+        {/* Premium Footer */}
+        <div className="px-8 py-5 border-t border-slate-200 bg-gradient-to-r from-slate-50 to-white flex items-center justify-between">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isSaving}
+            className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-white rounded-lg transition-colors border border-slate-200 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            onClick={handleSubmit}
+            disabled={isSaving || !formData.title.trim() || !formData.description.trim()}
+            className="bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white px-6 py-2.5 rounded-lg font-bold text-sm transition-all shadow-lg shadow-indigo-500/30 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+          >
+            {isSaving ? (
+              <>
+                <span className="material-symbols-outlined text-lg animate-spin">sync</span>
+                Saving...
+              </>
+            ) : (
+              <>
+                <span className="material-symbols-outlined text-lg">save</span>
+                Save Changes
+              </>
+            )}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

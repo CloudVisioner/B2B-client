@@ -1,9 +1,11 @@
 import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { useReactiveVar } from '@apollo/client';
+import { useReactiveVar, useQuery } from '@apollo/client';
 import { userVar } from '../../../apollo/store';
-import { logOut } from '../../auth';
+import { logOut, isLoggedIn } from '../../auth';
+import { getHeaders } from '../../../apollo/utils';
+import { GET_PROVIDER_ORGANIZATION } from '../../../apollo/user/query';
 
 const NAV_ITEMS = [
   { icon: 'dashboard', label: 'Dashboard', href: '/provider/dashboard' },
@@ -23,6 +25,36 @@ export const ProviderSidebar: React.FC = () => {
   const currentUser = useReactiveVar(userVar);
   const userName = currentUser?.userNick || 'User';
 
+  // Fetch organization data to get the logo
+  const { data: orgData } = useQuery(GET_PROVIDER_ORGANIZATION, {
+    skip: !isLoggedIn(),
+    fetchPolicy: 'cache-first',
+    errorPolicy: 'all',
+    context: {
+      headers: isLoggedIn() ? getHeaders() : {},
+    },
+  });
+
+  // Helper function to convert relative image paths to full URLs
+  const getImageUrl = (imagePath: string | null | undefined): string => {
+    if (!imagePath) return '';
+    // If it's already a full URL (starts with http:// or https://), return as is
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+      return imagePath;
+    }
+    // If it's a relative path, prepend the base URL
+    const apiUrl = process.env.NEXT_PUBLIC_API_GRAPHQL_URL || process.env.REACT_APP_API_GRAPHQL_URL || 'http://localhost:3010/graphql';
+    const baseUrl = apiUrl.replace('/graphql', '');
+    // Remove leading slash from imagePath if present to avoid double slashes
+    const cleanPath = imagePath.startsWith('/') ? imagePath.slice(1) : imagePath;
+    return `${baseUrl}/${cleanPath}`;
+  };
+
+  const organization = orgData?.getProviderOrganization;
+  const organizationImage = organization?.organizationImage;
+  const organizationName = organization?.organizationName || userName;
+  const imageUrl = organizationImage ? getImageUrl(organizationImage) : null;
+
   const handleLogout = async () => {
     await logOut();
     router.push('/');
@@ -38,16 +70,34 @@ export const ProviderSidebar: React.FC = () => {
         </Link>
       </div>
 
-      {/* Profile */}
+      {/* Profile / Organization Logo */}
       <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800">
         <div className="flex items-center gap-3">
-          <img
-            alt={userName}
-            className="w-10 h-10 rounded-full object-cover ring-2 ring-slate-100 dark:ring-slate-700"
-            src={currentUser?.userImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=4F46E5&color=fff`}
-          />
+          {imageUrl ? (
+            <img
+              alt={organizationName}
+              className="w-16 h-16 rounded-xl object-cover ring-2 ring-slate-100 dark:ring-slate-700 shadow-md"
+              src={imageUrl}
+              onError={(e) => {
+                // Fallback to initials if image fails to load
+                e.currentTarget.style.display = 'none';
+                const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                if (fallback) fallback.style.display = 'flex';
+              }}
+            />
+          ) : null}
+          <div 
+            className={`${imageUrl ? 'hidden' : 'flex'} items-center justify-center w-16 h-16 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 text-white text-xl font-bold shadow-md ring-2 ring-slate-100 dark:ring-slate-700`}
+          >
+            {organizationName
+              .split(' ')
+              .map((n) => n[0])
+              .join('')
+              .toUpperCase()
+              .slice(0, 2) || 'OR'}
+          </div>
           <div className="flex flex-col">
-            <span className="text-sm font-bold text-slate-900 dark:text-white">{userName}</span>
+            <span className="text-sm font-bold text-slate-900 dark:text-white">{organizationName}</span>
             <span className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Provider</span>
           </div>
         </div>

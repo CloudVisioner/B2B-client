@@ -1,23 +1,55 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { useReactiveVar } from '@apollo/client';
+import { useReactiveVar, useQuery } from '@apollo/client';
 import { userVar } from '../apollo/store';
 import { isLoggedIn } from '../libs/auth';
+import { getHeaders } from '../apollo/utils';
 import { Sidebar } from '../libs/components/dashboard/Sidebar';
 import { Header } from '../libs/components/dashboard/Header';
-import { SummaryCard } from '../libs/components/dashboard/SummaryCard';
-import { RequestTable } from '../libs/components/dashboard/RequestTable';
-import { ProgressSection } from '../libs/components/dashboard/ProgressSection';
-import { ActivityFeed } from '../libs/components/dashboard/ActivityFeed';
-import { BurnRateCard } from '../libs/components/dashboard/BurnRateCard';
+import { GET_BUYER_SERVICE_REQUESTS } from '../apollo/user/query';
 
+/* ═══════════════════════════════════════════════════════════
+   Buyer Dashboard - Professional Overview (Counts Only)
+   ═══════════════════════════════════════════════════════════ */
 export default function DashboardPage() {
   const router = useRouter();
   const currentUser = useReactiveVar(userVar);
-  const [activeTab, setActiveTab] = useState('Open Requests');
   const [mounted, setMounted] = useState(false);
 
-  // Handle client-side mounting to prevent hydration mismatch
+  // Fetch service requests
+  const { data: requestsData, loading: requestsLoading } = useQuery(GET_BUYER_SERVICE_REQUESTS, {
+    skip: !isLoggedIn(),
+    fetchPolicy: 'cache-and-network',
+    errorPolicy: 'all',
+    context: {
+      headers: isLoggedIn() ? getHeaders() : {},
+    },
+    variables: {
+      input: {
+        limit: 50,
+      },
+    },
+  });
+
+  const allRequests = requestsData?.getBuyerServiceRequests?.list || [];
+  const openRequests = allRequests.filter((r: any) => r.reqStatus === 'OPEN');
+  const activeOrders = allRequests.filter((r: any) => r.reqStatus === 'ACTIVE');
+  
+  // Calculate counts
+  const openCount = openRequests.length;
+  const quotesWaiting = openRequests.reduce((sum: number, req: any) => sum + (req.reqTotalQuotes || 0), 0);
+  const activeCount = activeOrders.length;
+  
+  // Calculate overdue (requests past deadline with OPEN status)
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const overdueCount = openRequests.filter((req: any) => {
+    if (!req.reqDeadline) return false;
+    const deadline = new Date(req.reqDeadline);
+    deadline.setHours(0, 0, 0, 0);
+    return deadline < today;
+  }).length;
+
   useEffect(() => {
     setMounted(true);
     if (!isLoggedIn()) {
@@ -25,7 +57,6 @@ export default function DashboardPage() {
     }
   }, [router]);
 
-  // During SSR or before mount, render empty div to match client
   if (!mounted) {
     return (
       <div className="flex h-screen w-full bg-slate-50 overflow-hidden">
@@ -38,99 +69,111 @@ export default function DashboardPage() {
     );
   }
 
-  // If not logged in after mount, don't render anything
-  if (!isLoggedIn()) {
-    return null;
-  }
+  if (!isLoggedIn()) return null;
+
+  const stats = [
+    {
+      label: 'Open Requests',
+      value: openCount,
+      icon: 'description',
+    },
+    {
+      label: 'Quotes Waiting',
+      value: quotesWaiting,
+      icon: 'request_quote',
+    },
+    {
+      label: 'Active Order' + (activeCount !== 1 ? 's' : ''),
+      value: activeCount,
+      icon: 'work',
+    },
+    {
+      label: 'Overdue',
+      value: overdueCount,
+      icon: 'schedule',
+      isWarning: overdueCount > 0,
+    },
+  ];
 
   return (
-    <div className="flex h-screen w-full bg-slate-50 overflow-hidden antialiased">
-      {/* Sidebar - Fixed Width, No Overlap */}
+    <div className="flex h-screen w-full bg-[#F9FAFB] overflow-hidden antialiased">
+      {/* Sidebar - Navigation */}
       <Sidebar />
 
-      {/* Main Content Area - Fills remaining space */}
-      <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Header - Stays at top */}
-        <Header />
+      {/* Main Content */}
+      <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
+        {/* ── Header (Same as other pages) ── */}
+        <Header title="Dashboard" subtitle="Overview of your service requests and activity" />
 
-        {/* Scrollable Section */}
-        <main className="flex-1 overflow-y-auto p-8 bg-[#F9FAFB]">
-          <div className="max-w-7xl mx-auto space-y-8">
-            {/* Summary Row */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <SummaryCard title="Active Requests" value="7" />
-              <SummaryCard title="Total Quotes" value="12" badge="+3 new" />
-              <SummaryCard title="Active Orders" value="3" />
-              <SummaryCard title="Unread Notifications" value="5" color="indigo" />
-            </div>
-
-            <div className="grid grid-cols-12 gap-8">
-              {/* Left Column: Requests & Progress */}
-              <div className="col-span-12 lg:col-span-8 space-y-6">
-                {/* Requests Section */}
-                <div className="bg-white rounded-lg border border-[var(--border)] card-shadow overflow-hidden">
-                  <div className="flex border-b border-[var(--border)] px-4 bg-white">
-                    <button 
-                      onClick={() => setActiveTab('Open Requests')}
-                      className={`px-6 py-4 text-base font-semibold border-b-2 ${
-                        activeTab === 'Open Requests' 
-                          ? 'border-[var(--primary)] text-[var(--primary)]' 
-                          : 'border-transparent font-medium text-slate-500 hover:text-slate-700 transition-colors'
-                      }`}
-                    >
-                      Open Requests
-                    </button>
-                    <button 
-                      onClick={() => setActiveTab('Active Orders')}
-                      className={`px-6 py-4 text-base ${
-                        activeTab === 'Active Orders'
-                          ? 'font-semibold border-b-2 border-[var(--primary)] text-[var(--primary)]'
-                          : 'border-b-2 border-transparent font-medium text-slate-500 hover:text-slate-700 transition-colors'
-                      }`}
-                    >
-                      Active Orders
-                    </button>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <RequestTable activeTab={activeTab} />
-                  </div>
+        {/* ── Scrollable Body ── */}
+        <main className="flex-1 overflow-y-auto bg-[#F9FAFB]">
+          <div className="max-w-6xl mx-auto px-8 py-10">
+            {/* Overview Section */}
+            <div className="mb-10">
+              <div className="mb-8">
+                <h2 className="text-2xl font-bold text-slate-900 mb-1">Overview</h2>
+                <p className="text-sm text-slate-500">Quick snapshot of your service requests</p>
+              </div>
+              
+              {requestsLoading ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div key={i} className="bg-white border border-slate-200 rounded-lg p-6 animate-pulse">
+                      <div className="h-4 bg-slate-200 rounded w-3/4 mb-4"></div>
+                      <div className="h-10 bg-slate-200 rounded w-1/2"></div>
+                    </div>
+                  ))}
                 </div>
-
-                {/* Progress Section */}
-                <ProgressSection />
-              </div>
-
-              {/* Right Column: Feed & Finance */}
-              <div className="col-span-12 lg:col-span-4 space-y-6">
-                <ActivityFeed />
-                <BurnRateCard />
-              </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {stats.map((stat, index) => (
+                    <div
+                      key={index}
+                      className="bg-white border border-slate-200 rounded-lg p-6 hover:border-slate-300 hover:shadow-sm transition-all duration-200"
+                    >
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center">
+                          <span className="material-symbols-outlined text-slate-600 text-xl">{stat.icon}</span>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">{stat.label}</p>
+                        <p className={`text-4xl font-bold ${stat.isWarning ? 'text-red-600' : 'text-slate-900'}`}>
+                          {stat.value}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {/* Bottom Actions Row */}
-            <div className="flex flex-wrap items-center gap-4 pt-8 border-t border-[var(--border)]">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mr-4">Management</p>
-              <button 
-                onClick={() => router.push('/marketplace')}
-                className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-md text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
-              >
-                <span className="material-symbols-outlined text-lg">groups</span>
-                Browse Talent
-              </button>
-              <button
-                onClick={() => router.push('/organizations')}
-                className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-md text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
-              >
-                <span className="material-symbols-outlined text-lg">settings_suggest</span>
-                Manage Organizations
-              </button>
-              <button className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-md text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
-                <span className="material-symbols-outlined text-lg">help</span>
-                Help & Support
-              </button>
-            </div>
-            <div className="pb-8">
-              <p className="text-xs text-slate-400 font-medium">© 2024 SME Connect. Enterprise Buyer Protocol v2.4.1</p>
+            {/* Quick Actions */}
+            <div className="bg-white border border-slate-200 rounded-lg p-8">
+              <h3 className="text-lg font-bold text-slate-900 mb-6">Quick Actions</h3>
+              <div className="flex flex-wrap items-center gap-4">
+                <button
+                  onClick={() => router.push('/post-job')}
+                  className="bg-[var(--primary)] hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-bold text-sm transition-all shadow-sm flex items-center gap-2"
+                >
+                  <span className="material-symbols-outlined text-lg">add</span>
+                  Post New Request
+                </button>
+                <button
+                  onClick={() => router.push('/service-requests')}
+                  className="px-6 py-3 border border-slate-200 hover:border-slate-300 hover:bg-slate-50 rounded-lg text-sm font-bold text-slate-700 transition-all flex items-center gap-2"
+                >
+                  <span className="material-symbols-outlined text-lg">visibility</span>
+                  Manage Requests
+                </button>
+                <button
+                  onClick={() => router.push('/marketplace')}
+                  className="px-6 py-3 border border-slate-200 hover:border-slate-300 hover:bg-slate-50 rounded-lg text-sm font-bold text-slate-700 transition-all flex items-center gap-2"
+                >
+                  <span className="material-symbols-outlined text-lg">groups</span>
+                  Browse Talent
+                </button>
+              </div>
             </div>
           </div>
         </main>

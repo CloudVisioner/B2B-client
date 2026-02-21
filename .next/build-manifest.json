@@ -22,15 +22,25 @@
       "static/chunks/main.js",
       "static/chunks/pages/_error.js"
     ],
-    "/notifications": [
+    "/organizations": [
       "static/chunks/webpack.js",
       "static/chunks/main.js",
-      "static/chunks/pages/notifications.js"
+      "static/chunks/pages/organizations.js"
     ],
-    "/orders": [
+    "/post-job": [
       "static/chunks/webpack.js",
       "static/chunks/main.js",
-      "static/chunks/pages/orders.js"
+      "static/chunks/pages/post-job.js"
+    ],
+    "/provider/jobs": [
+      "static/chunks/webpack.js",
+      "static/chunks/main.js",
+      "static/chunks/pages/provider/jobs.js"
+    ],
+    "/service-requests": [
+      "static/chunks/webpack.js",
+      "static/chunks/main.js",
+      "static/chunks/pages/service-requests.js"
     ],
     "/settings": [
       "static/chunks/webpack.js",

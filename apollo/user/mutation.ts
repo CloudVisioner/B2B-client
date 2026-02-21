@@ -293,6 +293,37 @@ export const GET_BUYER_SERVICE_REQUESTS = gql`
 `;
 
 /**
+ * Update Service Request
+ * Updates a service request (editable only when status is DRAFT or OPEN)
+ * Supports partial updates - only provided fields are updated
+ */
+export const UPDATE_SERVICE_REQUEST = gql`
+  mutation UpdateServiceRequest($input: ServiceRequestUpdate!) {
+    updateServiceRequest(input: $input) {
+      _id
+      reqTitle
+      reqDescription
+      reqBuyerOrgId
+      reqCategory
+      reqSubCategory
+      reqBudgetRange
+      reqDeadline
+      reqUrgency
+      reqSkillsNeeded
+      reqAttachments
+      reqStatus
+      reqTotalLikes
+      reqTotalViews
+      reqTotalQuotes
+      reqNewQuotesCount
+      reqCreatedByUserId
+      createdAt
+      updatedAt
+    }
+  }
+`;
+
+/**
  * Update Service Request Status
  * Updates the status of a service request (e.g., publish draft, close request)
  */
@@ -301,6 +332,78 @@ export const UPDATE_SERVICE_REQUEST_STATUS = gql`
     updateServiceRequestStatus(requestId: $requestId, status: $status) {
       _id
       status
+      updatedAt
+    }
+  }
+`;
+
+// ============================================
+// PROVIDER ORGANIZATION MUTATIONS
+// ============================================
+
+/**
+ * Create Provider Organization Profile
+ * Role: PROVIDER only
+ */
+export const CREATE_PROVIDER_ORG_PROF = gql`
+  mutation CreateProviderOrgProf($input: ProviderOrganizationInput!) {
+    createProviderOrgProf(input: $input) {
+      _id
+      organizationType
+      organizationStatus
+      organizationName
+      organizationDescription
+      organizationContactEmail
+      organizationCountry
+      organizationImage
+      categoryId
+      subCategory
+      orgOwnerUserId
+      createdAt
+      updatedAt
+    }
+  }
+`;
+
+/**
+ * Update Provider Organization Profile
+ * Role: PROVIDER only
+ */
+export const UPDATE_PROVIDER_ORG_PROF = gql`
+  mutation UpdateProviderOrgProf($input: UpdateProviderOrganizationInput!) {
+    updateProviderOrgProf(input: $input) {
+      _id
+      organizationType
+      organizationStatus
+      organizationName
+      organizationDescription
+      organizationContactEmail
+      organizationCountry
+      organizationImage
+      categoryId
+      subCategory
+      orgOwnerUserId
+      createdAt
+      updatedAt
+    }
+  }
+`;
+
+/**
+ * Update Provider User Profile
+ * Role: PROVIDER only
+ */
+export const UPDATE_PROVIDER_PROFILE = gql`
+  mutation UpdateProviderProfile($input: UpdateProviderProfileInput!) {
+    updateProviderProfile(input: $input) {
+      _id
+      userNick
+      userEmail
+      userPhone
+      userDescription
+      userRole
+      userStatus
+      createdAt
       updatedAt
     }
   }

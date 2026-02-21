@@ -19,16 +19,25 @@ export interface CaseStudy {
 
 export interface BackendProviderListItem {
   _id: string;
-  orgName: string;
-  orgDescription: string;
+  // New field names (preferred)
+  organizationName?: string;
+  organizationDescription?: string;
+  organizationHourlyRate?: number;
+  organizationLocation?: string;
+  organizationImage?: string | string[];
+  // Old field names (for backward compatibility)
+  orgName?: string;
+  orgDescription?: string;
+  startingRate?: number;
+  location?: string;
+  orgLogoImages?: string[];
+  // Common fields
   orgAverageRating: number;
   reviewsCount: number;
   orgTotalProjects: number;
   orgResponseTimeAvg: string;
-  startingRate: number;
   orgCountry: string;
   orgCity: string;
-  location: string;
   flag: string;
       categoryId: string | string[];
       subCategory: string | string[];
@@ -37,7 +46,6 @@ export interface BackendProviderListItem {
   badges: string[];
   color: string;
   orgVerified: boolean;
-  orgLogoImages: string[];
   orgTotalLikes: number;
   orgTotalViews: number;
   industries?: string[] | null;

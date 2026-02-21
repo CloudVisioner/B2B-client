@@ -52,12 +52,32 @@ export function BuyerOrganizationForm() {
     }
   }, [refetch]);
 
+  // Helper function to convert relative image paths to full URLs
+  const getImageUrl = (imagePath: string | null | undefined): string => {
+    if (!imagePath) return '';
+    // If it's already a full URL (starts with http:// or https://), return as is
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+      return imagePath;
+    }
+    // If it's a relative path, prepend the base URL
+    const apiUrl = process.env.NEXT_PUBLIC_API_GRAPHQL_URL || process.env.REACT_APP_API_GRAPHQL_URL || 'http://localhost:3010/graphql';
+    const baseUrl = apiUrl.replace('/graphql', '');
+    // Remove leading slash from imagePath if present to avoid double slashes
+    const cleanPath = imagePath.startsWith('/') ? imagePath.slice(1) : imagePath;
+    return `${baseUrl}/${cleanPath}`;
+  };
+
   useEffect(() => {
     if (orgData?.getBuyerOrganization) {
       const org = orgData.getBuyerOrganization;
-      const logoUrl = org.organizationImage && org.organizationImage.length > 0 
-        ? org.organizationImage[0] 
-        : '';
+      // organizationImage is now a string, not an array
+      // ✅ Safety check: ensure it's always a string, even if backend returns array
+      let logoUrl = '';
+      if (Array.isArray(org.organizationImage)) {
+        logoUrl = org.organizationImage[0] || '';
+      } else {
+        logoUrl = org.organizationImage || '';
+      }
 
       // Only update form data if not in edit mode (to avoid overwriting user input while editing)
       if (!isEditMode) {
@@ -72,11 +92,12 @@ export function BuyerOrganizationForm() {
 
       // Always update logo preview if we have a logo URL and no file is being uploaded
       if (logoUrl && !logoFile) {
+        const fullImageUrl = getImageUrl(logoUrl);
         setLogoPreview((prev) => {
           if (prev && prev.startsWith('blob:')) {
             URL.revokeObjectURL(prev);
           }
-          return logoUrl;
+          return fullImageUrl;
         });
       } else if (!logoUrl && !logoFile) {
         setLogoPreview((prev) => {
@@ -165,9 +186,14 @@ export function BuyerOrganizationForm() {
   const handleEditToggle = () => {
     if (isEditMode && orgData?.getBuyerOrganization) {
       const org = orgData.getBuyerOrganization;
-      const logoUrl = org.organizationImage && org.organizationImage.length > 0 
-        ? org.organizationImage[0] 
-        : '';
+      // organizationImage is now a string, not an array
+      // ✅ Safety check: ensure it's always a string, even if backend returns array
+      let logoUrl = '';
+      if (Array.isArray(org.organizationImage)) {
+        logoUrl = org.organizationImage[0] || '';
+      } else {
+        logoUrl = org.organizationImage || '';
+      }
       setFormData({
         orgName: org.organizationName || '',
         industry: org.organizationIndustry || '',
@@ -178,7 +204,8 @@ export function BuyerOrganizationForm() {
       if (logoPreview && logoPreview.startsWith('blob:')) {
         URL.revokeObjectURL(logoPreview);
       }
-      setLogoPreview(logoUrl);
+      const fullImageUrl = getImageUrl(logoUrl);
+      setLogoPreview(fullImageUrl);
       setLogoFile(null);
     }
     setIsEditMode(!isEditMode);
@@ -192,19 +219,27 @@ export function BuyerOrganizationForm() {
     }
 
     try {
-      let logoUrl = formData.logoUrl;
+      let logoUrl: string = '';
+      // Ensure logoUrl is always a string, not an array
+      if (Array.isArray(formData.logoUrl)) {
+        logoUrl = formData.logoUrl[0] || '';
+      } else {
+        logoUrl = formData.logoUrl || '';
+      }
 
       if (logoFile) {
         setIsUploadingLogo(true);
         try {
-          logoUrl = await uploadLogoToBackend(logoFile);
+          const uploadedUrl = await uploadLogoToBackend(logoFile);
+          // Ensure it's a string (uploadLogoToBackend should return string, but double-check)
+          logoUrl = Array.isArray(uploadedUrl) ? uploadedUrl[0] : uploadedUrl;
+          // Update formData with the new image URL
           setFormData((prev) => ({ ...prev, logoUrl }));
+          // Update preview to show the uploaded image URL (not blob)
+          const fullImageUrl = getImageUrl(logoUrl);
+          setLogoPreview(fullImageUrl);
+          // Clear the file since it's now uploaded
           setLogoFile(null);
-
-          if (logoPreview && logoPreview.startsWith('blob:')) {
-            URL.revokeObjectURL(logoPreview);
-          }
-          setLogoPreview(logoUrl);
         } catch (error: any) {
           console.error('Error uploading logo:', error);
           alert(`Failed to upload logo: ${error.message || 'Please try again'}`);
@@ -225,7 +260,9 @@ export function BuyerOrganizationForm() {
         };
 
         if (logoUrl) {
-          updateInput.organizationImage = [logoUrl];
+          // ✅ Ensure organizationImage is always a string, not an array
+          // Double-check in case logoUrl somehow became an array
+          updateInput.organizationImage = Array.isArray(logoUrl) ? logoUrl[0] : logoUrl;
         }
 
         await updateOrg({
@@ -244,7 +281,9 @@ export function BuyerOrganizationForm() {
         };
 
         if (logoUrl) {
-          createInput.organizationImage = [logoUrl];
+          // ✅ Ensure organizationImage is always a string, not an array
+          // Double-check in case logoUrl somehow became an array
+          createInput.organizationImage = Array.isArray(logoUrl) ? logoUrl[0] : logoUrl;
         }
 
         await createOrg({
@@ -415,7 +454,16 @@ export function BuyerOrganizationForm() {
             <div className="relative">
               {logoPreview ? (
                 <div className="w-24 h-24 rounded-2xl overflow-hidden border-2 border-slate-200 shadow-lg">
-                  <img src={logoPreview} alt="Organization logo" className="w-full h-full object-cover" />
+                  <img 
+                    src={logoPreview} 
+                    alt="Organization logo" 
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      console.error('Image failed to load:', logoPreview);
+                      // Fallback to initials if image fails to load
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
                   {isUploadingLogo && (
                     <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                       <span className="material-symbols-outlined text-white animate-spin">sync</span>

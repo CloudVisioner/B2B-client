@@ -2,7 +2,9 @@
   "/_app": "pages/_app.js",
   "/_error": "pages/_error.js",
   "/_document": "pages/_document.js",
-  "/notifications": "pages/notifications.js",
+  "/provider/jobs": "pages/provider/jobs.js",
+  "/organizations": "pages/organizations.js",
   "/settings": "pages/settings.js",
-  "/orders": "pages/orders.js"
+  "/service-requests": "pages/service-requests.js",
+  "/post-job": "pages/post-job.js"
 }

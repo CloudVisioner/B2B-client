@@ -35,18 +35,18 @@ export function mapBackendProviderToList(backend: BackendProviderListItem): Prov
     categoryId: mappedCategoryId as any,
     subCategory: subCategories.length === 1 ? subCategories[0] : subCategories,
     serviceTitle: backend.serviceTitle,
-    name: backend.orgName,
-    description: backend.orgDescription,
-    bio: backend.orgDescription,
+    name: backend.organizationName || backend.orgName, // Support both for backward compatibility
+    description: backend.organizationDescription || backend.orgDescription,
+    bio: backend.organizationDescription || backend.orgDescription,
     icon: null,
-    avatar: backend.orgLogoImages?.[0] || backend.avatar || '',
+    avatar: (backend.organizationImage && Array.isArray(backend.organizationImage) ? backend.organizationImage[0] : backend.organizationImage) || (backend.orgLogoImages?.[0]) || backend.avatar || '',
     badges: mapBadges(backend),
     rating: backend.orgAverageRating || 0,
     reviewsCount: backend.reviewsCount || 0,
     projectsCompleted: backend.orgTotalProjects || 0,
     responseTime: backend.orgResponseTimeAvg || '',
-    startingRate: backend.startingRate || 0,
-    location: backend.location || backend.orgCountry || '',
+    startingRate: backend.organizationHourlyRate || backend.startingRate || 0,
+    location: backend.organizationLocation || backend.location || backend.orgCountry || '',
     city: backend.orgCity,
     flag: backend.flag || '',
     expertise: normalizeToStringArray(backend.industries),
@@ -67,7 +67,7 @@ export function mapBackendProviderDetail(backend: BackendProviderDetail): Provid
   
   return {
     ...base,
-    bio: backend.bio || backend.orgDescription,
+    bio: backend.bio || backend.organizationDescription || backend.orgDescription,
     establishmentYear: backend.establishmentYear,
     teamSize: backend.teamSize,
     minProjectSize: backend.minProjectSize,
@@ -102,8 +102,9 @@ function mapBadges(backend: BackendProviderListItem): string[] {
 export function mapSortOption(uiSort: string): string {
   const sortMap: Record<string, string> = {
     'Newest': 'createdAt',
-    'Cheapest': 'startingRate',
-    'Ending Soon': 'reqDeadline',
+    'Cheapest': 'organizationHourlyRate', // Updated to new field name
+    'Highest Rated': 'orgAverageRating',
+    'Most Projects': 'orgTotalProjects',
   };
   
   return sortMap[uiSort] || 'createdAt';

@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useReactiveVar, useMutation, useQuery } from '@apollo/client';
@@ -94,7 +96,7 @@ const INITIAL: FormData = {
 /* ═══════════════════════════════════════════════════════════
    Preview Card
    ═══════════════════════════════════════════════════════════ */
-function PreviewCard({ form, userOrganization }: { form: FormData; userOrganization?: { _id?: string; organizationName?: string; organizationImage?: string[] } | null }) {
+function PreviewCard({ form, userOrganization }: { form: FormData; userOrganization?: { _id?: string; organizationName?: string; organizationImage?: string } | null }) {
   const getInitials = (name: string) => {
     return name
       .split(' ')
@@ -102,6 +104,21 @@ function PreviewCard({ form, userOrganization }: { form: FormData; userOrganizat
       .join('')
       .toUpperCase()
       .slice(0, 2);
+  };
+
+  // Helper function to convert relative image paths to full URLs
+  const getImageUrl = (imagePath: string | null | undefined): string => {
+    if (!imagePath) return '';
+    // If it's already a full URL (starts with http:// or https://), return as is
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+      return imagePath;
+    }
+    // If it's a relative path, prepend the base URL
+    const apiUrl = process.env.NEXT_PUBLIC_API_GRAPHQL_URL || process.env.REACT_APP_API_GRAPHQL_URL || 'http://localhost:3010/graphql';
+    const baseUrl = apiUrl.replace('/graphql', '');
+    // Remove leading slash from imagePath if present to avoid double slashes
+    const cleanPath = imagePath.startsWith('/') ? imagePath.slice(1) : imagePath;
+    return `${baseUrl}/${cleanPath}`;
   };
 
   return (
@@ -113,9 +130,9 @@ function PreviewCard({ form, userOrganization }: { form: FormData; userOrganizat
         {/* Org badge */}
         {userOrganization && (
           <div className="flex items-center gap-2">
-            {userOrganization.organizationImage && userOrganization.organizationImage.length > 0 ? (
+            {userOrganization.organizationImage ? (
               <div className="w-6 h-6 rounded bg-indigo-100 flex items-center justify-center overflow-hidden">
-                <img src={userOrganization.organizationImage[0]} alt={userOrganization.organizationName || 'Organization'} className="w-full h-full object-cover" />
+                <img src={getImageUrl(userOrganization.organizationImage)} alt={userOrganization.organizationName || 'Organization'} className="w-full h-full object-cover" />
               </div>
             ) : (
               <div className="w-6 h-6 rounded bg-indigo-100 flex items-center justify-center">
@@ -205,6 +222,21 @@ export default function PostJobPage() {
   const [step, setStep] = useState<1 | 2>(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Helper function to convert relative image paths to full URLs
+  const getImageUrl = (imagePath: string | null | undefined): string => {
+    if (!imagePath) return '';
+    // If it's already a full URL (starts with http:// or https://), return as is
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+      return imagePath;
+    }
+    // If it's a relative path, prepend the base URL
+    const apiUrl = process.env.NEXT_PUBLIC_API_GRAPHQL_URL || process.env.REACT_APP_API_GRAPHQL_URL || 'http://localhost:3010/graphql';
+    const baseUrl = apiUrl.replace('/graphql', '');
+    // Remove leading slash from imagePath if present to avoid double slashes
+    const cleanPath = imagePath.startsWith('/') ? imagePath.slice(1) : imagePath;
+    return `${baseUrl}/${cleanPath}`;
+  };
+
   // Fetch organization data from backend
   const { data: orgData, loading: orgLoading } = useQuery(GET_BUYER_ORGANIZATION, {
     skip: !isLoggedIn(),
@@ -235,10 +267,24 @@ export default function PostJobPage() {
 
   useEffect(() => {
     setMounted(true);
-    if (!isLoggedIn()) router.push('/login');
-  }, [router]);
+  }, []);
 
-  if (!mounted) {
+  useEffect(() => {
+    // Only check authentication after component is mounted and router is ready
+    if (!mounted || !router.isReady) return;
+    
+    // Check both token and userVar to ensure user is authenticated
+    // This prevents false negatives during page reload
+    const hasToken = isLoggedIn();
+    const hasUser = currentUser?._id;
+    
+    // If neither token nor user exists, redirect to login
+    if (!hasToken && !hasUser) {
+      router.push('/login');
+    }
+  }, [mounted, router, router.isReady, currentUser]);
+
+  if (!mounted || !router.isReady) {
     return (
       <div className="flex h-screen w-full bg-slate-50 overflow-hidden">
         <div className="w-64 flex-shrink-0 h-full border-r border-slate-200 bg-white" />
@@ -246,7 +292,13 @@ export default function PostJobPage() {
       </div>
     );
   }
-  if (!isLoggedIn()) return null;
+  
+  // Final check after everything is ready
+  const hasToken = isLoggedIn();
+  const hasUser = currentUser?._id;
+  if (!hasToken && !hasUser) {
+    return null;
+  }
 
   const update = <K extends keyof FormData>(key: K, value: FormData[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -271,6 +323,13 @@ export default function PostJobPage() {
       case 'critical': return 'CRITICAL';
       default: return 'NORMAL';
     }
+  };
+
+  // Map status to backend format (simplified enums)
+  const mapStatus = (status: 'DRAFT' | 'PUBLISHED'): string => {
+    // DRAFT → Editing/private
+    // PUBLISHED → OPEN (Published, Quotes allowed, Editable)
+    return status === 'DRAFT' ? 'DRAFT' : 'OPEN';
   };
 
   // Map category name to backend enum format
@@ -329,7 +388,7 @@ export default function PostJobPage() {
         reqBudgetRange: form.budgetRange.trim(),
         reqDeadline: new Date(form.deadline).toISOString(),
         reqUrgency: mapUrgency(form.urgency),
-        reqStatus: status,
+        reqStatus: mapStatus(status), // Use simplified enum mapping
       };
 
       // Optional fields
@@ -430,10 +489,10 @@ export default function PostJobPage() {
                         <p className="text-sm text-slate-500 mb-6">Posting as your organization</p>
 
                         <div className="flex items-center gap-3 p-4 border border-[var(--primary)] bg-indigo-50/50 rounded-lg">
-                          {userOrganization.organizationImage && userOrganization.organizationImage.length > 0 ? (
+                          {userOrganization.organizationImage ? (
                             <div className="w-10 h-10 rounded-lg flex items-center justify-center overflow-hidden">
                               <img 
-                                src={userOrganization.organizationImage[0]} 
+                                src={getImageUrl(userOrganization.organizationImage)} 
                                 alt={userOrganization.organizationName || 'Organization'} 
                                 className="w-full h-full object-cover"
                               />

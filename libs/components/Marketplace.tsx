@@ -408,13 +408,27 @@ const Marketplace: React.FC<MarketplaceProps> = ({
   // Map UI sort option to backend sort format
   const backendSortBy = mapSortOption(sortBy);
   
-  // Prepare query variables
+  // Prepare query variables with validation
   const queryVariables = useMemo(() => {
+    // Validate categoryId - must be a valid backend category
+    if (!backendCategoryId || !['IT_AND_SOFTWARE', 'BUSINESS_SERVICES', 'MARKETING_AND_SALES', 'DESIGN_AND_CREATIVE'].includes(backendCategoryId)) {
+      console.warn('Invalid categoryId:', backendCategoryId);
+      return null;
+    }
+
     const input: any = {
       categoryId: backendCategoryId,
-      page: currentPage,
-      limit: itemsPerPage,
+      page: currentPage || 1,
+      limit: itemsPerPage || 5,
     };
+    
+    // Validate and add sortBy - only valid provider sort options
+    const validSortOptions = ['createdAt', 'organizationHourlyRate', 'orgAverageRating', 'orgTotalProjects'];
+    if (backendSortBy && validSortOptions.includes(backendSortBy)) {
+      input.sortBy = backendSortBy;
+    } else {
+      input.sortBy = 'createdAt'; // Default sort
+    }
     
     // Note: We don't send subCategory filter to backend
     // Instead, we fetch all providers for the category and filter client-side
@@ -423,43 +437,50 @@ const Marketplace: React.FC<MarketplaceProps> = ({
     // Client-side filtering handles this correctly by checking if selected
     // subcategory exists in provider's subCategory array
     
-    if (selectedLocation !== 'All Countries') {
+    if (selectedLocation && selectedLocation !== 'All Countries') {
       input.location = selectedLocation;
     }
     
-    if (maxBudget !== 5000) {
+    if (maxBudget && maxBudget !== 5000) {
       input.maxBudget = maxBudget;
     }
     
-    if (searchQuery) {
-      input.searchQuery = searchQuery;
+    if (searchQuery && searchQuery.trim()) {
+      input.searchQuery = searchQuery.trim();
     }
     
     return { input };
-  }, [backendCategoryId, activeSubCats, selectedLocation, maxBudget, currentPage, itemsPerPage, searchQuery]);
+  }, [backendCategoryId, activeSubCats, selectedLocation, maxBudget, currentPage, itemsPerPage, searchQuery, backendSortBy]);
   
   // Always use sorted query since all options require backend sorting
   const useSortedQuery = true;
   
+  // Skip query if variables are invalid
+  const shouldSkip = !backendCategoryId || !queryVariables || !['IT_AND_SOFTWARE', 'BUSINESS_SERVICES', 'MARKETING_AND_SALES', 'DESIGN_AND_CREATIVE'].includes(backendCategoryId);
+  
   const { data, loading, error, refetch } = useQuery(
     useSortedQuery ? GET_PROVIDERS_SORTED : GET_PROVIDERS_BY_CATEGORY,
     {
-      variables: useSortedQuery 
-        ? { 
-            input: {
-              ...queryVariables.input,
-              sortBy: backendSortBy,
-            }
-          }
-        : queryVariables,
+      variables: queryVariables || { input: { categoryId: 'IT_AND_SOFTWARE', page: 1, limit: 5, sortBy: 'createdAt' } },
       fetchPolicy: 'cache-and-network',
       notifyOnNetworkStatusChange: true,
-      skip: !backendCategoryId, // Skip query if category is not set
-      onError: (error) => {
-        console.error('Marketplace query error:', error);
-      },
+      skip: shouldSkip, // Skip query if category is not set or invalid
+      errorPolicy: 'all', // Continue even if there are errors
     }
   );
+
+  // Handle errors using useEffect instead of onError callback (Apollo Client 3.14+ requirement)
+  useEffect(() => {
+    if (error) {
+      console.error('Marketplace query error:', error);
+      console.error('GraphQL Errors:', error.graphQLErrors);
+      console.error('Network Error:', error.networkError);
+      console.error('Query variables:', queryVariables);
+      console.error('Backend categoryId:', backendCategoryId);
+      console.error('Backend sortBy:', backendSortBy);
+      console.error('Selected category:', selectedCatId);
+    }
+  }, [error, queryVariables, backendCategoryId, backendSortBy, selectedCatId]);
   
   // Extract providers from response and apply client-side filtering
   const providers = useMemo(() => {
@@ -754,7 +775,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({
                 </div>
                 {isSortOpen && (
                   <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl shadow-xl dark:shadow-2xl z-20 py-1">
-                    {['Newest', 'Cheapest', 'Ending Soon'].map((opt) => (
+                    {['Newest', 'Cheapest', 'Highest Rated', 'Most Projects'].map((opt) => (
                       <button
                         key={opt}
                         onClick={() => handleSortChange(opt)}
@@ -784,17 +805,37 @@ const Marketplace: React.FC<MarketplaceProps> = ({
                 <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-6 mb-8">
                   <div className="flex items-center gap-3">
                     <AlertCircle className="w-6 h-6 text-red-600 dark:text-red-400" />
-                    <div>
+                    <div className="flex-1">
                       <h3 className="font-bold text-red-900 dark:text-red-200 mb-1">Error loading providers</h3>
-                      <p className="text-sm text-red-700 dark:text-red-300">{error.message}</p>
+                      <p className="text-sm text-red-700 dark:text-red-300 mb-2">
+                        {error.graphQLErrors?.[0]?.message || error.networkError?.message || error.message || 'Failed to load providers. Please check your connection and try again.'}
+                      </p>
+                      {error.graphQLErrors?.[0] && (
+                        <p className="text-xs text-red-600 dark:text-red-400 font-mono mt-2">
+                          {JSON.stringify(error.graphQLErrors[0], null, 2)}
+                        </p>
+                      )}
                     </div>
                   </div>
-                  <button
-                    onClick={() => refetch()}
-                    className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-semibold"
-                  >
-                    Try Again
-                  </button>
+                  <div className="flex items-center gap-3 mt-4">
+                    <button
+                      onClick={() => refetch()}
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-semibold"
+                    >
+                      Try Again
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSelectedCatId('it-software');
+                        setSortBy('Newest');
+                        setCurrentPage(1);
+                        setTimeout(() => refetch(), 100);
+                      }}
+                      className="px-4 py-2 bg-white border border-red-300 text-red-700 rounded-lg hover:bg-red-50 transition-colors text-sm font-semibold"
+                    >
+                      Reset Filters
+                    </button>
+                  </div>
                 </div>
               )}
               

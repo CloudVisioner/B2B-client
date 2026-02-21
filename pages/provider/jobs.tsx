@@ -1,94 +1,69 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { useReactiveVar } from '@apollo/client';
+import { useReactiveVar, useQuery } from '@apollo/client';
 import { userVar } from '../../apollo/store';
 import { isLoggedIn } from '../../libs/auth';
 import { ProviderSidebar } from '../../libs/components/dashboard/ProviderSidebar';
 import { ProviderHeader } from '../../libs/components/dashboard/ProviderHeader';
+import { GET_SERVICE_REQUESTS } from '../../apollo/user/query';
+import { getHeaders } from '../../apollo/utils';
 
-interface JobPost {
-  id: string;
-  jobNumber: string;
-  title: string;
-  budget: string;
-  location: string;
-  description: string;
-  category: string;
-  postedAgo: string;
-  urgency?: 'normal' | 'urgent' | 'very-urgent';
-  applicants?: number;
+interface ServiceRequest {
+  _id: string;
+  reqTitle: string;
+  reqDescription: string;
+  reqStatus: string;
+  reqBudgetRange: string;
+  reqDeadline?: string;
+  reqUrgency?: string;
+  reqTotalQuotes?: number;
+  reqNewQuotesCount?: number;
+  reqTotalLikes?: number;
+  reqTotalViews?: number;
+  reqCategory?: string;
+  reqSubCategory?: string;
+  reqSkillsNeeded?: string[];
+  reqAttachments?: string[];
+  reqBuyerOrgId?: string;
+  reqCreatedByUserId?: string;
+  createdAt: string;
+  updatedAt?: string;
+  // ✅ CORRECT field names from backend
+  reqBuyerOrgData?: {
+    _id: string;
+    organizationName?: string;
+    organizationIndustry?: string;
+    organizationLocation?: string;
+    organizationDescription?: string;
+    organizationImage?: string;
+    organizationContactEmail?: string;
+    organizationType?: string;
+    organizationStatus?: string;
+  };
+  reqCreatedByUserData?: {
+    _id: string;
+    userNick?: string;
+    userEmail?: string;
+  };
 }
 
-const MOCK_JOBS: JobPost[] = [
-  {
-    id: '123',
-    jobNumber: '#123',
-    title: 'ABC Website',
-    budget: '$2.5k',
-    location: 'Busan',
-    description: 'Need React/Next.js developer',
-    category: 'Web Development',
-    postedAgo: '2 hours ago',
-    urgency: 'urgent',
-    applicants: 3,
-  },
-  {
-    id: '124',
-    jobNumber: '#124',
-    title: 'XYZ Mobile App',
-    budget: '$4.2k',
-    location: 'Seoul',
-    description: 'Full-stack developer for e-commerce platform',
-    category: 'Mobile Development',
-    postedAgo: '5 hours ago',
-    applicants: 8,
-  },
-  {
-    id: '125',
-    jobNumber: '#125',
-    title: 'E-commerce Platform',
-    budget: '$8.5k',
-    location: 'Busan',
-    description: 'Senior developer needed for scalable platform',
-    category: 'Full Stack',
-    postedAgo: '1 day ago',
-    urgency: 'very-urgent',
-    applicants: 12,
-  },
-  {
-    id: '126',
-    jobNumber: '#126',
-    title: 'Cloud Migration',
-    budget: '$12k',
-    location: 'Seoul',
-    description: 'AWS expert for infrastructure migration',
-    category: 'DevOps',
-    postedAgo: '2 days ago',
-    applicants: 5,
-  },
-  {
-    id: '127',
-    jobNumber: '#127',
-    title: 'UI/UX Redesign',
-    budget: '$3.8k',
-    location: 'Busan',
-    description: 'Designer + Developer for modern interface',
-    category: 'Design & Development',
-    postedAgo: '3 days ago',
-    applicants: 15,
-  },
-  {
-    id: '128',
-    jobNumber: '#128',
-    title: 'API Integration',
-    budget: '$2.1k',
-    location: 'Seoul',
-    description: 'Backend developer for third-party integrations',
-    category: 'Backend',
-    postedAgo: '4 days ago',
-    applicants: 7,
-  },
-];
+// Helper function to format date as "X hours/days ago"
+const formatTimeAgo = (dateString: string): string => {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 60) {
+    return `${diffMins} minute${diffMins !== 1 ? 's' : ''} ago`;
+  } else if (diffHours < 24) {
+    return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+  } else {
+    return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
+  }
+};
 
 export default function ProviderJobsPage() {
   const router = useRouter();
@@ -97,6 +72,28 @@ export default function ProviderJobsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedLocation, setSelectedLocation] = useState<string>('all');
+
+  // Fetch available service requests (only OPEN status)
+  // ✅ CORRECT Input Structure: ServiceRequestInquiry with ServiceRequestSearch
+  const { data, loading, error, refetch } = useQuery(GET_SERVICE_REQUESTS, {
+    skip: !isLoggedIn() || !mounted,
+    fetchPolicy: 'network-only',
+    errorPolicy: 'all',
+    variables: {
+      input: {
+        page: 1,
+        limit: 50,
+        sort: 'createdAt',
+        sortOrder: 'desc',
+        search: {
+          reqStatus: 'OPEN', // Only fetch OPEN requests - DRAFT, ACTIVE, COMPLETED, CLOSED are hidden
+        },
+      },
+    },
+    context: {
+      headers: isLoggedIn() ? getHeaders() : {},
+    },
+  });
 
   useEffect(() => {
     setMounted(true);
@@ -110,37 +107,45 @@ export default function ProviderJobsPage() {
     }
   }, [router, currentUser]);
 
-  const categories = ['all', 'Web Development', 'Mobile Development', 'Full Stack', 'DevOps', 'Design & Development', 'Backend'];
-  const locations = ['all', 'Busan', 'Seoul', 'Incheon', 'Daegu'];
+  // Extract service requests from API response
+  const serviceRequests: ServiceRequest[] = data?.getServiceRequests?.list || [];
+  
+  // Filter out any non-OPEN requests (backend should handle this via search.reqStatus, but double-check for safety)
+  const openRequests = serviceRequests.filter(req => req.reqStatus === 'OPEN');
 
-  const filteredJobs = MOCK_JOBS.filter(job => {
-    const matchesSearch = job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         job.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || job.category === selectedCategory;
-    const matchesLocation = selectedLocation === 'all' || job.location === selectedLocation;
+  // Get unique categories and locations from the data
+  const categories = ['all', ...Array.from(new Set(openRequests.map(req => req.reqCategory).filter(Boolean)))];
+  const locations = ['all', ...Array.from(new Set(openRequests.map(req => req.reqCategory).filter(Boolean)))];
+
+  const filteredJobs = openRequests.filter(job => {
+    const matchesSearch = job.reqTitle?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         job.reqDescription?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = selectedCategory === 'all' || job.reqCategory === selectedCategory;
+    // Note: Location filtering might need reqLocation field if available
+    const matchesLocation = selectedLocation === 'all'; // Simplified for now
     return matchesSearch && matchesCategory && matchesLocation;
   });
 
   const getUrgencyColor = (urgency?: string) => {
-    switch (urgency) {
-      case 'very-urgent':
-        return 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800';
-      case 'urgent':
-        return 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800';
-      default:
-        return 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700';
+    if (!urgency) return 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700';
+    const urgencyLower = urgency.toLowerCase();
+    if (urgencyLower.includes('very') || urgencyLower.includes('critical')) {
+      return 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800';
+    } else if (urgencyLower.includes('urgent')) {
+      return 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800';
     }
+    return 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700';
   };
 
   const getUrgencyLabel = (urgency?: string) => {
-    switch (urgency) {
-      case 'very-urgent':
-        return 'VERY URGENT';
-      case 'urgent':
-        return 'URGENT';
-      default:
-        return 'NORMAL';
+    if (!urgency) return 'NORMAL';
+    const urgencyUpper = urgency.toUpperCase();
+    if (urgencyUpper.includes('VERY') || urgencyUpper.includes('CRITICAL')) {
+      return 'VERY URGENT';
+    } else if (urgencyUpper.includes('URGENT')) {
+      return 'URGENT';
     }
+    return 'NORMAL';
   };
 
   if (!mounted) {
@@ -243,81 +248,139 @@ export default function ProviderJobsPage() {
               </div>
             </div>
 
-            <div className="space-y-4">
-              {filteredJobs.length === 0 ? (
-                <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-12 text-center">
-                  <div className="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800 mx-auto mb-4 flex items-center justify-center">
-                    <span className="material-symbols-outlined text-slate-400 text-3xl">work_off</span>
-                  </div>
-                  <p className="text-slate-500 dark:text-slate-400 font-medium">No jobs found</p>
-                  <p className="text-sm text-slate-400 dark:text-slate-500 mt-1">Try adjusting your filters</p>
+            {loading ? (
+              <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-12 text-center">
+                <div className="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800 mx-auto mb-4 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-slate-400 text-3xl animate-spin">sync</span>
                 </div>
-              ) : (
-                filteredJobs.map((job) => (
-                  <div
-                    key={job.id}
-                    className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 hover:shadow-lg transition-all overflow-hidden"
-                  >
-                    <div className="p-6">
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-3">
-                            <span className="text-sm font-bold text-slate-400 dark:text-slate-500">{job.jobNumber}</span>
-                            <h3 className="text-lg font-bold text-slate-900 dark:text-white">{job.title}</h3>
-                            {job.urgency && (
-                              <span className={`px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wider border ${getUrgencyColor(job.urgency)}`}>
-                                {getUrgencyLabel(job.urgency)}
+                <p className="text-slate-500 dark:text-slate-400 font-medium">Loading available jobs...</p>
+              </div>
+            ) : error ? (
+              <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-12 text-center">
+                <div className="w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/20 mx-auto mb-4 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-red-400 text-3xl">error</span>
+                </div>
+                <p className="text-slate-500 dark:text-slate-400 font-medium">Error loading jobs</p>
+                <p className="text-sm text-slate-400 dark:text-slate-500 mt-1">{error.message || 'Please try again later'}</p>
+                <button
+                  onClick={() => refetch()}
+                  className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 transition-colors"
+                >
+                  Retry
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {filteredJobs.length === 0 ? (
+                  <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-12 text-center">
+                    <div className="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800 mx-auto mb-4 flex items-center justify-center">
+                      <span className="material-symbols-outlined text-slate-400 text-3xl">work_off</span>
+                    </div>
+                    <p className="text-slate-500 dark:text-slate-400 font-medium">No open jobs found</p>
+                    <p className="text-sm text-slate-400 dark:text-slate-500 mt-1">Try adjusting your filters or check back later</p>
+                  </div>
+                ) : (
+                  filteredJobs.map((job) => (
+                    <div
+                      key={job._id}
+                      className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 hover:shadow-lg transition-all overflow-hidden"
+                    >
+                      <div className="p-6">
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-3">
+                              <span className="text-sm font-bold text-slate-400 dark:text-slate-500">#{job._id.slice(-6)}</span>
+                              <h3 className="text-lg font-bold text-slate-900 dark:text-white">{job.reqTitle || 'Untitled Request'}</h3>
+                              {job.reqUrgency && (
+                                <span className={`px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wider border ${getUrgencyColor(job.reqUrgency)}`}>
+                                  {getUrgencyLabel(job.reqUrgency)}
+                                </span>
+                              )}
+                              <span className="px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-emerald-100 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                                OPEN
                               </span>
+                            </div>
+                            <div className="flex items-center gap-4 text-sm text-slate-600 dark:text-slate-400 mb-3">
+                              {job.reqBudgetRange && (
+                                <span className="flex items-center gap-1.5 font-semibold text-slate-900 dark:text-slate-200">
+                                  <span className="material-symbols-outlined text-base">payments</span>
+                                  {job.reqBudgetRange}
+                                </span>
+                              )}
+                              {job.reqDeadline && (
+                                <span className="flex items-center gap-1.5">
+                                  <span className="material-symbols-outlined text-base">event</span>
+                                  {new Date(job.reqDeadline).toLocaleDateString()}
+                                </span>
+                              )}
+                              {job.reqTotalQuotes !== undefined && job.reqTotalQuotes > 0 && (
+                                <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-semibold">
+                                  <span className="material-symbols-outlined text-base">people</span>
+                                  {job.reqTotalQuotes} quote{job.reqTotalQuotes !== 1 ? 's' : ''}
+                                </span>
+                              )}
+                              {job.createdAt && (
+                                <span className="flex items-center gap-1.5">
+                                  <span className="material-symbols-outlined text-base">schedule</span>
+                                  {formatTimeAgo(job.createdAt)}
+                                </span>
+                              )}
+                            </div>
+                            {job.reqDescription && (
+                              <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 mb-3 border border-slate-100 dark:border-slate-700">
+                                <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                                  <span className="material-symbols-outlined text-base">description</span>
+                                  <span className="italic">"{job.reqDescription}"</span>
+                                </div>
+                              </div>
                             )}
-                          </div>
-                          <div className="flex items-center gap-4 text-sm text-slate-600 dark:text-slate-400 mb-3">
-                            <span className="flex items-center gap-1.5 font-semibold text-slate-900 dark:text-slate-200">
-                              <span className="material-symbols-outlined text-base">payments</span>
-                              {job.budget}
-                            </span>
-                            <span className="flex items-center gap-1.5">
-                              <span className="material-symbols-outlined text-base">location_on</span>
-                              {job.location}
-                            </span>
-                            {job.applicants !== undefined && (
-                              <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-semibold">
-                                <span className="material-symbols-outlined text-base">people</span>
-                                {job.applicants} applicants
-                              </span>
-                            )}
-                            <span className="flex items-center gap-1.5">
-                              <span className="material-symbols-outlined text-base">schedule</span>
-                              {job.postedAgo}
-                            </span>
-                          </div>
-                          <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 mb-3 border border-slate-100 dark:border-slate-700">
-                            <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-                              <span className="material-symbols-outlined text-base">description</span>
-                              <span className="italic">"{job.description}"</span>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {job.reqCategory && (
+                                <span className="px-3 py-1 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400 rounded-lg text-xs font-bold uppercase tracking-wider">
+                                  {job.reqCategory}
+                                </span>
+                              )}
+                              {job.reqSubCategory && (
+                                <span className="px-3 py-1 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 rounded-lg text-xs font-bold uppercase tracking-wider">
+                                  {job.reqSubCategory}
+                                </span>
+                              )}
+                              {job.reqSkillsNeeded && job.reqSkillsNeeded.length > 0 && (
+                                <span className="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold">
+                                  {job.reqSkillsNeeded.length} skill{job.reqSkillsNeeded.length !== 1 ? 's' : ''} needed
+                                </span>
+                              )}
+                              {job.reqBuyerOrgData?.organizationName && (
+                                <span className="px-3 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-lg text-xs font-semibold flex items-center gap-1">
+                                  <span className="material-symbols-outlined text-xs">business</span>
+                                  {job.reqBuyerOrgData.organizationName}
+                                </span>
+                              )}
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <span className="px-3 py-1 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400 rounded-lg text-xs font-bold uppercase tracking-wider">
-                              {job.category}
-                            </span>
-                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 pt-4 border-t border-slate-200 dark:border-slate-800">
+                          <button 
+                            onClick={() => router.push(`/provider/jobs/${job._id}`)}
+                            className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2"
+                          >
+                            <span className="material-symbols-outlined text-base">visibility</span>
+                            View
+                          </button>
+                          <button 
+                            onClick={() => router.push(`/provider/jobs/${job._id}?action=quote`)}
+                            className="px-4 py-2 bg-[var(--primary)] hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold transition-colors flex items-center gap-2"
+                          >
+                            <span className="material-symbols-outlined text-base">send</span>
+                            Propose
+                          </button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3 pt-4 border-t border-slate-200 dark:border-slate-800">
-                        <button className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2">
-                          <span className="material-symbols-outlined text-base">visibility</span>
-                          View
-                        </button>
-                        <button className="px-4 py-2 bg-[var(--primary)] hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold transition-colors flex items-center gap-2">
-                          <span className="material-symbols-outlined text-base">send</span>
-                          Propose
-                        </button>
-                      </div>
                     </div>
-                  </div>
-                ))
-              )}
-            </div>
+                  ))
+                )}
+              </div>
+            )}
 
             {filteredJobs.length > 0 && (
               <div className="flex items-center justify-center gap-2 pt-4">

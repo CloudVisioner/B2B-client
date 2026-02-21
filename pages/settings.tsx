@@ -42,6 +42,21 @@ function OrganizationTab() {
   const [logoPreview, setLogoPreview] = useState<string>('');
   const [logoFile, setLogoFile] = useState<File | null>(null);
 
+  // Helper function to convert relative image paths to full URLs
+  const getImageUrl = (imagePath: string | null | undefined): string => {
+    if (!imagePath) return '';
+    // If it's already a full URL (starts with http:// or https://), return as is
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+      return imagePath;
+    }
+    // If it's a relative path, prepend the base URL
+    const apiUrl = process.env.NEXT_PUBLIC_API_GRAPHQL_URL || process.env.REACT_APP_API_GRAPHQL_URL || 'http://localhost:3010/graphql';
+    const baseUrl = apiUrl.replace('/graphql', '');
+    // Remove leading slash from imagePath if present to avoid double slashes
+    const cleanPath = imagePath.startsWith('/') ? imagePath.slice(1) : imagePath;
+    return `${baseUrl}/${cleanPath}`;
+  };
+
   useEffect(() => {
     return () => {
       if (successTimeoutRef.current) {
@@ -61,7 +76,14 @@ function OrganizationTab() {
     onCompleted: (data) => {
       if (data?.getBuyerOrganization) {
         const org = data.getBuyerOrganization;
-        const logoUrl = org.organizationImage && org.organizationImage.length > 0 ? org.organizationImage[0] : '';
+        // organizationImage is now a string, not an array
+        // ✅ Safety check: ensure it's always a string, even if backend returns array
+        let logoUrl = '';
+        if (Array.isArray(org.organizationImage)) {
+          logoUrl = org.organizationImage[0] || '';
+        } else {
+          logoUrl = org.organizationImage || '';
+        }
         
         if (!isEditMode && !logoFile) {
           setFormData({
@@ -77,7 +99,8 @@ function OrganizationTab() {
             if (logoPreview && logoPreview.startsWith('blob:')) {
               URL.revokeObjectURL(logoPreview);
             }
-            setLogoPreview(logoUrl);
+            const fullImageUrl = getImageUrl(logoUrl);
+            setLogoPreview(fullImageUrl);
           } else if (!logoFile) {
             setLogoPreview('');
           }
@@ -91,7 +114,14 @@ function OrganizationTab() {
   useEffect(() => {
     if (orgData?.getBuyerOrganization && !isEditMode && !logoFile) {
       const org = orgData.getBuyerOrganization;
-      const logoUrl = org.organizationImage && org.organizationImage.length > 0 ? org.organizationImage[0] : '';
+      // organizationImage is now a string, not an array
+      // ✅ Safety check: ensure it's always a string, even if backend returns array
+      let logoUrl = '';
+      if (Array.isArray(org.organizationImage)) {
+        logoUrl = org.organizationImage[0] || '';
+      } else {
+        logoUrl = org.organizationImage || '';
+      }
       
       setFormData({
         orgName: org.organizationName || '',
@@ -106,7 +136,8 @@ function OrganizationTab() {
         if (logoPreview && logoPreview.startsWith('blob:')) {
           URL.revokeObjectURL(logoPreview);
         }
-        setLogoPreview(logoUrl);
+        const fullImageUrl = getImageUrl(logoUrl);
+        setLogoPreview(fullImageUrl);
       } else if (!logoFile) {
         setLogoPreview('');
       }
@@ -124,7 +155,16 @@ function OrganizationTab() {
       setLogoFile(null);
       
       const org = data?.createOrUpdateBuyerOrganization;
-      const newLogoUrl = org?.organizationImage?.[0] || '';
+      // organizationImage is now a string, not an array
+      // ✅ Safety check: ensure it's always a string, even if backend returns array
+      let newLogoUrl = '';
+      if (org?.organizationImage) {
+        if (Array.isArray(org.organizationImage)) {
+          newLogoUrl = org.organizationImage[0] || '';
+        } else {
+          newLogoUrl = org.organizationImage;
+        }
+      }
       
       await refetch();
 
@@ -179,11 +219,29 @@ function OrganizationTab() {
     }
 
     try {
-      let logoUrl = formData.logoUrl;
+      let logoUrl: string = '';
+      // Ensure logoUrl is always a string, not an array
+      if (Array.isArray(formData.logoUrl)) {
+        logoUrl = formData.logoUrl[0] || '';
+      } else {
+        logoUrl = formData.logoUrl || '';
+      }
+
       if (logoFile) {
         setIsUploadingLogo(true);
         try {
           logoUrl = await uploadLogoToBackend(logoFile);
+          // Ensure it's a string (uploadLogoToBackend should return string, but double-check)
+          if (Array.isArray(logoUrl)) {
+            logoUrl = logoUrl[0] || '';
+          }
+          // Update formData with the new image URL
+          setFormData((prev) => ({ ...prev, logoUrl }));
+          // Update preview to show the uploaded image URL (not blob)
+          const fullImageUrl = getImageUrl(logoUrl);
+          setLogoPreview(fullImageUrl);
+          // Clear the file since it's now uploaded
+          setLogoFile(null);
         } catch (error: any) {
           console.error('Error uploading logo:', error);
           alert(`Failed to upload logo: ${error.message || 'Please try again'}`);
@@ -208,7 +266,9 @@ function OrganizationTab() {
         }
 
         if (logoUrl) {
-          updateInput.organizationImage = [logoUrl];
+          // ✅ Ensure organizationImage is always a string, not an array
+          // Double-check in case logoUrl somehow became an array
+          updateInput.organizationImage = Array.isArray(logoUrl) ? logoUrl[0] : logoUrl;
         }
 
         await updateOrg({
@@ -227,7 +287,9 @@ function OrganizationTab() {
         }
 
         if (logoUrl) {
-          createInput.organizationImage = [logoUrl];
+          // ✅ Ensure organizationImage is always a string, not an array
+          // Double-check in case logoUrl somehow became an array
+          createInput.organizationImage = Array.isArray(logoUrl) ? logoUrl[0] : logoUrl;
         }
 
         await createOrg({
@@ -374,7 +436,16 @@ function OrganizationTab() {
             <div className="relative">
               {logoPreview ? (
                 <div className="w-24 h-24 rounded-2xl overflow-hidden border-2 border-slate-200 shadow-lg">
-                  <img src={logoPreview} alt="Company logo" className="w-full h-full object-cover" />
+                  <img 
+                    src={logoPreview} 
+                    alt="Company logo" 
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      console.error('Image failed to load:', logoPreview);
+                      // Fallback to initials if image fails to load
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
                   {isUploadingLogo && (
                     <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                       <span className="material-symbols-outlined text-white animate-spin">sync</span>
@@ -548,7 +619,7 @@ function ProfileTab() {
   const { data: profileData, loading: profileLoading, refetch: refetchProfile } = useQuery(GET_MY_PROFILE, {
     skip: !isLoggedIn() || !currentUser?._id,
     variables: { userId: currentUser?._id || '' },
-    fetchPolicy: 'network-only',
+    fetchPolicy: 'cache-and-network',
     errorPolicy: 'all',
     context: {
       headers: isLoggedIn() ? getHeaders() : {},
@@ -600,16 +671,39 @@ function ProfileTab() {
     context: {
       headers: isLoggedIn() ? getHeaders() : {},
     },
+    refetchQueries: [
+      {
+        query: GET_MY_PROFILE,
+        variables: { userId: currentUser?._id || '' },
+      },
+    ],
+    awaitRefetchQueries: true,
     onCompleted: async (data) => {
       setShowSuccessMessage(true);
       setIsEditMode(false);
       setImageFile(null);
       
-      if (data?.updateUser?.accessToken) {
-        updateUserInfo(data.updateUser.accessToken);
+      // Update userVar with new profile data including image
+      if (data?.updateUser) {
+        const updatedUser = data.updateUser;
+        const currentUserData = userVar();
+        
+        // Update userVar with new data, preserving existing fields
+        userVar({
+          ...currentUserData,
+          userNick: updatedUser.userNick || currentUserData.userNick,
+          userEmail: updatedUser.userEmail || currentUserData.userEmail,
+          userPhone: updatedUser.userPhone || currentUserData.userPhone,
+          userImage: updatedUser.userImage || currentUserData.userImage,
+          userDescription: updatedUser.userDescription || currentUserData.userDescription,
+          accessToken: updatedUser.accessToken || currentUserData.accessToken,
+        });
+        
+        // Also update JWT token if new one is provided
+        if (updatedUser.accessToken) {
+          updateUserInfo(updatedUser.accessToken);
+        }
       }
-      
-      await refetchProfile();
 
       if (passwordTimeoutRef.current) clearTimeout(passwordTimeoutRef.current);
       passwordTimeoutRef.current = setTimeout(() => {

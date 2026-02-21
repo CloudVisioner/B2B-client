@@ -13,16 +13,16 @@ export const GET_PROVIDERS_BY_CATEGORY = gql`
     getProvidersByCategory(input: $input) {
       list {
         _id
-        orgName
-        orgDescription
+        organizationName
+        organizationDescription
         orgAverageRating
         reviewsCount
         orgTotalProjects
         orgResponseTimeAvg
-        startingRate
+        organizationHourlyRate
         orgCountry
         orgCity
-        location
+        organizationLocation
         flag
         categoryId
         subCategory
@@ -31,7 +31,7 @@ export const GET_PROVIDERS_BY_CATEGORY = gql`
         badges
         color
         orgVerified
-        orgLogoImages
+        organizationImage
         orgTotalLikes
         orgTotalViews
         industries
@@ -52,21 +52,21 @@ export const GET_PROVIDER_DETAIL = gql`
   query GetProviderDetail($orgId: String!) {
     getProviderDetail(orgId: $orgId) {
       _id
-      orgName
-      orgDescription
+      organizationName
+      organizationDescription
       bio
       orgAverageRating
       reviewsCount
       orgTotalProjects
       orgResponseTimeAvg
-      startingRate
+      organizationHourlyRate
       minProjectSize
       establishmentYear
       teamSize
       industries
       orgCountry
       orgCity
-      location
+      organizationLocation
       flag
       categoryId
       subCategory
@@ -75,7 +75,7 @@ export const GET_PROVIDER_DETAIL = gql`
       badges
       color
       orgVerified
-      orgLogoImages
+      organizationImage
       orgTotalLikes
       orgTotalViews
       orgWebsiteUrl
@@ -106,16 +106,16 @@ export const GET_PROVIDERS_SORTED = gql`
     getProvidersSorted(input: $input) {
       list {
         _id
-        orgName
-        orgDescription
+        organizationName
+        organizationDescription
         orgAverageRating
         reviewsCount
         orgTotalProjects
         orgResponseTimeAvg
-        startingRate
+        organizationHourlyRate
         orgCountry
         orgCity
-        location
+        organizationLocation
         flag
         categoryId
         subCategory
@@ -124,7 +124,7 @@ export const GET_PROVIDERS_SORTED = gql`
         badges
         color
         orgVerified
-        orgLogoImages
+        organizationImage
         orgTotalLikes
         orgTotalViews
         industries
@@ -354,19 +354,19 @@ export const GET_RECOMMENDED_PROVIDERS = gql`
   query GetRecommendedProviders($providerId: String!, $categoryId: String!) {
     getRecommendedProviders(providerId: $providerId, categoryId: $categoryId) {
       _id
-      name
+      organizationName
       serviceTitle
-      rating
-      startingRate
+      orgAverageRating
+      organizationHourlyRate
       avatar
       badges
-      location
-      city
+      organizationLocation
+      orgCity
       flag
-      description
+      organizationDescription
       reviewsCount
-      projectsCompleted
-      responseTime
+      orgTotalProjects
+      orgResponseTimeAvg
       subCategory
       color
     }
@@ -452,8 +452,8 @@ export const GET_MY_PROFILE = gql`
  * 
  * Fields Returned:
  * - _id - Organization ID
- * - orgType - Always "BUYER"
- * - orgStatus - "ACTIVE" | "INACTIVE"
+ * - organizationType - Always "BUYER" (✅ CORRECT - not orgType)
+ * - organizationStatus - "ACTIVE" | "INACTIVE" (✅ CORRECT - not orgStatus)
  * - orgOwnerUserId - User ID who owns this organization
  * - organizationName - Company Name (Required)
  * - organizationIndustry - Industry (Required)
@@ -468,8 +468,8 @@ export const GET_BUYER_ORGANIZATION = gql`
   query GetBuyerOrganization {
     getBuyerOrganization {
       _id
-      orgType
-      orgStatus
+      organizationType
+      organizationStatus
       orgOwnerUserId
       organizationName
       organizationIndustry
@@ -477,6 +477,30 @@ export const GET_BUYER_ORGANIZATION = gql`
       organizationDescription
       organizationImage
       budgetRange
+      createdAt
+      updatedAt
+    }
+  }
+`;
+
+/**
+ * Get Provider Organization
+ * Fetches the provider organization for the logged-in provider
+ */
+export const GET_PROVIDER_ORGANIZATION = gql`
+  query GetProviderOrganization {
+    getProviderOrganization {
+      _id
+      organizationType
+      organizationStatus
+      organizationName
+      organizationDescription
+      organizationContactEmail
+      organizationCountry
+      organizationImage
+      categoryId
+      subCategory
+      orgOwnerUserId
       createdAt
       updatedAt
     }
@@ -518,6 +542,125 @@ export const GET_BUYER_SERVICE_REQUESTS = gql`
         inProgress
         closed
         draft
+      }
+    }
+  }
+`;
+
+/**
+ * Get Service Requests (Browse - for Providers to see buyer requests)
+ * Fetches all service requests that providers can browse and quote on
+ * Filter by status (OPEN, ACTIVE, etc.), category, search keywords
+ * Supports pagination
+ * Returns buyer organization data
+ * 
+ * ✅ CORRECT Field Names:
+ * - reqBuyerOrgData (not buyerOrg)
+ * - reqCreatedByUserData (not createdBy)
+ * - organizationType (not orgType)
+ * - organizationStatus (not orgStatus)
+ */
+export const GET_SERVICE_REQUESTS = gql`
+  query GetServiceRequests($input: ServiceRequestInquiry!) {
+    getServiceRequests(input: $input) {
+      list {
+        _id
+        reqTitle
+        reqDescription
+        reqBuyerOrgId
+        reqCategory
+        reqSubCategory
+        reqBudgetRange
+        reqDeadline
+        reqUrgency
+        reqSkillsNeeded
+        reqAttachments
+        reqStatus
+        reqTotalLikes
+        reqTotalViews
+        reqTotalQuotes
+        reqNewQuotesCount
+        reqCreatedByUserId
+        createdAt
+        updatedAt
+        reqBuyerOrgData {
+          _id
+          organizationName
+          organizationIndustry
+          organizationLocation
+          organizationDescription
+          organizationImage
+          organizationContactEmail
+          organizationType
+          organizationStatus
+        }
+        reqCreatedByUserData {
+          _id
+          userNick
+          userEmail
+        }
+      }
+      metaCounter {
+        total
+      }
+    }
+  }
+`;
+
+/**
+ * Get Single Service Request Details
+ * Fetches full details of a specific service request
+ * Includes buyer organization details, creator info, and all quotes
+ * 
+ * ✅ CORRECT Field Names:
+ * - reqBuyerOrgData (not buyerOrg)
+ * - reqCreatedByUserData (not createdBy)
+ */
+export const GET_SERVICE_REQUEST = gql`
+  query GetServiceRequest($requestId: String!) {
+    getServiceRequest(requestId: $requestId) {
+      _id
+      reqTitle
+      reqDescription
+      reqBuyerOrgId
+      reqCategory
+      reqSubCategory
+      reqBudgetRange
+      reqDeadline
+      reqUrgency
+      reqSkillsNeeded
+      reqAttachments
+      reqStatus
+      reqTotalLikes
+      reqTotalViews
+      reqTotalQuotes
+      reqNewQuotesCount
+      reqCreatedByUserId
+      createdAt
+      updatedAt
+      reqBuyerOrgData {
+        _id
+        organizationName
+        organizationIndustry
+        organizationLocation
+        organizationDescription
+        organizationImage
+        organizationContactEmail
+        organizationType
+        organizationStatus
+      }
+      reqCreatedByUserData {
+        _id
+        userNick
+        userEmail
+        userPhone
+      }
+      quotes {
+        _id
+        quotePrice
+        quoteDescription
+        quoteStatus
+        createdAt
       }
     }
   }

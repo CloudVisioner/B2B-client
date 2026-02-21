@@ -2,35 +2,86 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { useReactiveVar, useMutation, useQuery } from '@apollo/client';
 import { userVar } from '../../apollo/store';
-import { isLoggedIn, getJwtToken } from '../../libs/auth';
+import { isLoggedIn, getJwtToken, updateUserInfo, decodeJWT } from '../../libs/auth';
 import { ProviderSidebar } from '../../libs/components/dashboard/ProviderSidebar';
 import { ProviderHeader } from '../../libs/components/dashboard/ProviderHeader';
-import { CREATE_ORGANIZATION, UPDATE_ORGANIZATION } from '../../apollo/user/mutation';
-import { GET_BUYER_ORGANIZATION } from '../../apollo/user/query';
+import { CREATE_PROVIDER_ORG_PROF, UPDATE_PROVIDER_ORG_PROF, UPDATE_PROVIDER_PROFILE, UPDATE_MY_PROFILE, CHANGE_MY_PASSWORD } from '../../apollo/user/mutation';
+import { GET_PROVIDER_ORGANIZATION, GET_MY_PROFILE } from '../../apollo/user/query';
 import { getHeaders } from '../../apollo/utils';
+import { mapCategoryToBackend, mapSubCategoryToBackend } from '../../libs/utils/providerMapper';
 
-export default function ProviderSettingsPage() {
+/* ═══════════════════════════════════════════════════════════
+   Tab definitions
+   ═══════════════════════════════════════════════════════════ */
+const TABS = [
+  { id: 'organization', label: 'Organization', icon: 'business' },
+  { id: 'profile', label: 'Profile', icon: 'person' },
+  { id: 'notifications', label: 'Notifications', icon: 'notifications' },
+  { id: 'billing', label: 'Billing', icon: 'credit_card' },
+] as const;
+
+type TabId = (typeof TABS)[number]['id'];
+
+/* ═══════════════════════════════════════════════════════════
+   Category and SubCategory Options
+   ═══════════════════════════════════════════════════════════ */
+const CATEGORIES = [
+  { value: 'IT_AND_SOFTWARE', label: 'IT & Software' },
+  { value: 'BUSINESS_SERVICES', label: 'Business Services' },
+  { value: 'MARKETING_AND_SALES', label: 'Marketing & Sales' },
+  { value: 'DESIGN_AND_CREATIVE', label: 'Design & Creative' },
+];
+
+const SUBCATEGORIES: Record<string, { value: string; label: string }[]> = {
+  IT_AND_SOFTWARE: [
+    { value: 'WEB_APP_DEVELOPMENT', label: 'Web & App Development' },
+    { value: 'DATA_AND_AI', label: 'Data & AI' },
+    { value: 'SOFTWARE_TESTING_AND_QA', label: 'Software Testing & QA' },
+    { value: 'INFRASTRUCTURE_AND_CLOUD', label: 'Infrastructure & Cloud' },
+  ],
+  BUSINESS_SERVICES: [
+    { value: 'ADMIN_AND_VIRTUAL_SUPPORT', label: 'Admin & Virtual Support' },
+    { value: 'FINANCIAL_AND_LEGAL', label: 'Financial & Legal' },
+    { value: 'STRATEGY_AND_CONSULTING', label: 'Strategy & Consulting' },
+    { value: 'HR_AND_OPERATIONS', label: 'HR & Operations' },
+  ],
+  MARKETING_AND_SALES: [
+    { value: 'DIGITAL_MARKETING', label: 'Digital Marketing' },
+    { value: 'SOCIAL_MEDIA_MANAGEMENT', label: 'Social Media Management' },
+    { value: 'CONTENT_AND_COPYWRITING', label: 'Content & Copywriting' },
+    { value: 'SALES_AND_LEAD_GEN', label: 'Sales & Lead Gen' },
+  ],
+  DESIGN_AND_CREATIVE: [
+    { value: 'VISUAL_IDENTITY_AND_BRANDING', label: 'Visual Identity & Branding' },
+    { value: 'UI_UX_AND_WEB_DESIGN', label: 'UI/UX & Web Design' },
+    { value: 'MOTION_AND_VIDEO', label: 'Motion & Video' },
+    { value: 'ILLUSTRATION_AND_PRINT', label: 'Illustration & Print' },
+  ],
+};
+
+/* ═══════════════════════════════════════════════════════════
+   Organization Tab
+   ═══════════════════════════════════════════════════════════ */
+function OrganizationTab() {
   const router = useRouter();
-  const currentUser = useReactiveVar(userVar);
-  const [mounted, setMounted] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [formData, setFormData] = useState({
-    orgName: '',
-    industry: '',
-    location: '',
-    description: '',
-    specialties: [] as string[],
-    hourlyRate: '',
-    availability: '',
-    logoUrl: '',
+    organizationName: '',
+    organizationDescription: '',
+    organizationContactEmail: '',
+    organizationCountry: '',
+    organizationCategories: [] as string[],
+    organizationSubCategories: [] as string[],
+    organizationImage: '',
   });
   const [isEditMode, setIsEditMode] = useState(false);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
-  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
-  const [logoPreview, setLogoPreview] = useState<string>('');
-  const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [specialtyInput, setSpecialtyInput] = useState('');
+  const [isCreated, setIsCreated] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string>('');
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     return () => {
@@ -38,98 +89,121 @@ export default function ProviderSettingsPage() {
         clearTimeout(successTimeoutRef.current);
         successTimeoutRef.current = null;
       }
+      if (imagePreview && imagePreview.startsWith('blob:')) {
+        URL.revokeObjectURL(imagePreview);
+      }
     };
-  }, []);
+  }, [imagePreview]);
 
-  useEffect(() => {
-    setMounted(true);
-    if (!isLoggedIn()) {
-      router.push('/login');
-      return;
-    }
-    const role = currentUser?.userRole;
-    if (role && role !== 'PROVIDER' && role !== 'provider') {
-      router.push('/dashboard');
-    }
-  }, [router, currentUser]);
-
-  // Fetch existing organization data
-  const { data: orgData, loading: orgLoading, refetch } = useQuery(GET_BUYER_ORGANIZATION, {
+  const { data: orgData, loading: orgLoading, refetch, error: orgError } = useQuery(GET_PROVIDER_ORGANIZATION, {
     skip: !isLoggedIn(),
-    fetchPolicy: 'cache-and-network',
+    fetchPolicy: 'network-only', // Always fetch fresh data from server
     errorPolicy: 'all',
     context: {
       headers: isLoggedIn() ? getHeaders() : {},
     },
-    onCompleted: (data) => {
-      if (data?.getBuyerOrganization && !isEditMode && !logoFile) {
-        const org = data.getBuyerOrganization;
-        const logoUrl = org.organizationImage && org.organizationImage.length > 0 ? org.organizationImage[0] : '';
-        setFormData((prev) => ({
-          orgName: org.organizationName || '',
-          industry: org.organizationIndustry || '',
-          location: org.organizationLocation || '',
-          description: org.organizationDescription || '',
-          specialties: org.orgSkills || [],
-          hourlyRate: org.startingRate?.toString() || '',
-          availability: org.teamSize?.toString() || '',
-          logoUrl: logoUrl,
-        }));
-        if (logoUrl) {
-          setLogoPreview((prev) => {
-            if (prev && prev.startsWith('blob:')) {
-              URL.revokeObjectURL(prev);
-            }
-            return logoUrl;
-          });
-        }
-      }
-    },
   });
 
-  const organizationExists = orgData?.getBuyerOrganization?._id;
+  // Update form data when organization data is loaded
+  useEffect(() => {
+    if (orgData?.getProviderOrganization) {
+      const org = orgData.getProviderOrganization;
+      console.log('Organization found in settings:', org);
+      console.log('Organization image URL:', org.organizationImage);
+      const categories = Array.isArray(org.categoryId) ? org.categoryId : org.categoryId ? [org.categoryId] : [];
+      const subCategories = Array.isArray(org.subCategory) ? org.subCategory : org.subCategory ? [org.subCategory] : [];
+      
+      // Always set image preview if organization has an image (unless user has selected a new file)
+      if (org.organizationImage && !imageFile) {
+        // Clean up any existing blob URL before setting new preview
+        if (imagePreview && imagePreview.startsWith('blob:')) {
+          URL.revokeObjectURL(imagePreview);
+        }
+        const fullImageUrl = getImageUrl(org.organizationImage);
+        console.log('Setting image preview from database:', org.organizationImage, '-> Full URL:', fullImageUrl);
+        setImagePreview(fullImageUrl);
+      } else if (!org.organizationImage && !imageFile && !isEditMode) {
+        // Only clear preview if there's no image file selected, no org image, and not in edit mode
+        setImagePreview('');
+      }
+      
+      // Only update form data if not in edit mode to avoid overwriting user input
+      if (!isEditMode) {
+        setFormData({
+          organizationName: org.organizationName || '',
+          organizationDescription: org.organizationDescription || '',
+          organizationContactEmail: org.organizationContactEmail || '',
+          organizationCountry: org.organizationCountry || '',
+          organizationCategories: categories,
+          organizationSubCategories: subCategories,
+          organizationImage: org.organizationImage || '',
+        });
+        // Clear imageFile when exiting edit mode
+        setImageFile(null);
+        if (categories.length > 0) {
+          setSelectedCategory(categories[0]);
+        }
+      }
+    } else if (orgData && !orgData.getProviderOrganization) {
+      console.log('No organization data returned from query');
+      // If no organization exists and not in edit mode, clear image preview
+      if (!isEditMode && !imageFile) {
+        setImagePreview('');
+      }
+    }
+  }, [orgData, isEditMode, imageFile]);
 
-  const [createOrg, { loading: isCreating }] = useMutation(CREATE_ORGANIZATION, {
+  // Log errors
+  useEffect(() => {
+    if (orgError) {
+      console.error('Error loading organization:', orgError);
+    }
+  }, [orgError]);
+
+  // Refetch data when component mounts or when exiting edit mode
+  useEffect(() => {
+    if (!isEditMode) {
+      refetch();
+    }
+  }, [isEditMode, refetch]);
+
+  const organizationExists = orgData?.getProviderOrganization?._id;
+
+  const [createOrg, { loading: isCreating }] = useMutation(CREATE_PROVIDER_ORG_PROF, {
     context: {
       headers: isLoggedIn() ? getHeaders() : {},
     },
     onCompleted: (data) => {
       setShowSuccessMessage(true);
       setIsEditMode(false);
-      setLogoFile(null);
-      const org = data?.createOrUpdateBuyerOrganization;
-      const newLogoUrl = org?.organizationImage?.[0] || '';
-      setFormData((prev) => ({ ...prev, logoUrl: newLogoUrl }));
-      setLogoPreview(newLogoUrl);
+      setIsCreated(true);
       refetch();
       if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current);
       successTimeoutRef.current = setTimeout(() => setShowSuccessMessage(false), 3000);
     },
     onError: (error) => {
       console.error('Error creating organization:', error);
-      alert('Failed to create organization. Please try again.');
+      const errorMessage = error?.graphQLErrors?.[0]?.message || error?.message || 'Failed to create organization. Please try again.';
+      alert(errorMessage);
     },
   });
 
-  const [updateOrg, { loading: isUpdating }] = useMutation(UPDATE_ORGANIZATION, {
+  const [updateOrg, { loading: isUpdating }] = useMutation(UPDATE_PROVIDER_ORG_PROF, {
     context: {
       headers: isLoggedIn() ? getHeaders() : {},
     },
     onCompleted: (data) => {
       setShowSuccessMessage(true);
       setIsEditMode(false);
-      setLogoFile(null);
-      const org = data?.updateOrganization;
-      const newLogoUrl = org?.organizationImage?.[0] || '';
-      setFormData((prev) => ({ ...prev, logoUrl: newLogoUrl }));
-      setLogoPreview(newLogoUrl);
+      setIsCreated(false);
       refetch();
       if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current);
       successTimeoutRef.current = setTimeout(() => setShowSuccessMessage(false), 3000);
     },
     onError: (error) => {
       console.error('Error updating organization:', error);
-      alert('Failed to update organization. Please try again.');
+      const errorMessage = error?.graphQLErrors?.[0]?.message || error?.message || 'Failed to update organization. Please try again.';
+      alert(errorMessage);
     },
   });
 
@@ -140,97 +214,38 @@ export default function ProviderSettingsPage() {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleAddSpecialty = () => {
-    if (!specialtyInput.trim() || !isEditMode) return;
-    const newSpecialty = specialtyInput.trim();
-    if (!formData.specialties.includes(newSpecialty)) {
-      handleInputChange('specialties', [...formData.specialties, newSpecialty]);
-      setSpecialtyInput('');
-    }
-  };
-
-  const handleRemoveSpecialty = (specialty: string) => {
+  const handleCategoryToggle = (category: string) => {
     if (!isEditMode) return;
-    handleInputChange('specialties', formData.specialties.filter((s) => s !== specialty));
-  };
-
-  const handleSave = async () => {
-    if (!formData.orgName || !formData.industry || !formData.location) {
-      alert('Please fill in all required fields (Name, Industry, Location).');
-      return;
-    }
-
-    try {
-      let logoUrl = formData.logoUrl;
-      if (logoFile) {
-        setIsUploadingLogo(true);
-        try {
-          logoUrl = await uploadLogoToBackend(logoFile);
-        } catch (error: any) {
-          console.error('Error uploading logo:', error);
-          alert(`Failed to upload logo: ${error.message || 'Please try again'}`);
-          setIsUploadingLogo(false);
-          return;
-        } finally {
-          setIsUploadingLogo(false);
-        }
+    const currentCategories = formData.organizationCategories;
+    if (currentCategories.includes(category)) {
+      handleInputChange('organizationCategories', currentCategories.filter((c) => c !== category));
+      // Remove subcategories for this category
+      const subCatsToRemove = SUBCATEGORIES[category]?.map((sc) => sc.value) || [];
+      handleInputChange('organizationSubCategories', 
+        formData.organizationSubCategories.filter((sc) => !subCatsToRemove.includes(sc))
+      );
+      if (selectedCategory === category) {
+        setSelectedCategory('');
       }
-
-      if (organizationExists) {
-        const updateInput: any = {
-          orgId: orgData.getBuyerOrganization._id,
-          organizationName: formData.orgName.trim(),
-          organizationIndustry: formData.industry,
-          organizationLocation: formData.location.trim(),
-          organizationDescription: formData.description.trim(),
-          organizationSpecialties: formData.specialties || [],
-          organizationHourlyRate: formData.hourlyRate ? parseFloat(formData.hourlyRate) : 0,
-          organizationTeamSize: formData.availability ? parseInt(formData.availability) : 0,
-          organizationWebsiteUrl: '',
-          organizationContactEmail: '',
-          organizationPhoneNumber: '',
-          organizationImage: logoUrl ? [logoUrl] : [],
-        };
-
-        await updateOrg({
-          variables: { input: updateInput },
-        });
-      } else {
-        const createInput: any = {
-          organizationName: formData.orgName.trim(),
-          organizationIndustry: formData.industry,
-          organizationLocation: formData.location.trim(),
-          organizationDescription: formData.description.trim(),
-          organizationSpecialties: formData.specialties || [],
-          organizationHourlyRate: formData.hourlyRate ? parseFloat(formData.hourlyRate) : 0,
-          organizationTeamSize: formData.availability ? parseInt(formData.availability) : 0,
-          organizationWebsiteUrl: '',
-          organizationContactEmail: '',
-          organizationPhoneNumber: '',
-          organizationImage: logoUrl ? [logoUrl] : [],
-          orgOwnerUserId: null,
-          deletedAt: null,
-        };
-
-        await createOrg({
-          variables: { input: createInput },
-        });
+    } else {
+      handleInputChange('organizationCategories', [...currentCategories, category]);
+      if (!selectedCategory) {
+        setSelectedCategory(category);
       }
-    } catch (error) {
-      // Error handled in onError callback
     }
   };
 
-  const getInitials = (name: string) => {
-    return name
-      .split(' ')
-      .map((n) => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2) || 'OR';
+  const handleSubCategoryToggle = (subCategory: string) => {
+    if (!isEditMode) return;
+    const currentSubCategories = formData.organizationSubCategories;
+    if (currentSubCategories.includes(subCategory)) {
+      handleInputChange('organizationSubCategories', currentSubCategories.filter((sc) => sc !== subCategory));
+    } else {
+      handleInputChange('organizationSubCategories', [...currentSubCategories, subCategory]);
+    }
   };
 
-  const handleLogoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!isEditMode) return;
     const image = e.target.files?.[0];
     if (!image) return;
@@ -242,26 +257,632 @@ export default function ProviderSettingsPage() {
       alert('Image size must be less than 5MB');
       return;
     }
-    if (logoPreview && logoPreview.startsWith('blob:')) {
-      URL.revokeObjectURL(logoPreview);
+    if (imagePreview && imagePreview.startsWith('blob:')) {
+      URL.revokeObjectURL(imagePreview);
     }
-    setLogoFile(image);
+    setImageFile(image);
     const previewUrl = URL.createObjectURL(image);
-    setLogoPreview(previewUrl);
+    setImagePreview(previewUrl);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
 
-  const uploadLogoToBackend = async (file: File): Promise<string> => {
+  // Helper function to convert relative image paths to full URLs
+  const getImageUrl = (imagePath: string | null | undefined): string => {
+    if (!imagePath) return '';
+    // If it's already a full URL (starts with http:// or https://), return as is
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+      return imagePath;
+    }
+    // If it's a relative path, prepend the base URL
+    const apiUrl = process.env.NEXT_PUBLIC_API_GRAPHQL_URL || process.env.REACT_APP_API_GRAPHQL_URL || 'http://localhost:3010/graphql';
+    const baseUrl = apiUrl.replace('/graphql', '');
+    // Remove leading slash from imagePath if present to avoid double slashes
+    const cleanPath = imagePath.startsWith('/') ? imagePath.slice(1) : imagePath;
+    return `${baseUrl}/${cleanPath}`;
+  };
+
+  const uploadImageToBackend = async (file: File): Promise<string> => {
+    const formDataObj = new FormData();
+    const token = getJwtToken();
+    const apiUrl = process.env.NEXT_PUBLIC_API_GRAPHQL_URL || process.env.REACT_APP_API_GRAPHQL_URL || 'http://localhost:3010/graphql';
+    formDataObj.append('operations', JSON.stringify({
+      query: `mutation UploadOrganizationImage($file: Upload!, $target: String!) {
+        imageUploader(file: $file, target: $target)
+      }`,
+      variables: { file: null, target: 'organization' }
+    }));
+    formDataObj.append('map', JSON.stringify({ '0': ['variables.file'] }));
+    formDataObj.append('0', file);
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'apollo-require-preflight': 'true',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: formDataObj,
+    });
+    if (!response.ok) {
+      throw new Error(`Upload failed: ${response.statusText}`);
+    }
+    const result = await response.json();
+    if (result.errors) {
+      throw new Error(result.errors[0]?.message || 'Upload failed');
+    }
+    const uploadedUrl = result.data?.imageUploader;
+    if (!uploadedUrl) {
+      throw new Error('No URL returned from upload');
+    }
+    return uploadedUrl;
+  };
+
+  const handleSave = async () => {
+    if (!formData.organizationName.trim()) {
+      alert('Please fill in the organization name (required).');
+      return;
+    }
+
+    try {
+      // Upload image first if a new image was selected
+      let imageUrl = formData.organizationImage;
+      if (imageFile) {
+        setIsUploadingImage(true);
+        try {
+          imageUrl = await uploadImageToBackend(imageFile);
+          // Update formData with the new image URL
+          setFormData((prev) => ({ ...prev, organizationImage: imageUrl }));
+          // Update preview to show the uploaded image URL (not blob)
+          setImagePreview(imageUrl);
+          // Clear the file since it's now uploaded
+          setImageFile(null);
+        } catch (error: any) {
+          console.error('Error uploading image:', error);
+          alert(`Failed to upload image: ${error.message || 'Please try again'}`);
+          setIsUploadingImage(false);
+          return;
+        } finally {
+          setIsUploadingImage(false);
+        }
+      }
+
+      if (organizationExists) {
+        const updateInput: any = {
+          organizationId: orgData.getProviderOrganization._id,
+          organizationName: formData.organizationName.trim(),
+        };
+
+        if (formData.organizationDescription.trim()) {
+          updateInput.organizationDescription = formData.organizationDescription.trim();
+        }
+        if (formData.organizationContactEmail.trim()) {
+          updateInput.organizationContactEmail = formData.organizationContactEmail.trim();
+        }
+        if (formData.organizationCountry.trim()) {
+          updateInput.organizationCountry = formData.organizationCountry.trim();
+        }
+        if (formData.organizationCategories.length > 0) {
+          updateInput.organizationCategories = formData.organizationCategories;
+        }
+        if (formData.organizationSubCategories.length > 0) {
+          updateInput.organizationSubCategories = formData.organizationSubCategories;
+        }
+        if (imageUrl) {
+          updateInput.organizationImage = imageUrl;
+        }
+
+        await updateOrg({
+          variables: { input: updateInput },
+        });
+      } else {
+        const createInput: any = {
+          organizationName: formData.organizationName.trim(),
+        };
+
+        if (formData.organizationDescription.trim()) {
+          createInput.organizationDescription = formData.organizationDescription.trim();
+        }
+        if (formData.organizationContactEmail.trim()) {
+          createInput.organizationContactEmail = formData.organizationContactEmail.trim();
+        }
+        if (formData.organizationCountry.trim()) {
+          createInput.organizationCountry = formData.organizationCountry.trim();
+        }
+        if (formData.organizationCategories.length > 0) {
+          createInput.organizationCategories = formData.organizationCategories;
+        }
+        if (formData.organizationSubCategories.length > 0) {
+          createInput.organizationSubCategories = formData.organizationSubCategories;
+        }
+        if (imageUrl) {
+          createInput.organizationImage = imageUrl;
+        }
+
+        await createOrg({
+          variables: { input: createInput },
+        });
+      }
+    } catch (error) {
+      // Error handled in onError callback
+    }
+  };
+
+  if (!organizationExists && !isEditMode) {
+    return (
+      <div className="space-y-8">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-8 text-center">
+          <p className="text-slate-600 dark:text-slate-400 mb-4">You haven't created your provider organization yet.</p>
+          <button
+            onClick={() => setIsEditMode(true)}
+            className="bg-[var(--primary)] hover:bg-indigo-700 text-white px-6 py-2.5 rounded-lg font-bold text-sm transition-all"
+          >
+            Create Organization
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+      {showSuccessMessage && (
+        <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-top-5 fade-in duration-300">
+          <div className="bg-emerald-500 text-white px-6 py-4 rounded-lg shadow-lg flex items-center gap-3 min-w-[300px]">
+            <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+            <div>
+              <p className="font-bold text-sm">Success!</p>
+              <p className="text-xs text-emerald-50">
+                {isCreated ? 'Organization created successfully' : 'Organization updated successfully'}
+              </p>
+            </div>
+            <button onClick={() => setShowSuccessMessage(false)} className="ml-auto text-white/80 hover:text-white">
+              <span className="material-symbols-outlined text-lg">close</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* First Card: Organization Profile */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-8">
+        <div className="flex items-start justify-between mb-6">
+          <div>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Organization Profile</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Manage your provider organization</p>
+          </div>
+          {!isEditMode && (
+            <button
+              onClick={() => setIsEditMode(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold text-[var(--primary)] hover:bg-indigo-50 dark:hover:bg-slate-800 border border-indigo-200 dark:border-slate-700 transition-colors"
+            >
+              <span className="material-symbols-outlined text-lg">edit</span>
+              Edit
+            </button>
+          )}
+          {isEditMode && (
+            <button
+              onClick={() => {
+                setIsEditMode(false);
+                refetch();
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 transition-colors"
+            >
+              <span className="material-symbols-outlined text-lg">close</span>
+              Cancel
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-start gap-8">
+          {/* Logo */}
+          <div className="flex flex-col items-center gap-3">
+            <div className="relative">
+              {(imagePreview || formData.organizationImage) ? (
+                <div className="w-24 h-24 rounded-2xl overflow-hidden border-2 border-slate-200 dark:border-slate-700 shadow-lg">
+                  <img 
+                    src={imagePreview || getImageUrl(formData.organizationImage)} 
+                    alt="Organization Logo" 
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      console.error('Image failed to load:', imagePreview || formData.organizationImage);
+                      // Fallback to initials if image fails to load
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                  {isUploadingImage && (
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                      <span className="material-symbols-outlined text-white animate-spin">sync</span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white text-2xl font-bold shadow-lg shadow-indigo-200">
+                  {formData.organizationName
+                    ? formData.organizationName
+                        .split(' ')
+                        .map((n) => n[0])
+                        .join('')
+                        .toUpperCase()
+                        .slice(0, 2)
+                    : 'OR'}
+                </div>
+              )}
+            </div>
+            {isEditMode && (
+              <>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  hidden
+                  id="organization-logo-input"
+                  onChange={handleImageSelect}
+                  accept="image/jpg, image/jpeg, image/png"
+                  disabled={isUploadingImage}
+                />
+                <label
+                  htmlFor="organization-logo-input"
+                  className={`text-xs font-bold text-[var(--primary)] hover:underline cursor-pointer ${isUploadingImage ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  {imageFile ? 'Change Logo' : imagePreview ? 'Change Logo' : 'Upload Logo'}
+                </label>
+              </>
+            )}
+          </div>
+
+          {/* Fields */}
+          <div className="flex-1 grid grid-cols-2 gap-6">
+            <div>
+              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
+                Organization Name <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.organizationName}
+                onChange={(e) => handleInputChange('organizationName', e.target.value)}
+                placeholder="Tech Solutions Inc"
+                disabled={!isEditMode}
+                className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-3 text-sm font-medium text-slate-900 dark:text-white focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50 dark:bg-slate-900/40 disabled:bg-white dark:disabled:bg-slate-900 disabled:cursor-not-allowed"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
+                Contact Email
+              </label>
+              <input
+                type="email"
+                value={formData.organizationContactEmail}
+                onChange={(e) => handleInputChange('organizationContactEmail', e.target.value)}
+                placeholder="contact@example.com"
+                disabled={!isEditMode}
+                className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-3 text-sm font-medium text-slate-900 dark:text-white focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50 dark:bg-slate-900/40 disabled:bg-white dark:disabled:bg-slate-900 disabled:cursor-not-allowed"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
+                Country
+              </label>
+              <input
+                type="text"
+                value={formData.organizationCountry}
+                onChange={(e) => handleInputChange('organizationCountry', e.target.value)}
+                placeholder="USA"
+                disabled={!isEditMode}
+                className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-3 text-sm font-medium text-slate-900 dark:text-white focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50 dark:bg-slate-900/40 disabled:bg-white dark:disabled:bg-slate-900 disabled:cursor-not-allowed"
+              />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
+                Organization Description
+              </label>
+              <textarea
+                rows={6}
+                value={formData.organizationDescription}
+                onChange={(e) => handleInputChange('organizationDescription', e.target.value)}
+                placeholder="Describe your organization, services, and expertise..."
+                disabled={!isEditMode}
+                className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-3.5 text-sm font-medium text-slate-900 dark:text-white focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50 dark:bg-slate-900/40 resize-y disabled:bg-white dark:disabled:bg-slate-900 disabled:cursor-not-allowed"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Second Card: Categories & Subcategories */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-8">
+        <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1">Categories & Subcategories</h3>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+          Select your organization's specialties to help buyers find you.
+        </p>
+
+        <div className="space-y-6">
+          {/* Categories Selection */}
+          <div>
+            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
+              Categories
+            </label>
+            <div className="flex flex-wrap gap-3">
+              {CATEGORIES.map((cat) => (
+                <button
+                  key={cat.value}
+                  type="button"
+                  onClick={() => handleCategoryToggle(cat.value)}
+                  disabled={!isEditMode}
+                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                    formData.organizationCategories.includes(cat.value)
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  } ${!isEditMode ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Subcategories - Show for all selected categories */}
+          {formData.organizationCategories.length > 0 && (
+            <div>
+              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
+                Subcategories
+              </label>
+              {formData.organizationCategories.map((category) => {
+                const subCats = SUBCATEGORIES[category];
+                if (!subCats || subCats.length === 0) return null;
+                
+                return (
+                  <div key={category} className="mb-4">
+                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                      {CATEGORIES.find((c) => c.value === category)?.label}
+                    </p>
+                    <div className="flex flex-wrap gap-3">
+                      {subCats.map((subCat) => (
+                        <button
+                          key={subCat.value}
+                          type="button"
+                          onClick={() => handleSubCategoryToggle(subCat.value)}
+                          disabled={!isEditMode}
+                          className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                            formData.organizationSubCategories.includes(subCat.value)
+                              ? 'bg-purple-600 text-white'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                          } ${!isEditMode ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                        >
+                          {subCat.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">
+                Select subcategories for each category you've chosen. You can select multiple subcategories.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {isEditMode && (
+        <div className="flex justify-end">
+          <button
+            onClick={handleSave}
+            disabled={isSaving || isUploadingImage || orgLoading || !formData.organizationName.trim()}
+            className="bg-[var(--primary)] hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-6 py-2.5 rounded-lg font-bold text-sm transition-all shadow-sm flex items-center gap-2"
+          >
+            {isSaving || isUploadingImage ? (
+              <>
+                <span className="material-symbols-outlined text-lg animate-spin">sync</span>
+                {isUploadingImage ? 'Uploading Image...' : 'Saving...'}
+              </>
+            ) : (
+              <>
+                <span className="material-symbols-outlined text-lg">save</span>
+                Save Changes
+              </>
+            )}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Profile Tab
+   ═══════════════════════════════════════════════════════════ */
+function ProfileTab() {
+  const currentUser = useReactiveVar(userVar);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const passwordTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string>('');
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [showPasswordSection, setShowPasswordSection] = useState(false);
+  const [showPasswords, setShowPasswords] = useState(false);
+  
+  const [formData, setFormData] = useState({
+    providerFullName: '',
+    providerDisplayName: '',
+    providerEmail: '',
+    providerPhone: '',
+    userImage: '',
+  });
+
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+
+  useEffect(() => {
+    return () => {
+      if (passwordTimeoutRef.current) {
+        clearTimeout(passwordTimeoutRef.current);
+        passwordTimeoutRef.current = null;
+      }
+      if (imagePreview && imagePreview.startsWith('blob:')) {
+        URL.revokeObjectURL(imagePreview);
+      }
+    };
+  }, [imagePreview]);
+
+  const { data: profileData, loading: profileLoading, refetch: refetchProfile } = useQuery(GET_MY_PROFILE, {
+    skip: !isLoggedIn() || !currentUser?._id,
+    variables: { userId: currentUser?._id || '' },
+    fetchPolicy: 'cache-and-network',
+    errorPolicy: 'all',
+    context: {
+      headers: isLoggedIn() ? getHeaders() : {},
+    },
+    onCompleted: (data) => {
+      if (data?.getUser && !isEditMode && !imageFile) {
+        const user = data.getUser;
+        setFormData({
+          providerFullName: user.userDescription || '',
+          providerDisplayName: user.userNick || '',
+          providerEmail: user.userEmail || '',
+          providerPhone: user.userPhone || '',
+          userImage: user.userImage || '',
+        });
+        if (user.userImage) {
+          if (imagePreview && imagePreview.startsWith('blob:')) {
+            URL.revokeObjectURL(imagePreview);
+          }
+          setImagePreview(user.userImage);
+        } else {
+          setImagePreview('');
+        }
+      }
+    },
+  });
+
+  useEffect(() => {
+    if (profileData?.getUser && !isEditMode && !imageFile) {
+      const user = profileData.getUser;
+      setFormData({
+        providerFullName: user.userDescription || '',
+        providerDisplayName: user.userNick || '',
+        providerEmail: user.userEmail || '',
+        providerPhone: user.userPhone || '',
+        userImage: user.userImage || '',
+      });
+      if (user.userImage) {
+        if (imagePreview && imagePreview.startsWith('blob:')) {
+          URL.revokeObjectURL(imagePreview);
+        }
+        setImagePreview(user.userImage);
+      } else {
+        setImagePreview('');
+      }
+    }
+  }, [profileData, isEditMode, imageFile]);
+
+  // Use UPDATE_MY_PROFILE for all profile updates including images
+  const [updateProfile, { loading: isUpdatingProfile }] = useMutation(UPDATE_MY_PROFILE, {
+    context: {
+      headers: isLoggedIn() ? getHeaders() : {},
+    },
+    refetchQueries: [
+      {
+        query: GET_MY_PROFILE,
+        variables: { userId: currentUser?._id || '' },
+      },
+    ],
+    awaitRefetchQueries: true,
+    onCompleted: async (data) => {
+      setShowSuccessMessage(true);
+      setIsEditMode(false);
+      setImageFile(null);
+      
+      if (data?.updateUser) {
+        const updatedUser = data.updateUser;
+        const currentUserData = userVar();
+        
+        userVar({
+          ...currentUserData,
+          userNick: updatedUser.userNick || currentUserData.userNick,
+          userEmail: updatedUser.userEmail || currentUserData.userEmail,
+          userPhone: updatedUser.userPhone || currentUserData.userPhone,
+          userImage: updatedUser.userImage || currentUserData.userImage,
+          userDescription: updatedUser.userDescription || currentUserData.userDescription,
+          accessToken: updatedUser.accessToken || currentUserData.accessToken,
+        });
+        
+        if (updatedUser.accessToken) {
+          updateUserInfo(updatedUser.accessToken);
+        }
+      }
+
+      if (passwordTimeoutRef.current) clearTimeout(passwordTimeoutRef.current);
+      passwordTimeoutRef.current = setTimeout(() => {
+        setShowSuccessMessage(false);
+      }, 3000);
+    },
+    onError: (error) => {
+      console.error('Error updating profile:', error);
+      const errorMessage = error?.graphQLErrors?.[0]?.message || error?.message || 'Failed to update profile. Please try again.';
+      alert(errorMessage);
+    },
+  });
+
+  const [changePassword, { loading: isChangingPassword }] = useMutation(CHANGE_MY_PASSWORD, {
+    context: {
+      headers: isLoggedIn() ? getHeaders() : {},
+    },
+    onCompleted: () => {
+      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      setShowPasswordSection(false);
+      alert('Password changed successfully!');
+    },
+    onError: (error) => {
+      console.error('Error changing password:', error);
+      const errorMessage = error?.graphQLErrors?.[0]?.message || error?.message || 'Failed to change password. Please try again.';
+      alert(errorMessage);
+    },
+  });
+
+  const handleInputChange = (field: string, value: string) => {
+    if (!isEditMode) return;
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handlePasswordChange = (field: string, value: string) => {
+    setPasswordData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!isEditMode) return;
+    const image = e.target.files?.[0];
+    if (!image) return;
+    if (!image.type.match(/^image\/(jpg|jpeg|png)$/i)) {
+      alert('Please upload a valid image file (JPG, JPEG, or PNG)');
+      return;
+    }
+    if (image.size > 5 * 1024 * 1024) {
+      alert('Image size must be less than 5MB');
+      return;
+    }
+    if (imagePreview && imagePreview.startsWith('blob:')) {
+      URL.revokeObjectURL(imagePreview);
+    }
+    setImageFile(image);
+    const previewUrl = URL.createObjectURL(image);
+    setImagePreview(previewUrl);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const uploadImageToBackend = async (file: File): Promise<string> => {
     const formData = new FormData();
     const token = getJwtToken();
     const apiUrl = process.env.NEXT_PUBLIC_API_GRAPHQL_URL || process.env.REACT_APP_API_GRAPHQL_URL || 'http://localhost:3010/graphql';
     formData.append('operations', JSON.stringify({
-      query: `mutation ImageUploader($file: Upload!, $target: String!) {
+      query: `mutation UploadProfileImage($file: Upload!, $target: String!) {
         imageUploader(file: $file, target: $target)
       }`,
-      variables: { file: null, target: 'organization' }
+      variables: { file: null, target: 'user' }
     }));
     formData.append('map', JSON.stringify({ '0': ['variables.file'] }));
     formData.append('0', file);
@@ -287,56 +908,118 @@ export default function ProviderSettingsPage() {
     return uploadedUrl;
   };
 
-  if (!mounted) {
-    return (
-      <div className="flex h-screen w-full bg-slate-50 dark:bg-slate-900 overflow-hidden">
-        <div className="w-64 flex-shrink-0 h-full border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900" />
-        <div className="flex flex-1 flex-col overflow-hidden">
-          <div className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800" />
-          <main className="flex-1 overflow-y-auto" />
-        </div>
-      </div>
-    );
-  }
+  const getInitials = (name: string) => {
+    if (!name) return 'P';
+    return name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2) || 'P';
+  };
 
-  if (!isLoggedIn()) return null;
+  const handleSave = async () => {
+    if (!formData.providerDisplayName || !formData.providerEmail) {
+      alert('Please fill in all required fields (Display Name, Email).');
+      return;
+    }
 
-  if (!organizationExists) {
-    return (
-      <div className="flex h-screen w-full bg-slate-50 dark:bg-slate-900 overflow-hidden antialiased">
-        <ProviderSidebar />
-        <div className="flex flex-1 flex-col overflow-hidden">
-          <ProviderHeader title="Settings" />
-          <main className="flex-1 overflow-y-auto p-8">
-            <div className="max-w-5xl mx-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-8 text-center">
-              <p className="text-slate-600 dark:text-slate-400">Please create an organization first on the Organizations page.</p>
-              <button
-                onClick={() => router.push('/provider/organizations')}
-                className="mt-4 bg-[var(--primary)] hover:bg-indigo-700 text-white px-6 py-2.5 rounded-lg font-bold text-sm transition-all"
-              >
-                Go to Organizations
-              </button>
-            </div>
-          </main>
-        </div>
-      </div>
-    );
-  }
+    try {
+      let imageUrl = formData.userImage;
+      if (imageFile) {
+        setIsUploadingImage(true);
+        try {
+          imageUrl = await uploadImageToBackend(imageFile);
+        } catch (error: any) {
+          console.error('Error uploading image:', error);
+          alert(`Failed to upload image: ${error.message || 'Please try again'}`);
+          setIsUploadingImage(false);
+          return;
+        } finally {
+          setIsUploadingImage(false);
+        }
+      }
+
+      // Get user ID from multiple sources as fallback
+      const getUserIdFromToken = (): string | null => {
+        const token = getJwtToken();
+        if (token) {
+          try {
+            const claims = decodeJWT(token);
+            return claims?._id || claims?.userId || null;
+          } catch (e) {
+            return null;
+          }
+        }
+        return null;
+      };
+
+      const userIdToSave = profileData?.getUser?._id || 
+                           currentUser?._id || 
+                           getUserIdFromToken();
+      
+      if (!userIdToSave) {
+        alert('User ID not found. Please refresh the page and try again.');
+        return;
+      }
+
+      const updateInput: any = {
+        _id: userIdToSave,
+        userNick: formData.providerDisplayName.trim(),
+        userEmail: formData.providerEmail.trim(),
+      };
+
+      if (formData.providerFullName.trim()) {
+        updateInput.userDescription = formData.providerFullName.trim();
+      }
+      if (formData.providerPhone.trim()) {
+        updateInput.userPhone = formData.providerPhone.trim();
+      }
+      if (imageUrl) {
+        updateInput.userImage = imageUrl;
+      }
+
+      await updateProfile({
+        variables: { input: updateInput },
+      });
+    } catch (error) {
+      // Error handled in onError callback
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
+      alert('Please fill in all password fields.');
+      return;
+    }
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      alert('New password and confirm password do not match.');
+      return;
+    }
+    if (passwordData.newPassword.length < 6) {
+      alert('Password must be at least 6 characters long.');
+      return;
+    }
+
+    await changePassword({
+      variables: {
+        input: {
+          currentPassword: passwordData.currentPassword,
+          newPassword: passwordData.newPassword,
+        },
+      },
+    });
+  };
 
   return (
-    <div className="flex h-screen w-full bg-slate-50 dark:bg-slate-900 overflow-hidden antialiased">
-      <ProviderSidebar />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <ProviderHeader title="Settings" />
-        <main className="flex-1 overflow-y-auto p-8 bg-slate-50 dark:bg-slate-900">
-          <div className="max-w-5xl mx-auto space-y-8">
+    <div className="space-y-8">
             {showSuccessMessage && (
               <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-top-5 fade-in duration-300">
                 <div className="bg-emerald-500 text-white px-6 py-4 rounded-lg shadow-lg flex items-center gap-3 min-w-[300px]">
                   <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
                   <div>
                     <p className="font-bold text-sm">Success!</p>
-                    <p className="text-xs text-emerald-50">Organization updated successfully</p>
+              <p className="text-xs text-emerald-50">Profile updated successfully</p>
                   </div>
                   <button onClick={() => setShowSuccessMessage(false)} className="ml-auto text-white/80 hover:text-white">
                     <span className="material-symbols-outlined text-lg">close</span>
@@ -348,8 +1031,8 @@ export default function ProviderSettingsPage() {
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-8">
               <div className="flex items-start justify-between mb-6">
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">Organization Profile</h3>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Edit your organization information</p>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Profile Information</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Manage your personal information</p>
                 </div>
                 {!isEditMode && (
                   <button
@@ -364,7 +1047,7 @@ export default function ProviderSettingsPage() {
                   <button
                     onClick={() => {
                       setIsEditMode(false);
-                      refetch();
+                refetchProfile();
                     }}
                     className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 transition-colors"
                   >
@@ -377,26 +1060,26 @@ export default function ProviderSettingsPage() {
               <div className="flex items-start gap-8">
                 <div className="flex flex-col items-center gap-3">
                   <div className="relative">
-                    {logoPreview ? (
-                      <div className="w-24 h-24 rounded-2xl overflow-hidden border-2 border-slate-200 dark:border-slate-700 shadow-lg">
-                        <img src={logoPreview} alt="Organization logo" className="w-full h-full object-cover" />
-                        {isUploadingLogo && (
+              {imagePreview ? (
+                <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-slate-200 dark:border-slate-700 shadow-lg">
+                  <img src={imagePreview} alt="Profile" className="w-full h-full object-cover" />
+                  {isUploadingImage && (
                           <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                             <span className="material-symbols-outlined text-white animate-spin">sync</span>
                           </div>
                         )}
                       </div>
                     ) : (
-                      <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white text-2xl font-bold shadow-lg shadow-indigo-200">
-                        {getInitials(formData.orgName || 'Organization')}
+                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white text-2xl font-bold shadow-lg shadow-indigo-200">
+                  {getInitials(formData.providerFullName || formData.providerDisplayName || 'Provider')}
                       </div>
                     )}
                   </div>
                   {isEditMode && (
                     <>
-                      <input ref={fileInputRef} type="file" hidden id="logo-upload-input" onChange={handleLogoSelect} accept="image/jpg, image/jpeg, image/png" disabled={isUploadingLogo} />
-                      <label htmlFor="logo-upload-input" className={`text-xs font-bold text-[var(--primary)] hover:underline cursor-pointer ${isUploadingLogo ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                        {logoFile ? 'Change Logo' : logoPreview ? 'Change Logo' : 'Upload Logo'}
+                <input ref={fileInputRef} type="file" hidden id="profile-image-input" onChange={handleImageSelect} accept="image/jpg, image/jpeg, image/png" disabled={isUploadingImage} />
+                <label htmlFor="profile-image-input" className={`text-xs font-bold text-[var(--primary)] hover:underline cursor-pointer ${isUploadingImage ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                  {imageFile ? 'Change Photo' : imagePreview ? 'Change Photo' : 'Upload Photo'}
                       </label>
                     </>
                   )}
@@ -405,139 +1088,157 @@ export default function ProviderSettingsPage() {
                 <div className="flex-1 grid grid-cols-2 gap-6">
                   <div>
                     <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
-                      Organization Name <span className="text-red-400">*</span>
+                Full Name
                     </label>
                     <input
                       type="text"
-                      value={formData.orgName}
-                      onChange={(e) => handleInputChange('orgName', e.target.value)}
-                      placeholder="Acme Web Studio"
+                value={formData.providerFullName}
+                onChange={(e) => handleInputChange('providerFullName', e.target.value)}
+                placeholder="John Doe"
                       disabled={!isEditMode}
-                      className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-3 text-sm font-medium text-slate-900 dark:text-slate-100 focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50 dark:bg-slate-900/40 disabled:bg-white dark:disabled:bg-slate-900 disabled:cursor-not-allowed"
+                className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-3 text-sm font-medium text-slate-900 dark:text-white focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50 dark:bg-slate-900/40 disabled:bg-white dark:disabled:bg-slate-900 disabled:cursor-not-allowed"
                     />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
-                      Industry/Category <span className="text-red-400">*</span>
+                Display Name <span className="text-red-400">*</span>
                     </label>
                     <input
                       type="text"
-                      value={formData.industry}
-                      onChange={(e) => handleInputChange('industry', e.target.value)}
-                      placeholder="Web Development"
+                value={formData.providerDisplayName}
+                onChange={(e) => handleInputChange('providerDisplayName', e.target.value)}
+                placeholder="johndoe"
                       disabled={!isEditMode}
-                      className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-3 text-sm font-medium text-slate-900 dark:text-slate-100 focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50 dark:bg-slate-900/40 disabled:bg-white dark:disabled:bg-slate-900 disabled:cursor-not-allowed"
+                className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-3 text-sm font-medium text-slate-900 dark:text-white focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50 dark:bg-slate-900/40 disabled:bg-white dark:disabled:bg-slate-900 disabled:cursor-not-allowed"
                     />
                   </div>
-                  <div className="col-span-2">
+            <div>
                     <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
-                      Location <span className="text-red-400">*</span>
+                Email <span className="text-red-400">*</span>
                     </label>
                     <input
-                      type="text"
-                      value={formData.location}
-                      onChange={(e) => handleInputChange('location', e.target.value)}
-                      placeholder="Busan, South Korea"
+                type="email"
+                value={formData.providerEmail}
+                onChange={(e) => handleInputChange('providerEmail', e.target.value)}
+                placeholder="john@example.com"
                       disabled={!isEditMode}
-                      className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-3 text-sm font-medium text-slate-900 dark:text-slate-100 focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50 dark:bg-slate-900/40 disabled:bg-white dark:disabled:bg-slate-900 disabled:cursor-not-allowed"
+                className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-3 text-sm font-medium text-slate-900 dark:text-white focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50 dark:bg-slate-900/40 disabled:bg-white dark:disabled:bg-slate-900 disabled:cursor-not-allowed"
                     />
                   </div>
-                  <div className="col-span-2">
+            <div>
                     <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
-                      Short Description
+                Phone
                     </label>
-                    <textarea
-                      rows={4}
-                      value={formData.description}
-                      onChange={(e) => handleInputChange('description', e.target.value)}
-                      placeholder="Full-stack React/Next.js agency..."
+              <input
+                type="tel"
+                value={formData.providerPhone}
+                onChange={(e) => handleInputChange('providerPhone', e.target.value)}
+                placeholder="+1234567890"
                       disabled={!isEditMode}
-                      className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-3.5 text-sm font-medium text-slate-900 dark:text-slate-100 focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50 dark:bg-slate-900/40 resize-y disabled:bg-white dark:disabled:bg-slate-900 disabled:cursor-not-allowed"
+                className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-3 text-sm font-medium text-slate-900 dark:text-white focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50 dark:bg-slate-900/40 disabled:bg-white dark:disabled:bg-slate-900 disabled:cursor-not-allowed"
                     />
                   </div>
-                  <div className="col-span-2">
-                    <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
-                      Specialties
-                    </label>
-                    <div className="flex flex-wrap gap-2 mb-2">
-                      {formData.specialties.map((spec) => (
-                        <span key={spec} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 rounded-lg text-xs font-semibold">
-                          {spec}
-                          {isEditMode && (
-                            <button onClick={() => handleRemoveSpecialty(spec)} className="text-indigo-500 hover:text-indigo-700">
-                              <span className="material-symbols-outlined text-sm">close</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Password Section */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-8">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Password</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Change your account password</p>
+          </div>
+          <button
+            onClick={() => setShowPasswordSection(!showPasswordSection)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold text-[var(--primary)] hover:bg-indigo-50 dark:hover:bg-slate-800 border border-indigo-200 dark:border-slate-700 transition-colors"
+          >
+            <span className="material-symbols-outlined text-lg">{showPasswordSection ? 'visibility_off' : 'edit'}</span>
+            {showPasswordSection ? 'Cancel' : 'Change Password'}
                             </button>
-                          )}
-                        </span>
-                      ))}
                     </div>
-                    {isEditMode && (
-                      <div className="flex items-center gap-2">
+
+        {showPasswordSection && (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
+                Current Password
+              </label>
+              <div className="relative">
                         <input
-                          type="text"
-                          value={specialtyInput}
-                          onChange={(e) => setSpecialtyInput(e.target.value)}
-                          onKeyPress={(e) => e.key === 'Enter' && handleAddSpecialty()}
-                          placeholder="React, AWS, TypeScript..."
-                          className="flex-1 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-2.5 text-sm font-medium text-slate-900 dark:text-slate-100 focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50 dark:bg-slate-900/40"
-                        />
-                        <button onClick={handleAddSpecialty} className="px-4 py-2.5 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 rounded-lg text-sm font-semibold hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors">
-                          Add
+                  type={showPasswords ? 'text' : 'password'}
+                  value={passwordData.currentPassword}
+                  onChange={(e) => handlePasswordChange('currentPassword', e.target.value)}
+                  placeholder="Enter current password"
+                  className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-3 text-sm font-medium text-slate-900 dark:text-white focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50 dark:bg-slate-900/40"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPasswords(!showPasswords)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                >
+                  <span className="material-symbols-outlined text-lg">{showPasswords ? 'visibility_off' : 'visibility'}</span>
                         </button>
                       </div>
-                    )}
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
-                      Hourly Rate
+                New Password
                     </label>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-slate-500 dark:text-slate-400">$</span>
                       <input
-                        type="number"
-                        min={0}
-                        value={formData.hourlyRate}
-                        onChange={(e) => handleInputChange('hourlyRate', e.target.value)}
-                        placeholder="75"
-                        disabled={!isEditMode}
-                        className="w-32 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-900 dark:text-slate-100 focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50 dark:bg-slate-900/40 disabled:bg-white dark:disabled:bg-slate-900 disabled:cursor-not-allowed"
-                      />
-                      <span className="text-xs font-medium text-slate-500 dark:text-slate-400">/ hour</span>
-                    </div>
+                type={showPasswords ? 'text' : 'password'}
+                value={passwordData.newPassword}
+                onChange={(e) => handlePasswordChange('newPassword', e.target.value)}
+                placeholder="Enter new password"
+                className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-3 text-sm font-medium text-slate-900 dark:text-white focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50 dark:bg-slate-900/40"
+              />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
-                      Availability
+                Confirm New Password
                     </label>
-                    <div className="flex items-center gap-2">
                       <input
-                        type="number"
-                        min={0}
-                        max={80}
-                        value={formData.availability}
-                        onChange={(e) => handleInputChange('availability', e.target.value)}
-                        placeholder="40"
-                        disabled={!isEditMode}
-                        className="w-20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-900 dark:text-slate-100 focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50 dark:bg-slate-900/40 disabled:bg-white dark:disabled:bg-slate-900 disabled:cursor-not-allowed"
-                      />
-                      <span className="text-xs font-medium text-slate-500 dark:text-slate-400">hours / week</span>
+                type={showPasswords ? 'text' : 'password'}
+                value={passwordData.confirmPassword}
+                onChange={(e) => handlePasswordChange('confirmPassword', e.target.value)}
+                placeholder="Confirm new password"
+                className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-3 text-sm font-medium text-slate-900 dark:text-white focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50 dark:bg-slate-900/40"
+              />
                     </div>
+            <div className="flex justify-end">
+              <button
+                onClick={handleChangePassword}
+                disabled={isChangingPassword || !passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword}
+                className="bg-[var(--primary)] hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-6 py-2.5 rounded-lg font-bold text-sm transition-all shadow-sm flex items-center gap-2"
+              >
+                {isChangingPassword ? (
+                  <>
+                    <span className="material-symbols-outlined text-lg animate-spin">sync</span>
+                    Changing...
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-lg">lock</span>
+                    Change Password
+                  </>
+                )}
+              </button>
                   </div>
                 </div>
-              </div>
+        )}
             </div>
 
             {isEditMode && (
               <div className="flex justify-end">
                 <button
                   onClick={handleSave}
-                  disabled={isSaving || isUploadingLogo || orgLoading || !formData.orgName || !formData.industry || !formData.location}
+            disabled={isUpdatingProfile || isUploadingImage || profileLoading || !formData.providerDisplayName || !formData.providerEmail}
                   className="bg-[var(--primary)] hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-6 py-2.5 rounded-lg font-bold text-sm transition-all shadow-sm flex items-center gap-2"
                 >
-                  {isSaving || isUploadingLogo ? (
+            {isUpdatingProfile || isUploadingImage ? (
                     <>
                       <span className="material-symbols-outlined text-lg animate-spin">sync</span>
-                      {isUploadingLogo ? 'Uploading Logo...' : 'Saving...'}
+                {isUploadingImage ? 'Uploading Image...' : 'Saving...'}
                     </>
                   ) : (
                     <>
@@ -549,33 +1250,287 @@ export default function ProviderSettingsPage() {
               </div>
             )}
           </div>
+  );
+}
 
-          {/* Footer - Matching Buyer Dashboard Style */}
-          <div className="max-w-5xl mx-auto">
-            <div className="flex flex-wrap items-center gap-4 pt-8 border-t border-[var(--border)]">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mr-4">Management</p>
+/* ═══════════════════════════════════════════════════════════
+   Notifications Tab
+   ═══════════════════════════════════════════════════════════ */
+function NotificationsTab() {
+  const [notifications, setNotifications] = useState({
+    emailNotifications: true,
+    quoteNotifications: true,
+    orderNotifications: true,
+    messageNotifications: true,
+    marketingEmails: false,
+  });
+
+  const handleToggle = (key: string) => {
+    setNotifications((prev) => ({ ...prev, [key]: !prev[key as keyof typeof prev] }));
+  };
+
+  return (
+    <div className="space-y-8">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-8">
+        <div className="mb-6">
+          <h3 className="text-lg font-bold text-slate-900 dark:text-white">Notification Preferences</h3>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Manage how you receive notifications</p>
+        </div>
+
+        <div className="space-y-6">
+          <div className="flex items-center justify-between py-4 border-b border-slate-200 dark:border-slate-700">
+            <div>
+              <p className="font-semibold text-slate-900 dark:text-white">Email Notifications</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Receive notifications via email</p>
+            </div>
               <button
-                onClick={() => router.push('/provider/jobs')}
-                className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-md text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
-              >
-                <span className="material-symbols-outlined text-lg">work</span>
-                Find Jobs
+              onClick={() => handleToggle('emailNotifications')}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                notifications.emailNotifications ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-600'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  notifications.emailNotifications ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
               </button>
+          </div>
+
+          <div className="flex items-center justify-between py-4 border-b border-slate-200 dark:border-slate-700">
+            <div>
+              <p className="font-semibold text-slate-900 dark:text-white">Quote Notifications</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Get notified when you receive new quotes</p>
+            </div>
               <button
-                onClick={() => router.push('/provider/organizations')}
-                className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-md text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
-              >
-                <span className="material-symbols-outlined text-lg">settings_suggest</span>
-                Manage Organizations
+              onClick={() => handleToggle('quoteNotifications')}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                notifications.quoteNotifications ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-600'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  notifications.quoteNotifications ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
               </button>
-              <button className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-md text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
-                <span className="material-symbols-outlined text-lg">help</span>
-                Help & Support
+          </div>
+
+          <div className="flex items-center justify-between py-4 border-b border-slate-200 dark:border-slate-700">
+            <div>
+              <p className="font-semibold text-slate-900 dark:text-white">Order Notifications</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Updates about your active orders</p>
+            </div>
+            <button
+              onClick={() => handleToggle('orderNotifications')}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                notifications.orderNotifications ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-600'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  notifications.orderNotifications ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
               </button>
             </div>
-            <div className="pb-8">
-              <p className="text-xs text-slate-400 font-medium">© 2026 SME Marketplace Provider v2.1</p>
+
+          <div className="flex items-center justify-between py-4 border-b border-slate-200 dark:border-slate-700">
+            <div>
+              <p className="font-semibold text-slate-900 dark:text-white">Message Notifications</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Notifications for new messages</p>
             </div>
+            <button
+              onClick={() => handleToggle('messageNotifications')}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                notifications.messageNotifications ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-600'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  notifications.messageNotifications ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between py-4">
+            <div>
+              <p className="font-semibold text-slate-900 dark:text-white">Marketing Emails</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Receive marketing and promotional emails</p>
+            </div>
+            <button
+              onClick={() => handleToggle('marketingEmails')}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                notifications.marketingEmails ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-600'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  notifications.marketingEmails ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Billing Tab
+   ═══════════════════════════════════════════════════════════ */
+function BillingTab() {
+  const [paymentMethods, setPaymentMethods] = useState([
+    { id: 1, type: 'card', last4: '4242', brand: 'Visa', expiry: '12/25', isDefault: true },
+  ]);
+
+  return (
+    <div className="space-y-8">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-8">
+        <div className="mb-6">
+          <h3 className="text-lg font-bold text-slate-900 dark:text-white">Payment Methods</h3>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Manage your payment methods</p>
+        </div>
+
+        <div className="space-y-4">
+          {paymentMethods.map((method) => (
+            <div key={method.id} className="flex items-center justify-between p-4 border border-slate-200 dark:border-slate-700 rounded-lg">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-indigo-100 dark:bg-indigo-900/20 rounded-lg flex items-center justify-center">
+                  <span className="material-symbols-outlined text-indigo-600 dark:text-indigo-400">credit_card</span>
+                </div>
+                <div>
+                  <p className="font-semibold text-slate-900 dark:text-white">
+                    {method.brand} •••• {method.last4}
+                  </p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">Expires {method.expiry}</p>
+                </div>
+                {method.isDefault && (
+                  <span className="px-2 py-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 rounded">
+                    Default
+                  </span>
+                )}
+              </div>
+              <button className="text-sm font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">
+                Edit
+              </button>
+            </div>
+          ))}
+        </div>
+
+        <button className="mt-6 inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold text-[var(--primary)] hover:bg-indigo-50 dark:hover:bg-slate-800 border border-indigo-200 dark:border-slate-700 transition-colors">
+          <span className="material-symbols-outlined text-lg">add</span>
+          Add Payment Method
+        </button>
+      </div>
+
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-8">
+        <div className="mb-6">
+          <h3 className="text-lg font-bold text-slate-900 dark:text-white">Billing History</h3>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">View your past transactions</p>
+        </div>
+
+        <div className="text-center py-12">
+          <span className="material-symbols-outlined text-4xl text-slate-400 mb-4">receipt_long</span>
+          <p className="text-slate-500 dark:text-slate-400">No billing history yet</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Main Settings Page
+   ═══════════════════════════════════════════════════════════ */
+export default function ProviderSettingsPage() {
+  const router = useRouter();
+  const currentUser = useReactiveVar(userVar);
+  const [mounted, setMounted] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabId>('organization');
+
+  useEffect(() => {
+    setMounted(true);
+    if (!isLoggedIn()) {
+      router.push('/login');
+      return;
+    }
+    const role = currentUser?.userRole;
+    if (role && role !== 'PROVIDER' && role !== 'provider') {
+      router.push('/dashboard');
+    }
+  }, [router, currentUser]);
+
+  if (!mounted) {
+    return (
+      <div className="flex h-screen w-full bg-slate-50 dark:bg-slate-900 overflow-hidden">
+        <div className="w-64 flex-shrink-0 h-full border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900" />
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <div className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800" />
+          <main className="flex-1 overflow-y-auto" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!isLoggedIn()) return null;
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'organization':
+        return <OrganizationTab />;
+      case 'profile':
+        return <ProfileTab />;
+      case 'notifications':
+        return <NotificationsTab />;
+      case 'billing':
+        return <BillingTab />;
+      default:
+        return <OrganizationTab />;
+    }
+  };
+
+  return (
+    <div className="flex h-screen w-full bg-slate-50 dark:bg-slate-900 overflow-hidden antialiased">
+      <ProviderSidebar />
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <ProviderHeader title="Settings" />
+        <main className="flex-1 overflow-y-auto p-8 bg-slate-50 dark:bg-slate-900">
+          <div className="max-w-5xl mx-auto space-y-8">
+            {/* Header */}
+            <div>
+              <h1 className="text-3xl font-black text-slate-900 dark:text-white">Settings</h1>
+              <p className="text-slate-500 dark:text-slate-400 mt-1">Manage your account, organization, and preferences</p>
+            </div>
+
+            {/* Tabs */}
+            <div className="bg-slate-100 dark:bg-slate-800 rounded-xl p-1.5 flex gap-1.5">
+              {TABS.map((tab) => {
+                const IconComponent = tab.icon === 'business' ? 'business' :
+                                    tab.icon === 'person' ? 'person' :
+                                    tab.icon === 'notifications' ? 'notifications' :
+                                    'credit_card';
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-bold text-sm transition-all ${
+                      isActive
+                        ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-lg">{IconComponent}</span>
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Tab Content */}
+            {renderTabContent()}
           </div>
         </main>
       </div>
