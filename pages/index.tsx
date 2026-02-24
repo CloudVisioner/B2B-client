@@ -1,21 +1,25 @@
 import React, { useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
 import { useReactiveVar } from '@apollo/client';
 import { userVar } from '../apollo/store';
 import { isLoggedIn } from '../libs/auth';
-import Navbar from '../libs/components/Navbar';
-import Hero from '../libs/components/Hero';
 import HowItWorks from '../libs/components/HowItWorks';
 import TopCategories from '../libs/components/TopCategories';
 import TestimonialSection from '../libs/components/TestimonialSection';
 import Footer from '../libs/components/Footer';
 import { CategoryId } from '../libs/types';
 
+// Dynamically import components that use framer-motion (client-side only)
+const Navbar = dynamic(() => import('../libs/components/Navbar'), { ssr: false });
+const Hero = dynamic(() => import('../libs/components/Hero'), { ssr: false });
+const AnimatedBackground = dynamic(() => import('../libs/components/AnimatedBackground'), { ssr: false });
+
 export default function Home() {
   const router = useRouter();
   const currentUser = useReactiveVar(userVar);
 
-  // Redirect logged-in users to their dashboard
+  // Redirect logged-in users to their dashboard (fixed: only depend on role, not entire user object)
   useEffect(() => {
     if (isLoggedIn() && currentUser?.userRole) {
       const role = currentUser.userRole;
@@ -25,7 +29,7 @@ export default function Home() {
         router.push('/dashboard');
       }
     }
-  }, [router, currentUser]);
+  }, [router, currentUser?.userRole]);
 
   const handleGetStarted = () => {
     router.push('/marketplace');
@@ -36,9 +40,10 @@ export default function Home() {
   };
 
   return (
-    <div className="app-container">
+    <div className="app-container relative min-h-screen">
+      <AnimatedBackground />
       <Navbar currentPage="home" />
-      <main className="main-content">
+      <main className="main-content relative z-10">
         <Hero 
           onGetStarted={handleGetStarted} 
           onWantToHire={() => router.push('/signup?role=buyer')}
@@ -48,7 +53,9 @@ export default function Home() {
         <TopCategories onBrowse={handleBrowseCategory} />
         <TestimonialSection />
       </main>
-      <Footer />
+      <div className="relative z-10">
+        <Footer />
+      </div>
     </div>
   );
 }

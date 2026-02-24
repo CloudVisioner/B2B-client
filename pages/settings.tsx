@@ -111,38 +111,9 @@ function OrganizationTab() {
 
   const organizationExists = orgData?.getBuyerOrganization?._id;
 
-  useEffect(() => {
-    if (orgData?.getBuyerOrganization && !isEditMode && !logoFile) {
-      const org = orgData.getBuyerOrganization;
-      // organizationImage is now a string, not an array
-      // ✅ Safety check: ensure it's always a string, even if backend returns array
-      let logoUrl = '';
-      if (Array.isArray(org.organizationImage)) {
-        logoUrl = org.organizationImage[0] || '';
-      } else {
-        logoUrl = org.organizationImage || '';
-      }
-      
-      setFormData({
-        orgName: org.organizationName || '',
-        industry: org.organizationIndustry || '',
-        location: org.organizationLocation || '',
-        description: org.organizationDescription || '',
-        budgetRange: org.budgetRange || '',
-        logoUrl: logoUrl,
-      });
-      
-      if (logoUrl) {
-        if (logoPreview && logoPreview.startsWith('blob:')) {
-          URL.revokeObjectURL(logoPreview);
-        }
-        const fullImageUrl = getImageUrl(logoUrl);
-        setLogoPreview(fullImageUrl);
-      } else if (!logoFile) {
-        setLogoPreview('');
-      }
-    }
-  }, [orgData, isEditMode, logoFile]);
+  // NOTE: Removed redundant useEffect that duplicated onCompleted logic above.
+  // The onCompleted callback already handles populating formData and logoPreview
+  // when orgData loads. Having both caused double state updates.
 
   const [createOrg, { loading: isCreating }] = useMutation(CREATE_ORGANIZATION, {
     context: {
@@ -604,17 +575,22 @@ function ProfileTab() {
     confirmPassword: '',
   });
 
+  // Ref to track the latest blob URL for cleanup on unmount
+  const imageBlobUrlRef = useRef<string | null>(null);
+
   useEffect(() => {
     return () => {
       if (passwordTimeoutRef.current) {
         clearTimeout(passwordTimeoutRef.current);
         passwordTimeoutRef.current = null;
       }
-      if (imagePreview && imagePreview.startsWith('blob:')) {
-        URL.revokeObjectURL(imagePreview);
+      // Revoke any outstanding blob URL on unmount
+      if (imageBlobUrlRef.current) {
+        URL.revokeObjectURL(imageBlobUrlRef.current);
+        imageBlobUrlRef.current = null;
       }
     };
-  }, [imagePreview]);
+  }, []);
 
   const { data: profileData, loading: profileLoading, refetch: refetchProfile } = useQuery(GET_MY_PROFILE, {
     skip: !isLoggedIn() || !currentUser?._id,
@@ -635,8 +611,10 @@ function ProfileTab() {
           userImage: user.userImage || '',
         });
         if (user.userImage) {
-          if (imagePreview && imagePreview.startsWith('blob:')) {
-            URL.revokeObjectURL(imagePreview);
+          // Revoke any blob URL before switching to server URL
+          if (imageBlobUrlRef.current) {
+            URL.revokeObjectURL(imageBlobUrlRef.current);
+            imageBlobUrlRef.current = null;
           }
           setImagePreview(user.userImage);
         } else {
@@ -646,26 +624,9 @@ function ProfileTab() {
     },
   });
 
-  useEffect(() => {
-    if (profileData?.getUser && !isEditMode && !imageFile) {
-      const user = profileData.getUser;
-      setFormData({
-        userNick: user.userNick || '',
-        userEmail: user.userEmail || '',
-        userPhone: user.userPhone || '',
-        userDescription: user.userDescription || '',
-        userImage: user.userImage || '',
-      });
-      if (user.userImage) {
-        if (imagePreview && imagePreview.startsWith('blob:')) {
-          URL.revokeObjectURL(imagePreview);
-        }
-        setImagePreview(user.userImage);
-      } else {
-        setImagePreview('');
-      }
-    }
-  }, [profileData, isEditMode, imageFile]);
+  // NOTE: Removed redundant useEffect that duplicated onCompleted logic above.
+  // The onCompleted callback already handles populating formData and imagePreview
+  // when profileData loads. Having both caused double state updates.
 
   const [updateProfile, { loading: isUpdatingProfile }] = useMutation(UPDATE_MY_PROFILE, {
     context: {
@@ -753,11 +714,14 @@ function ProfileTab() {
       alert('Image size must be less than 5MB');
       return;
     }
-    if (imagePreview && imagePreview.startsWith('blob:')) {
-      URL.revokeObjectURL(imagePreview);
+    // Revoke previous blob URL to prevent memory leak
+    if (imageBlobUrlRef.current) {
+      URL.revokeObjectURL(imageBlobUrlRef.current);
+      imageBlobUrlRef.current = null;
     }
     setImageFile(image);
     const previewUrl = URL.createObjectURL(image);
+    imageBlobUrlRef.current = previewUrl;
     setImagePreview(previewUrl);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -916,8 +880,9 @@ function ProfileTab() {
 
   const handleRemoveImage = () => {
     if (!isEditMode) return;
-    if (imagePreview && imagePreview.startsWith('blob:')) {
-      URL.revokeObjectURL(imagePreview);
+    if (imageBlobUrlRef.current) {
+      URL.revokeObjectURL(imageBlobUrlRef.current);
+      imageBlobUrlRef.current = null;
     }
     setImageFile(null);
     setImagePreview('');

@@ -58,16 +58,18 @@ const TestimonialSection: React.FC = () => {
     setActiveIndex((prev) => (prev - 1 + testimonials.length) % testimonials.length);
   };
 
-  // Auto-rotate every 8 seconds
+  // Auto-rotate every 8 seconds (fixed: don't depend on activeIndex to avoid recreating interval)
   useEffect(() => {
     if (testimonials.length <= 1) return;
-    const interval = setInterval(goToNext, 8000);
+    const interval = setInterval(() => {
+      setActiveIndex((prev) => (prev + 1) % testimonials.length);
+    }, 8000);
     return () => clearInterval(interval);
-  }, [testimonials.length, activeIndex]);
+  }, [testimonials.length]);
 
   return (
-    <section className="py-24 px-4 bg-white dark:bg-slate-800 transition-colors">
-      <div className="max-w-6xl mx-auto bg-slate-900 dark:bg-slate-800 rounded-[3rem] p-12 md:p-24 text-center text-white relative overflow-hidden transition-colors">
+    <section className="py-24 px-4 bg-transparent transition-colors">
+      <div className="max-w-6xl mx-auto bg-slate-900/90 dark:bg-slate-950/70 backdrop-blur-xl rounded-[3rem] p-12 md:p-24 text-center text-white relative overflow-hidden transition-colors border border-white/10">
         {/* Abstract shapes */}
         <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 blur-3xl rounded-full"></div>
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/10 blur-3xl rounded-full"></div>

@@ -3,7 +3,7 @@ import React from 'react';
 import { FileText, MessageSquare, ShieldCheck, Search, Send, Landmark } from 'lucide-react';
 
 const StepCard = ({ icon: Icon, title, description, color }: { icon: any, title: string, description: string, color: string }) => (
-  <div className="bg-white dark:bg-slate-900 p-8 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col items-start hover:shadow-md transition-all">
+  <div className="bg-white/75 dark:bg-slate-900/60 backdrop-blur-md p-8 rounded-2xl shadow-sm border border-black/5 dark:border-white/10 flex flex-col items-start hover:shadow-md transition-all">
     <div className={`p-4 rounded-xl ${color} mb-6`}>
       <Icon className="w-8 h-8" />
     </div>
@@ -14,7 +14,7 @@ const StepCard = ({ icon: Icon, title, description, color }: { icon: any, title:
 
 const HowItWorks: React.FC = () => {
   return (
-    <section id="how-it-works" className="py-24 bg-slate-50/50 dark:bg-slate-800/50 transition-colors">
+    <section id="how-it-works" className="py-24 bg-transparent transition-colors">
       <div className="max-w-7xl mx-auto px-4">
         <div className="text-center mb-16">
           <h2 className="text-4xl font-bold text-slate-900 dark:text-white mb-4">How it Works</h2>

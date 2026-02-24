@@ -4,7 +4,7 @@ import { Facebook, Twitter, Linkedin, ShieldCheck, CheckCircle2 } from 'lucide-r
 
 const Footer: React.FC = () => {
   return (
-    <footer className="pt-24 pb-8 bg-white dark:bg-slate-800 border-t border-slate-100 dark:border-slate-700 transition-colors">
+    <footer className="pt-24 pb-8 bg-transparent border-t border-black/5 dark:border-white/10 transition-colors">
       <div className="max-w-7xl mx-auto px-4">
         <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-12 mb-20">
           <div className="lg:col-span-2">

@@ -83,17 +83,21 @@ function OrganizationTab() {
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const imageBlobUrlRef = useRef<string | null>(null);
+
+  // Cleanup "zombies" on unmount (timeouts + blob URLs)
   useEffect(() => {
     return () => {
       if (successTimeoutRef.current) {
         clearTimeout(successTimeoutRef.current);
         successTimeoutRef.current = null;
       }
-      if (imagePreview && imagePreview.startsWith('blob:')) {
-        URL.revokeObjectURL(imagePreview);
+      if (imageBlobUrlRef.current) {
+        URL.revokeObjectURL(imageBlobUrlRef.current);
+        imageBlobUrlRef.current = null;
       }
     };
-  }, [imagePreview]);
+  }, []);
 
   const { data: orgData, loading: orgLoading, refetch, error: orgError } = useQuery(GET_PROVIDER_ORGANIZATION, {
     skip: !isLoggedIn(),
@@ -108,22 +112,24 @@ function OrganizationTab() {
   useEffect(() => {
     if (orgData?.getProviderOrganization) {
       const org = orgData.getProviderOrganization;
-      console.log('Organization found in settings:', org);
-      console.log('Organization image URL:', org.organizationImage);
       const categories = Array.isArray(org.categoryId) ? org.categoryId : org.categoryId ? [org.categoryId] : [];
       const subCategories = Array.isArray(org.subCategory) ? org.subCategory : org.subCategory ? [org.subCategory] : [];
       
       // Always set image preview if organization has an image (unless user has selected a new file)
       if (org.organizationImage && !imageFile) {
-        // Clean up any existing blob URL before setting new preview
-        if (imagePreview && imagePreview.startsWith('blob:')) {
-          URL.revokeObjectURL(imagePreview);
+        // Clean up any existing blob URL before setting a server URL
+        if (imageBlobUrlRef.current) {
+          URL.revokeObjectURL(imageBlobUrlRef.current);
+          imageBlobUrlRef.current = null;
         }
         const fullImageUrl = getImageUrl(org.organizationImage);
-        console.log('Setting image preview from database:', org.organizationImage, '-> Full URL:', fullImageUrl);
-        setImagePreview(fullImageUrl);
+        setImagePreview((prev) => (prev === fullImageUrl ? prev : fullImageUrl));
       } else if (!org.organizationImage && !imageFile && !isEditMode) {
         // Only clear preview if there's no image file selected, no org image, and not in edit mode
+        if (imageBlobUrlRef.current) {
+          URL.revokeObjectURL(imageBlobUrlRef.current);
+          imageBlobUrlRef.current = null;
+        }
         setImagePreview('');
       }
       
@@ -145,7 +151,6 @@ function OrganizationTab() {
         }
       }
     } else if (orgData && !orgData.getProviderOrganization) {
-      console.log('No organization data returned from query');
       // If no organization exists and not in edit mode, clear image preview
       if (!isEditMode && !imageFile) {
         setImagePreview('');
@@ -159,13 +164,6 @@ function OrganizationTab() {
       console.error('Error loading organization:', orgError);
     }
   }, [orgError]);
-
-  // Refetch data when component mounts or when exiting edit mode
-  useEffect(() => {
-    if (!isEditMode) {
-      refetch();
-    }
-  }, [isEditMode, refetch]);
 
   const organizationExists = orgData?.getProviderOrganization?._id;
 
@@ -257,11 +255,13 @@ function OrganizationTab() {
       alert('Image size must be less than 5MB');
       return;
     }
-    if (imagePreview && imagePreview.startsWith('blob:')) {
-      URL.revokeObjectURL(imagePreview);
+    // Clean up previous blob URL if exists
+    if (imageBlobUrlRef.current) {
+      URL.revokeObjectURL(imageBlobUrlRef.current);
     }
     setImageFile(image);
     const previewUrl = URL.createObjectURL(image);
+    imageBlobUrlRef.current = previewUrl;
     setImagePreview(previewUrl);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -693,6 +693,7 @@ function ProfileTab() {
   const currentUser = useReactiveVar(userVar);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const passwordTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const imageBlobUrlRef = useRef<string | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
@@ -715,17 +716,19 @@ function ProfileTab() {
     confirmPassword: '',
   });
 
+  // Cleanup on unmount only — revoke blob URLs, clear timeouts
   useEffect(() => {
     return () => {
       if (passwordTimeoutRef.current) {
         clearTimeout(passwordTimeoutRef.current);
         passwordTimeoutRef.current = null;
       }
-      if (imagePreview && imagePreview.startsWith('blob:')) {
-        URL.revokeObjectURL(imagePreview);
+      if (imageBlobUrlRef.current) {
+        URL.revokeObjectURL(imageBlobUrlRef.current);
+        imageBlobUrlRef.current = null;
       }
     };
-  }, [imagePreview]);
+  }, []);
 
   const { data: profileData, loading: profileLoading, refetch: refetchProfile } = useQuery(GET_MY_PROFILE, {
     skip: !isLoggedIn() || !currentUser?._id,
@@ -746,8 +749,10 @@ function ProfileTab() {
           userImage: user.userImage || '',
         });
         if (user.userImage) {
-          if (imagePreview && imagePreview.startsWith('blob:')) {
-            URL.revokeObjectURL(imagePreview);
+          // Revoke old blob URL if one exists
+          if (imageBlobUrlRef.current) {
+            URL.revokeObjectURL(imageBlobUrlRef.current);
+            imageBlobUrlRef.current = null;
           }
           setImagePreview(user.userImage);
         } else {
@@ -756,27 +761,6 @@ function ProfileTab() {
       }
     },
   });
-
-  useEffect(() => {
-    if (profileData?.getUser && !isEditMode && !imageFile) {
-      const user = profileData.getUser;
-      setFormData({
-        providerFullName: user.userDescription || '',
-        providerDisplayName: user.userNick || '',
-        providerEmail: user.userEmail || '',
-        providerPhone: user.userPhone || '',
-        userImage: user.userImage || '',
-      });
-      if (user.userImage) {
-        if (imagePreview && imagePreview.startsWith('blob:')) {
-          URL.revokeObjectURL(imagePreview);
-        }
-        setImagePreview(user.userImage);
-      } else {
-        setImagePreview('');
-      }
-    }
-  }, [profileData, isEditMode, imageFile]);
 
   // Use UPDATE_MY_PROFILE for all profile updates including images
   const [updateProfile, { loading: isUpdatingProfile }] = useMutation(UPDATE_MY_PROFILE, {
@@ -863,11 +847,13 @@ function ProfileTab() {
       alert('Image size must be less than 5MB');
       return;
     }
-    if (imagePreview && imagePreview.startsWith('blob:')) {
-      URL.revokeObjectURL(imagePreview);
+    // Clean up previous blob URL if exists
+    if (imageBlobUrlRef.current) {
+      URL.revokeObjectURL(imageBlobUrlRef.current);
     }
     setImageFile(image);
     const previewUrl = URL.createObjectURL(image);
+    imageBlobUrlRef.current = previewUrl;
     setImagePreview(previewUrl);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';

@@ -185,8 +185,16 @@ export default function ServiceRequestsPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingRequest, setEditingRequest] = useState<ServiceRequest | null>(null);
 
+  // Debounce search to avoid firing a query on every keystroke
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedSearch(searchQuery), 300);
+    return () => clearTimeout(id);
+  }, [searchQuery]);
+
   // Fetch service requests from backend
-  const { data, loading, error, refetch } = useQuery(GET_BUYER_SERVICE_REQUESTS, {
+  // Apollo auto-refetches when variables change, so no manual refetch effect needed
+  const { data, loading, error } = useQuery(GET_BUYER_SERVICE_REQUESTS, {
     skip: !isLoggedIn(),
     fetchPolicy: 'network-only',
     errorPolicy: 'all',
@@ -196,7 +204,7 @@ export default function ServiceRequestsPage() {
     variables: {
       input: {
         status: statusFilter !== 'all' ? statusFilter.toUpperCase() : undefined,
-        search: searchQuery || undefined,
+        search: debouncedSearch || undefined,
         sortBy: sortBy === 'newest' ? 'createdAt' : sortBy === 'deadline' ? 'reqDeadline' : 'reqBudgetRange',
         sortOrder: 'desc',
         page: 1,
@@ -227,7 +235,7 @@ export default function ServiceRequestsPage() {
         variables: {
           input: {
             status: statusFilter !== 'all' ? statusFilter.toUpperCase() : undefined,
-            search: searchQuery || undefined,
+            search: debouncedSearch || undefined,
             sortBy: sortBy === 'newest' ? 'createdAt' : sortBy === 'deadline' ? 'reqDeadline' : 'reqBudgetRange',
             sortOrder: 'desc',
             page: 1,
@@ -263,26 +271,6 @@ export default function ServiceRequestsPage() {
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
   }, [isModalOpen]);
-
-  // Refetch when filters change (debounced for search)
-  useEffect(() => {
-    if (!mounted || !isLoggedIn()) return;
-    
-    const timeoutId = setTimeout(() => {
-      refetch({
-        input: {
-          status: statusFilter !== 'all' ? statusFilter.toUpperCase() : undefined,
-          search: searchQuery || undefined,
-          sortBy: sortBy === 'newest' ? 'createdAt' : sortBy === 'deadline' ? 'reqDeadline' : 'reqBudgetRange',
-          sortOrder: 'desc',
-          page: 1,
-          limit: 50,
-        },
-      }).catch(console.error);
-    }, searchQuery ? 300 : 0); // Debounce search, immediate for other filters
-    
-    return () => clearTimeout(timeoutId);
-  }, [statusFilter, sortBy, searchQuery, mounted]);
 
   /* SSR skeleton */
   if (!mounted) {

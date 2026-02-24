@@ -418,8 +418,8 @@ const Marketplace: React.FC<MarketplaceProps> = ({
 
     const input: any = {
       categoryId: backendCategoryId,
-      page: currentPage || 1,
-      limit: itemsPerPage || 5,
+      page: Math.max(1, currentPage || 1),
+      limit: Math.max(1, Math.min(100, itemsPerPage || 5)), // Ensure limit is between 1 and 100
     };
     
     // Validate and add sortBy - only valid provider sort options
@@ -441,7 +441,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({
       input.location = selectedLocation;
     }
     
-    if (maxBudget && maxBudget !== 5000) {
+    if (maxBudget && maxBudget > 0 && maxBudget !== 5000) {
       input.maxBudget = maxBudget;
     }
     
@@ -461,26 +461,40 @@ const Marketplace: React.FC<MarketplaceProps> = ({
   const { data, loading, error, refetch } = useQuery(
     useSortedQuery ? GET_PROVIDERS_SORTED : GET_PROVIDERS_BY_CATEGORY,
     {
-      variables: queryVariables || { input: { categoryId: 'IT_AND_SOFTWARE', page: 1, limit: 5, sortBy: 'createdAt' } },
+      variables: queryVariables || { 
+        input: { 
+          categoryId: 'IT_AND_SOFTWARE', 
+          page: 1, 
+          limit: 5, 
+          sortBy: 'createdAt'
+        } 
+      },
       fetchPolicy: 'cache-and-network',
       notifyOnNetworkStatusChange: true,
       skip: shouldSkip, // Skip query if category is not set or invalid
       errorPolicy: 'all', // Continue even if there are errors
+      onError: (err) => {
+        console.error('Marketplace GraphQL Error:', {
+          message: err.message,
+          graphQLErrors: err.graphQLErrors,
+          networkError: err.networkError,
+          variables: queryVariables
+        });
+      }
     }
   );
 
-  // Handle errors using useEffect instead of onError callback (Apollo Client 3.14+ requirement)
+  // Log errors when they occur (only re-log when error itself changes)
   useEffect(() => {
     if (error) {
-      console.error('Marketplace query error:', error);
-      console.error('GraphQL Errors:', error.graphQLErrors);
-      console.error('Network Error:', error.networkError);
-      console.error('Query variables:', queryVariables);
-      console.error('Backend categoryId:', backendCategoryId);
-      console.error('Backend sortBy:', backendSortBy);
-      console.error('Selected category:', selectedCatId);
+      console.error('Marketplace query error:', {
+        message: error.message,
+        graphQLErrors: error.graphQLErrors,
+        networkError: error.networkError,
+        variables: queryVariables
+      });
     }
-  }, [error, queryVariables, backendCategoryId, backendSortBy, selectedCatId]);
+  }, [error, queryVariables]);
   
   // Extract providers from response and apply client-side filtering
   const providers = useMemo(() => {
@@ -491,6 +505,9 @@ const Marketplace: React.FC<MarketplaceProps> = ({
       : data?.getProvidersByCategory?.list || [];
 
     let mappedProviders = list.map(mapBackendProviderToList);
+
+    // Filter out any invalid providers (must have at least an ID and name)
+    mappedProviders = mappedProviders.filter(provider => provider.id && provider.name);
 
     // Apply client-side filtering
     // 1. Filter by categoryId (provider must belong to selected category)
@@ -544,13 +561,6 @@ const Marketplace: React.FC<MarketplaceProps> = ({
     return providers.slice(startIndex, endIndex);
   }, [providers, currentPage, itemsPerPage]);
   
-  // Refetch when filters change
-  useEffect(() => {
-    if (!isInitialMount.current) {
-      refetch();
-    }
-  }, [backendCategoryId, activeSubCats, selectedLocation, maxBudget, sortBy, currentPage, searchQuery, refetch]);
-
   // Sync category when initialCategory changes (from URL)
   useEffect(() => {
     setSelectedCatId(initialCategory);
@@ -806,13 +816,23 @@ const Marketplace: React.FC<MarketplaceProps> = ({
                   <div className="flex items-center gap-3">
                     <AlertCircle className="w-6 h-6 text-red-600 dark:text-red-400" />
                     <div className="flex-1">
-                      <h3 className="font-bold text-red-900 dark:text-red-200 mb-1">Error loading providers</h3>
+                      <h3 className="font-bold text-red-900 dark:text-red-200 mb-1">Error loading provider organizations</h3>
                       <p className="text-sm text-red-700 dark:text-red-300 mb-2">
-                        {error.graphQLErrors?.[0]?.message || error.networkError?.message || error.message || 'Failed to load providers. Please check your connection and try again.'}
+                        {error.graphQLErrors?.[0]?.message || error.networkError?.message || error.message || 'Failed to load provider organizations. Please check your connection and try again.'}
                       </p>
                       {error.graphQLErrors?.[0] && (
-                        <p className="text-xs text-red-600 dark:text-red-400 font-mono mt-2">
-                          {JSON.stringify(error.graphQLErrors[0], null, 2)}
+                        <details className="mt-2">
+                          <summary className="text-xs text-red-600 dark:text-red-400 cursor-pointer font-semibold">
+                            View Error Details
+                          </summary>
+                          <pre className="text-xs text-red-600 dark:text-red-400 font-mono mt-2 p-2 bg-red-100 dark:bg-red-900/40 rounded overflow-auto">
+                            {JSON.stringify(error.graphQLErrors[0], null, 2)}
+                          </pre>
+                        </details>
+                      )}
+                      {error.networkError && 'statusCode' in error.networkError && (
+                        <p className="text-xs text-red-600 dark:text-red-400 mt-2">
+                          Status Code: {error.networkError.statusCode}
                         </p>
                       )}
                     </div>
@@ -829,6 +849,10 @@ const Marketplace: React.FC<MarketplaceProps> = ({
                         setSelectedCatId('it-software');
                         setSortBy('Newest');
                         setCurrentPage(1);
+                        setActiveSubCats([]);
+                        setSelectedLocation('All Countries');
+                        setMaxBudget(5000);
+                        setSearchQuery('');
                         setTimeout(() => refetch(), 100);
                       }}
                       className="px-4 py-2 bg-white border border-red-300 text-red-700 rounded-lg hover:bg-red-50 transition-colors text-sm font-semibold"

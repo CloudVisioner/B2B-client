@@ -51,6 +51,8 @@ export default function ProviderOrganizationsPage() {
   const currentUser = useReactiveVar(userVar);
   const [mounted, setMounted] = useState(false);
   const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isMountedRef = useRef(false);
+  const imageBlobUrlRef = useRef<string | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
@@ -70,6 +72,14 @@ export default function ProviderOrganizationsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  // Auth / role gate (keep deps tight to avoid reruns that feel like "auto loops")
+  useEffect(() => {
     setMounted(true);
     if (!isLoggedIn()) {
       router.push('/login');
@@ -80,17 +90,21 @@ export default function ProviderOrganizationsPage() {
     if (role && role !== 'PROVIDER' && role !== 'provider') {
       router.push('/dashboard');
     }
+  }, [router, currentUser?.userRole]);
 
+  // Cleanup "zombies" on unmount (timeouts + blob URLs)
+  useEffect(() => {
     return () => {
       if (successTimeoutRef.current) {
         clearTimeout(successTimeoutRef.current);
         successTimeoutRef.current = null;
       }
-      if (imagePreview && imagePreview.startsWith('blob:')) {
-        URL.revokeObjectURL(imagePreview);
+      if (imageBlobUrlRef.current) {
+        URL.revokeObjectURL(imageBlobUrlRef.current);
+        imageBlobUrlRef.current = null;
       }
     };
-  }, [router, currentUser, imagePreview]);
+  }, []);
 
   // Load organization data
   const { data: orgData, loading: orgLoading, refetch, error: orgError } = useQuery(GET_PROVIDER_ORGANIZATION, {
@@ -106,22 +120,24 @@ export default function ProviderOrganizationsPage() {
   useEffect(() => {
     if (orgData?.getProviderOrganization) {
       const org = orgData.getProviderOrganization;
-      console.log('Organization found:', org);
-      console.log('Organization image URL:', org.organizationImage);
       const categories = Array.isArray(org.categoryId) ? org.categoryId : org.categoryId ? [org.categoryId] : [];
       const subCategories = Array.isArray(org.subCategory) ? org.subCategory : org.subCategory ? [org.subCategory] : [];
       
       // Always set image preview if organization has an image (unless user has selected a new file)
       if (org.organizationImage && !imageFile) {
-        // Clean up any existing blob URL before setting new preview
-        if (imagePreview && imagePreview.startsWith('blob:')) {
-          URL.revokeObjectURL(imagePreview);
-        }
         const fullImageUrl = getImageUrl(org.organizationImage);
-        console.log('Setting image preview from database:', org.organizationImage, '-> Full URL:', fullImageUrl);
-        setImagePreview(fullImageUrl);
+        // Clean up any existing blob URL before setting a server URL
+        if (imageBlobUrlRef.current) {
+          URL.revokeObjectURL(imageBlobUrlRef.current);
+          imageBlobUrlRef.current = null;
+        }
+        setImagePreview((prev) => (prev === fullImageUrl ? prev : fullImageUrl));
       } else if (!org.organizationImage && !imageFile && !isEditMode) {
         // Only clear preview if there's no image file selected, no org image, and not in edit mode
+        if (imageBlobUrlRef.current) {
+          URL.revokeObjectURL(imageBlobUrlRef.current);
+          imageBlobUrlRef.current = null;
+        }
         setImagePreview('');
       }
       
@@ -144,9 +160,12 @@ export default function ProviderOrganizationsPage() {
         }
       }
     } else if (orgData && !orgData.getProviderOrganization) {
-      console.log('No organization data returned from query');
       // If no organization exists and not in edit mode, clear image preview
       if (!isEditMode && !imageFile) {
+        if (imageBlobUrlRef.current) {
+          URL.revokeObjectURL(imageBlobUrlRef.current);
+          imageBlobUrlRef.current = null;
+        }
         setImagePreview('');
       }
     }
@@ -159,13 +178,6 @@ export default function ProviderOrganizationsPage() {
     }
   }, [orgError]);
 
-  // Refetch data when component mounts or when exiting edit mode
-  useEffect(() => {
-    if (mounted && isLoggedIn() && !isEditMode) {
-      refetch();
-    }
-  }, [mounted, isEditMode, refetch]);
-
   // More robust check: organization exists only if we have a valid _id
   const organizationExists = Boolean(
     orgData?.getProviderOrganization?._id && 
@@ -173,23 +185,22 @@ export default function ProviderOrganizationsPage() {
     orgData.getProviderOrganization._id.trim().length > 0
   );
   
-  // Debug logging
-  useEffect(() => {
-    if (orgData !== undefined) {
-      console.log('Organization data:', orgData);
-      console.log('getProviderOrganization:', orgData?.getProviderOrganization);
-      console.log('Organization _id:', orgData?.getProviderOrganization?._id);
-      console.log('Organization exists?', organizationExists);
-    }
-  }, [orgData, organizationExists]);
-
   // Auto-enable edit mode if no organization exists and data has loaded
   useEffect(() => {
     if (!orgLoading && orgData !== undefined && !organizationExists && !isEditMode) {
-      console.log('No organization found, enabling edit mode for creation');
       setIsEditMode(true);
     }
   }, [orgLoading, orgData, organizationExists, isEditMode]);
+
+  const flashSuccess = () => {
+    if (!isMountedRef.current) return;
+    setShowSuccessMessage(true);
+    if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current);
+    successTimeoutRef.current = setTimeout(() => {
+      if (!isMountedRef.current) return;
+      setShowSuccessMessage(false);
+    }, 3000);
+  };
 
   const [createOrg, { loading: isCreating }] = useMutation(CREATE_PROVIDER_ORG_PROF, {
     context: {
@@ -198,18 +209,9 @@ export default function ProviderOrganizationsPage() {
     refetchQueries: [{ query: GET_PROVIDER_ORGANIZATION }],
     awaitRefetchQueries: true,
     onCompleted: async (data) => {
-      console.log('Organization created successfully:', data);
-      setShowSuccessMessage(true);
+      if (!isMountedRef.current) return;
       setIsEditMode(false);
-      // Force refetch to update the UI and ensure organizationExists is updated
-      try {
-        const result = await refetch();
-        console.log('Refetch result after creation:', result);
-      } catch (error) {
-        console.error('Error refetching after creation:', error);
-      }
-      if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current);
-      successTimeoutRef.current = setTimeout(() => setShowSuccessMessage(false), 3000);
+      flashSuccess();
     },
     onError: (error) => {
       console.error('Error creating organization:', error);
@@ -225,12 +227,9 @@ export default function ProviderOrganizationsPage() {
     refetchQueries: [{ query: GET_PROVIDER_ORGANIZATION }],
     awaitRefetchQueries: true,
     onCompleted: async (data) => {
-      setShowSuccessMessage(true);
+      if (!isMountedRef.current) return;
       setIsEditMode(false);
-      // Force refetch to update the UI
-      await refetch();
-      if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current);
-      successTimeoutRef.current = setTimeout(() => setShowSuccessMessage(false), 3000);
+      flashSuccess();
     },
     onError: (error) => {
       console.error('Error updating organization:', error);
@@ -289,11 +288,13 @@ export default function ProviderOrganizationsPage() {
       alert('Image size must be less than 5MB');
       return;
     }
-    if (imagePreview && imagePreview.startsWith('blob:')) {
-      URL.revokeObjectURL(imagePreview);
+    if (imageBlobUrlRef.current) {
+      URL.revokeObjectURL(imageBlobUrlRef.current);
+      imageBlobUrlRef.current = null;
     }
     setImageFile(image);
     const previewUrl = URL.createObjectURL(image);
+    imageBlobUrlRef.current = previewUrl;
     setImagePreview(previewUrl);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -359,22 +360,26 @@ export default function ProviderOrganizationsPage() {
       // Upload image first if a new image was selected
       let imageUrl = formData.organizationImage;
       if (imageFile) {
-        setIsUploadingImage(true);
+        if (isMountedRef.current) setIsUploadingImage(true);
         try {
           imageUrl = await uploadImageToBackend(imageFile);
           // Update formData with the new image URL
-          setFormData((prev) => ({ ...prev, organizationImage: imageUrl }));
+          if (isMountedRef.current) setFormData((prev) => ({ ...prev, organizationImage: imageUrl }));
           // Update preview to show the uploaded image URL (not blob)
-          setImagePreview(imageUrl);
+          if (imageBlobUrlRef.current) {
+            URL.revokeObjectURL(imageBlobUrlRef.current);
+            imageBlobUrlRef.current = null;
+          }
+          if (isMountedRef.current) setImagePreview(imageUrl);
           // Clear the file since it's now uploaded
-          setImageFile(null);
+          if (isMountedRef.current) setImageFile(null);
         } catch (error: any) {
           console.error('Error uploading image:', error);
           alert(`Failed to upload image: ${error.message || 'Please try again'}`);
-          setIsUploadingImage(false);
+          if (isMountedRef.current) setIsUploadingImage(false);
           return;
         } finally {
-          setIsUploadingImage(false);
+          if (isMountedRef.current) setIsUploadingImage(false);
         }
       }
 
