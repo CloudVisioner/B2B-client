@@ -394,7 +394,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({
   const [selectedLocation, setSelectedLocation] = useState(initialFilters.location || 'All Countries');
   const [currentPage, setCurrentPage] = useState(initialFilters.page || 1);
   const [searchQuery, setSearchQuery] = useState(initialFilters.search || '');
-  const itemsPerPage = 5;
+  const itemsPerPage = 9;
   
   // Use refs to track if we're initializing from URL (prevent infinite loop)
   const isInitialMount = useRef(true);
@@ -465,22 +465,14 @@ const Marketplace: React.FC<MarketplaceProps> = ({
         input: { 
           categoryId: 'IT_AND_SOFTWARE', 
           page: 1, 
-          limit: 5, 
+          limit: 100, // Fetch more for client-side filtering
           sortBy: 'createdAt'
         } 
       },
       fetchPolicy: 'cache-and-network',
       notifyOnNetworkStatusChange: true,
       skip: shouldSkip, // Skip query if category is not set or invalid
-      errorPolicy: 'all', // Continue even if there are errors
-      onError: (err) => {
-        console.error('Marketplace GraphQL Error:', {
-          message: err.message,
-          graphQLErrors: err.graphQLErrors,
-          networkError: err.networkError,
-          variables: queryVariables
-        });
-      }
+      errorPolicy: 'all' // Continue even if there are errors
     }
   );
 
@@ -871,101 +863,79 @@ const Marketplace: React.FC<MarketplaceProps> = ({
                 </div>
               )}
               
-              <div className="space-y-3 mb-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
                 {paginatedProviders.map((provider) => {
-                  // Find icon based on category
+                  // Find icon based on category (used for fallback if no image)
                   const category = CATEGORIES.find(c => c.id === provider.categoryId);
                   const IconComponent = category?.icon || Code;
                   
+                  // Use organization image or avatar, or fallback to a placeholder gradient
+                  const imageUrl = provider.avatar || provider.icon;
+                  const hasImage = imageUrl && typeof imageUrl === 'string' && imageUrl.startsWith('http');
+                  
                   return (
-                <div 
-                  key={provider.id} 
-                  className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-600 hover:shadow-lg dark:hover:shadow-xl transition-all duration-200 group"
-                  onClick={() => onSelectProvider(provider.id)}
-                >
-                  <div className="flex items-start gap-5 p-6">
-                    {/* Left: Service Icon */}
-                    <div className="relative shrink-0">
-                      <div className={`w-14 h-14 rounded-lg ${provider.color} flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow`}>
-                        <IconComponent className="w-7 h-7" />
-                    </div>
-                      {provider.badges.includes("VERIFIED") && (
-                        <div className="absolute -top-1 -right-1 bg-indigo-600 dark:bg-indigo-500 rounded-full p-1 border-2 border-white dark:border-slate-800 shadow-sm">
-                          <CheckCircle className="w-3 h-3 text-white" />
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Center: Main Content - Structured Layout */}
-                    <div className="flex-1 min-w-0">
-                      {/* Row 1: Service Title */}
-                      <div className="mb-3">
-                        <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1.5 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                          {provider.serviceTitle || provider.name}
-                        </h3>
-                  </div>
-
-                      {/* Row 2: Category, Provider, Location - Clean Badges */}
-                      <div className="flex flex-wrap items-center gap-3 mb-3">
-                        {/* Display all subcategories if array, or single if string */}
-                        {(Array.isArray(provider.subCategory) ? provider.subCategory : [provider.subCategory]).map((subCat, idx) => (
-                          <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 text-sm font-semibold rounded-md border border-indigo-100 dark:border-indigo-800">
-                          <Briefcase className="w-4 h-4" />
-                            {subCat}
-                     </span>
-                        ))}
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-sm font-medium rounded-md">
-                          <Building2 className="w-4 h-4 text-slate-400 dark:text-slate-500" />
-                          {provider.name}
-                        </span>
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-sm font-medium rounded-md">
-                          <MapPin className="w-4 h-4 text-slate-400 dark:text-slate-500" />
-                          {provider.city}, {provider.location}
-                     </span>
-                  </div>
-
-                      {/* Row 3: Description */}
-                      <p className="text-base text-slate-600 dark:text-slate-400 leading-relaxed mb-4 line-clamp-2">
-                        {provider.description || provider.bio}
-                      </p>
-
-                      {/* Row 4: Metrics - Horizontal Stats Bar */}
-                      <div className="flex items-center gap-6 pt-4 border-t border-slate-100 dark:border-slate-700">
-                        <div className="flex items-center gap-1.5">
-                          <Star className="w-5 h-5 fill-amber-400 text-amber-400" />
-                          <span className="text-base font-bold text-slate-900 dark:text-white">{provider.rating}</span>
-                          <span className="text-sm text-slate-500 dark:text-slate-400 font-medium">({provider.reviewsCount})</span>
-                        </div>
-                        <div className="h-4 w-px bg-slate-200 dark:bg-slate-700"></div>
-                        <div className="flex items-baseline gap-1">
-                          <span className="text-sm text-slate-500 dark:text-slate-400 font-medium">From</span>
-                          <span className="text-lg font-bold text-slate-900 dark:text-white">${provider.startingRate}</span>
-                          <span className="text-sm text-slate-500 dark:text-slate-400 font-medium">/hr</span>
-                       </div>
-                        {provider.projectsCompleted && (
-                          <>
-                            <div className="h-4 w-px bg-slate-200 dark:bg-slate-700"></div>
-                            <span className="text-sm text-slate-600 dark:text-slate-400 font-medium">{provider.projectsCompleted}+ projects</span>
-                          </>
+                    <div 
+                      key={provider.id} 
+                      className="group relative aspect-[3/4] overflow-hidden rounded-[4px] bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-white/10 shadow-sm hover:shadow-xl hover:scale-[1.01] transition-all duration-300 cursor-pointer"
+                      onClick={() => onSelectProvider(provider.id)}
+                    >
+                      {/* Top 60% Image Area */}
+                      <div className="h-[60%] w-full relative overflow-hidden bg-slate-100 dark:bg-slate-800">
+                        {hasImage ? (
+                          <img 
+                            src={imageUrl} 
+                            alt={provider.name}
+                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                          />
+                        ) : (
+                          <div className={`w-full h-full ${provider.color} flex items-center justify-center`}>
+                            <IconComponent className="w-16 h-16 opacity-50" />
+                          </div>
                         )}
-                       </div>
-                    </div>
+                        {/* Gradient Overlay */}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                        
+                        {/* Verified Badge - Top Right */}
+                        {provider.badges.includes("VERIFIED") && (
+                          <div className="absolute top-3 right-3 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm rounded-full p-1.5 shadow-sm">
+                            <CheckCircle className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                          </div>
+                        )}
+                      </div>
 
-                    {/* Right: Action Button - Vertical Center */}
-                    <div className="shrink-0 flex items-center">
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onSelectProvider(provider.id);
-                        }}
-                        className="px-6 py-3 bg-indigo-600 text-white text-base font-semibold rounded-lg hover:bg-indigo-700 active:scale-95 transition-all flex items-center gap-2 shadow-sm hover:shadow-md whitespace-nowrap"
-                      >
-                        View Details
-                        <ArrowRight className="w-5 h-5" />
-                      </button>
+                      {/* Bottom 40% Content Area - Glass Effect */}
+                      <div className="h-[40%] p-5 flex flex-col justify-between bg-white dark:bg-slate-900/95 backdrop-blur-sm border-t border-slate-100 dark:border-white/5 relative z-10">
+                        <div className="space-y-2">
+                          {/* Organization Name */}
+                          <h3 className="font-sans font-bold text-lg text-slate-900 dark:text-white line-clamp-2 leading-tight tracking-tight">
+                            {provider.name}
+                          </h3>
+                          
+                          {/* Category + Rating Row */}
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-[11px] font-semibold tracking-wide text-slate-600 dark:text-slate-400 uppercase px-2 py-1 bg-slate-100 dark:bg-white/5 rounded backdrop-blur-sm">
+                              {Array.isArray(provider.subCategory) ? provider.subCategory[0] : provider.subCategory}
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                              <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">{provider.rating}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Pricing + CTA */}
+                        <div className="flex items-center justify-between w-full pt-2">
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Starting from</span>
+                            <span className="text-base font-bold text-slate-900 dark:text-white">${provider.startingRate}</span>
+                            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">/hr</span>
+                          </div>
+                          <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">
+                            See details →
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
                   );
                 })}
               </div>

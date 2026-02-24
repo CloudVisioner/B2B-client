@@ -35,9 +35,9 @@ export function mapBackendProviderToList(backend: BackendProviderListItem): Prov
     categoryId: mappedCategoryId as any,
     subCategory: subCategories.length === 1 ? subCategories[0] : subCategories,
     serviceTitle: backend.serviceTitle,
-    name: backend.organizationName || backend.orgName, // Support both for backward compatibility
-    description: backend.organizationDescription || backend.orgDescription,
-    bio: backend.organizationDescription || backend.orgDescription,
+    name: backend.organizationName || backend.orgName || '',
+    description: backend.organizationDescription || (backend as any).orgDescription || '',
+    bio: (backend as any).bio || backend.organizationDescription || (backend as any).orgDescription || '',
     icon: null,
     avatar: (backend.organizationImage && Array.isArray(backend.organizationImage) ? backend.organizationImage[0] : backend.organizationImage) || (backend.orgLogoImages?.[0]) || backend.avatar || '',
     badges: mapBadges(backend),
@@ -62,22 +62,25 @@ export function mapBackendProviderToList(backend: BackendProviderListItem): Prov
 export function mapBackendProviderDetail(backend: BackendProviderDetail): Provider {
   const base = mapBackendProviderToList(backend);
   
-  const orgSkillsArray = normalizeToStringArray(backend.orgSkills);
+  // Support multiple possible backend field names
+  const orgSkillsArray = normalizeToStringArray(
+    (backend as any).orgSkills ?? (backend as any).organizationSpecialties
+  );
   const industriesArray = normalizeToStringArray(backend.industries);
   
   return {
     ...base,
-    bio: backend.bio || backend.organizationDescription || backend.orgDescription,
+    bio: (backend as any).bio || backend.organizationDescription || (backend as any).orgDescription,
     establishmentYear: backend.establishmentYear,
-    teamSize: backend.teamSize,
+    teamSize: (backend as any).teamSize ?? (backend as any).organizationTeamSize,
     minProjectSize: backend.minProjectSize,
-    orgWebsiteUrl: backend.orgWebsiteUrl,
+    orgWebsiteUrl: (backend as any).orgWebsiteUrl ?? (backend as any).organizationWebsiteUrl,
     expertise: orgSkillsArray.length > 0 ? orgSkillsArray : industriesArray,
-    email: backend.email,
-    phone: backend.phone,
-    linkedIn: backend.linkedIn,
-    twitter: backend.twitter,
-    github: backend.github,
+    email: (backend as any).email ?? (backend as any).organizationEmail,
+    phone: (backend as any).phone ?? (backend as any).organizationPhoneNumber,
+    linkedIn: (backend as any).linkedIn ?? (backend as any).socialLinks?.linkedIn,
+    twitter: (backend as any).twitter ?? (backend as any).socialLinks?.twitter,
+    github: (backend as any).github ?? (backend as any).socialLinks?.github,
   };
 }
 

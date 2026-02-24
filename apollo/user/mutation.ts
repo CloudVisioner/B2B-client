@@ -349,18 +349,15 @@ export const CREATE_PROVIDER_ORG_PROF = gql`
   mutation CreateProviderOrgProf($input: ProviderOrganizationInput!) {
     createProviderOrgProf(input: $input) {
       _id
-      organizationType
-      organizationStatus
       organizationName
+      organizationEmail
+      orgCountry
       organizationDescription
-      organizationContactEmail
-      organizationCountry
-      organizationImage
       categoryId
       subCategory
-      orgOwnerUserId
+      organizationImage
       createdAt
-      updatedAt
+      deletedAt
     }
   }
 `;
@@ -373,18 +370,16 @@ export const UPDATE_PROVIDER_ORG_PROF = gql`
   mutation UpdateProviderOrgProf($input: UpdateProviderOrganizationInput!) {
     updateProviderOrgProf(input: $input) {
       _id
-      organizationType
-      organizationStatus
       organizationName
+      organizationEmail
+      orgCountry
       organizationDescription
-      organizationContactEmail
-      organizationCountry
-      organizationImage
       categoryId
       subCategory
-      orgOwnerUserId
+      organizationImage
       createdAt
       updatedAt
+      deletedAt
     }
   }
 `;

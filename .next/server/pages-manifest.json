@@ -2,7 +2,7 @@
   "/_app": "pages/_app.js",
   "/_error": "pages/_error.js",
   "/_document": "pages/_document.js",
+  "/provider/[id]": "pages/provider/[id].js",
   "/marketplace": "pages/marketplace.js",
-  "/": "pages/index.js",
-  "/provider/jobs": "pages/provider/jobs.js"
+  "/provider/settings": "pages/provider/settings.js"
 }

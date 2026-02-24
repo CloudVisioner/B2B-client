@@ -14,28 +14,14 @@ export const GET_PROVIDERS_BY_CATEGORY = gql`
       list {
         _id
         organizationName
-        organizationDescription
-        orgAverageRating
-        reviewsCount
-        orgTotalProjects
-        orgResponseTimeAvg
-        organizationHourlyRate
+        organizationEmail
         orgCountry
-        orgCity
-        organizationLocation
-        flag
+        organizationDescription
         categoryId
         subCategory
-        serviceTitle
-        avatar
-        badges
-        color
-        orgVerified
         organizationImage
-        orgTotalLikes
-        orgTotalViews
-        industries
         createdAt
+        deletedAt
       }
       metaCounter {
         total
@@ -49,50 +35,43 @@ export const GET_PROVIDERS_BY_CATEGORY = gql`
  * Public query - email/phone only shown if user is logged in (pass auth token)
  */
 export const GET_PROVIDER_DETAIL = gql`
-  query GetProviderDetail($orgId: String!) {
+  query ProviderDetail($orgId: String!) {
     getProviderDetail(orgId: $orgId) {
       _id
       organizationName
-      organizationDescription
-      bio
-      orgAverageRating
-      reviewsCount
-      orgTotalProjects
-      orgResponseTimeAvg
-      organizationHourlyRate
-      minProjectSize
-      establishmentYear
-      teamSize
-      industries
+      organizationEmail
       orgCountry
-      orgCity
-      organizationLocation
-      flag
+      organizationDescription
       categoryId
       subCategory
-      serviceTitle
-      avatar
-      badges
-      color
-      orgVerified
       organizationImage
-      orgTotalLikes
-      orgTotalViews
-      orgWebsiteUrl
-      orgSkills
-      email
-      phone
-      linkedIn
-      twitter
-      github
       createdAt
-      updatedAt
+      deletedAt
+    }
+  }
+`;
+
+export const GET_PROVIDER_DETAIL_WITH_OWNER = gql`
+  query ProviderDetailWithOwner($orgId: String!) {
+    getProviderDetail(orgId: $orgId) {
+      _id
+      organizationName
+      orgCountry
+      organizationDescription
+      organizationImage
+      categoryId
+      subCategory
       orgOwnerData {
         _id
         userNick
         userEmail
+        userPhone
+        userImage
         userRole
+        userStatus
       }
+      createdAt
+      deletedAt
     }
   }
 `;
@@ -107,28 +86,14 @@ export const GET_PROVIDERS_SORTED = gql`
       list {
         _id
         organizationName
-        organizationDescription
-        orgAverageRating
-        reviewsCount
-        orgTotalProjects
-        orgResponseTimeAvg
-        organizationHourlyRate
+        organizationEmail
         orgCountry
-        orgCity
-        organizationLocation
-        flag
+        organizationDescription
         categoryId
         subCategory
-        serviceTitle
-        avatar
-        badges
-        color
-        orgVerified
         organizationImage
-        orgTotalLikes
-        orgTotalViews
-        industries
         createdAt
+        deletedAt
       }
       metaCounter {
         total
@@ -361,7 +326,6 @@ export const GET_RECOMMENDED_PROVIDERS = gql`
       avatar
       badges
       organizationLocation
-      orgCity
       flag
       organizationDescription
       reviewsCount

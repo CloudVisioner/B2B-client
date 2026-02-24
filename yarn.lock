@@ -1381,11 +1381,6 @@ scheduler@^0.23.2:
   dependencies:
     loose-envify "^1.1.0"
 
-simple-icons@^16.9.0:
-  version "16.9.0"
-  resolved "https://registry.yarnpkg.com/simple-icons/-/simple-icons-16.9.0.tgz#e07062e77e227c4822c803dfb9edc20a01a932ac"
-  integrity sha512-aKst2C7cLkFyaiQ/Crlwxt9xYOpGPk05XuJZ0ZTJNNCzHCKYrGWz2ebJSi5dG8CmTCxUF/BGs6A8uyJn/EQxqw==
-
 "source-map-js@>=0.6.2 <2.0.0", source-map-js@^1.0.2, source-map-js@^1.2.1:
   version "1.2.1"
   resolved "https://registry.yarnpkg.com/source-map-js/-/source-map-js-1.2.1.tgz#1ce5650fddd87abc099eda37dcff024c2667ae46"
