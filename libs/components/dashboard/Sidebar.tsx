@@ -125,8 +125,15 @@ export const Sidebar: React.FC = () => {
         })}
       </div>
 
-      {/* Logout */}
-      <div className="p-4 border-t border-slate-100">
+      {/* Footer */}
+      <div className="p-4 border-t border-slate-100 space-y-2">
+        <Link
+          href="/help-support"
+          className="w-full flex items-center gap-3 px-4 py-2.5 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 transition-all rounded-lg text-sm font-medium"
+        >
+          <span className="material-symbols-outlined text-[22px]">help</span>
+          <span>Help & Support</span>
+        </Link>
         <button
           onClick={handleLogout}
           className="w-full flex items-center gap-3 px-4 py-2.5 text-slate-600 hover:bg-red-50 hover:text-red-600 transition-all rounded-lg text-sm font-medium"

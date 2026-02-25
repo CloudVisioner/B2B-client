@@ -1,32 +1,68 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
+import Image from 'next/image';
 import { useReactiveVar, useQuery } from '@apollo/client';
 import { userVar } from '../../apollo/store';
 import { isLoggedIn } from '../../libs/auth';
 import { getHeaders } from '../../apollo/utils';
 import { ProviderSidebar } from '../../libs/components/dashboard/ProviderSidebar';
 import { ProviderHeader } from '../../libs/components/dashboard/ProviderHeader';
+import { GET_PROVIDER_ORGANIZATION, GET_QUOTES_BY_ORGANIZATION, GET_SERVICE_REQUESTS } from '../../apollo/user/query';
 
 /* ─── Format date helper ─── */
 function formatDate(dateString: string): string {
   const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 18) return 'Good afternoon';
+  return 'Good evening';
 }
 
 /* ═══════════════════════════════════════════════════════════
-   Provider Dashboard - Professional Overview
+   Provider Dashboard - Premium Overview
    ═══════════════════════════════════════════════════════════ */
 export default function ProviderDashboardPage() {
   const router = useRouter();
   const currentUser = useReactiveVar(userVar);
   const [mounted, setMounted] = useState(false);
 
-  // TODO: Replace with actual provider queries when available
-  // For now using mock data structure
-  const [availableRequests, setAvailableRequests] = useState<any[]>([]);
-  const [myQuotes, setMyQuotes] = useState<any[]>([]);
-  const [activeOrders, setActiveOrders] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+  // Fetch provider organization
+  const { data: providerOrgData } = useQuery(GET_PROVIDER_ORGANIZATION, {
+    skip: !isLoggedIn(),
+    fetchPolicy: 'network-only',
+    context: { headers: isLoggedIn() ? getHeaders() : {} },
+  });
+  const providerOrgId: string | undefined = providerOrgData?.getProviderOrganization?._id;
+
+  // Fetch quotes by organization
+  const { data: quotesData, loading: quotesLoading } = useQuery(GET_QUOTES_BY_ORGANIZATION, {
+    skip: !isLoggedIn() || !providerOrgId || !mounted,
+    fetchPolicy: 'network-only',
+    context: { headers: isLoggedIn() ? getHeaders() : {} },
+    variables: { orgId: providerOrgId || '' },
+  });
+
+  // Fetch available service requests
+  const { data: requestsData, loading: requestsLoading } = useQuery(GET_SERVICE_REQUESTS, {
+    skip: !isLoggedIn() || !mounted,
+    fetchPolicy: 'network-only',
+    context: { headers: isLoggedIn() ? getHeaders() : {} },
+    variables: {
+      input: {
+        page: 1,
+        limit: 5,
+        sort: 'createdAt',
+        sortOrder: 'desc',
+        search: {
+          reqStatus: 'OPEN',
+        },
+      },
+    },
+  });
 
   useEffect(() => {
     setMounted(true);
@@ -35,25 +71,10 @@ export default function ProviderDashboardPage() {
       return;
     }
 
-    // Check if user is a provider
     const userRole = currentUser?.userRole;
     if (userRole && userRole !== 'PROVIDER' && userRole !== 'provider') {
       router.push('/dashboard');
     }
-
-    // TODO: Fetch actual data from GraphQL queries
-    // Mock data for now
-    setAvailableRequests([
-      { _id: '1', reqTitle: 'Web Design', reqBudgetRange: '$3,500', reqDeadline: '2024-03-15' },
-      { _id: '2', reqTitle: 'Logo', reqBudgetRange: '$800', reqDeadline: '2024-02-28' },
-    ]);
-    setMyQuotes([
-      { _id: '123', reqTitle: 'Web Design', status: 'PENDING' },
-      { _id: '124', reqTitle: 'Logo', status: 'ACCEPTED' },
-    ]);
-    setActiveOrders([
-      { _id: '127', reqTitle: 'Legal Review', status: 'IN_PROGRESS', progress: 50 },
-    ]);
   }, [router, currentUser]);
 
   if (!mounted) {
@@ -75,192 +96,242 @@ export default function ProviderDashboardPage() {
     return null;
   }
 
+  const userName = currentUser?.userNick || providerOrgData?.getProviderOrganization?.organizationName || 'Provider';
+  const availableRequests = requestsData?.getServiceRequests?.list || [];
+  const myQuotes = quotesData?.getQuotesByOrganization || [];
+  const pendingQuotes = myQuotes.filter((q: any) => q.quoteStatus === 'PENDING');
+  const acceptedQuotes = myQuotes.filter((q: any) => q.quoteStatus === 'ACCEPTED');
+  const activeOrders = acceptedQuotes; // Using accepted quotes as active orders for now
+
   return (
-    <div className="flex h-screen w-full bg-[#F9FAFB] overflow-hidden antialiased">
-      {/* Sidebar - Navigation */}
+    <div className="flex h-screen w-full bg-gradient-to-br from-slate-50 via-white to-slate-50 overflow-hidden antialiased" style={{ fontFamily: 'Inter, sans-serif' }}>
       <ProviderSidebar />
-
-      {/* Main Content */}
+      
       <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
-        {/* ── Header (Same as other provider pages) ── */}
         <ProviderHeader title="Dashboard" />
-
-        {/* ── Scrollable Body ── */}
-        <main className="flex-1 overflow-y-auto bg-[#F9FAFB]">
-          <div className="max-w-6xl mx-auto px-8 py-10">
-            {/* Overview Section */}
-            <div className="mb-10">
-              <div className="mb-8">
-                <h2 className="text-2xl font-bold text-slate-900 mb-1">Overview</h2>
-                <p className="text-sm text-slate-500">Quick snapshot of your opportunities and work</p>
+        
+        <main className="flex-1 overflow-y-auto">
+          <div className="max-w-7xl mx-auto px-6 lg:px-8 py-8 lg:py-12">
+            {/* Premium Cards Grid - Two Square Cards on Top */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+              {/* Card 1: Active Orders - Square */}
+              <div className="group">
+                <div className="relative bg-white rounded-3xl border border-slate-200/60 shadow-lg hover:shadow-2xl transition-all duration-500 overflow-hidden aspect-square">
+                  {/* Featured Image Section */}
+                  <div className="relative h-full overflow-hidden">
+                    <Image
+                      src="/images/activeOrders.webp"
+                      alt="Active Orders"
+                      fill
+                      className="object-cover group-hover:scale-105 transition-transform duration-500"
+                      priority
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-900/70 via-slate-900/30 to-transparent"></div>
+                    {/* Number at top left */}
+                    <div className="absolute top-6 left-6 z-10">
+                      <p className="text-6xl font-black text-white leading-none">{activeOrders.length}</p>
+                    </div>
+                    <div className="absolute bottom-0 left-0 right-0 p-8">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center">
+                          <span className="material-symbols-outlined text-white text-2xl">work</span>
+                        </div>
+                        <div>
+                          <h2 className="text-2xl font-black text-white">Active Orders</h2>
+                          <p className="text-sm font-semibold text-white/90">Projects in progress</p>
+                        </div>
+                      </div>
+                      
+                      {/* Content Overlay */}
+                      <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-4 border border-white/20">
+                        {quotesLoading ? (
+                          <div className="h-12 bg-slate-100 rounded-xl animate-pulse"></div>
+                        ) : activeOrders.length === 0 ? (
+                          <p className="text-xs font-semibold text-slate-600 text-center py-2">No active orders</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {activeOrders.slice(0, 2).map((order: any) => (
+                              <div
+                                key={order._id}
+                                onClick={() => router.push(`/provider/projects?id=${order._id}`)}
+                                className="p-2 bg-slate-50 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
+                              >
+                                <p className="text-xs font-bold text-slate-900 truncate">
+                                  {order.quoteServiceReqData?.reqTitle || 'Project'}
+                                </p>
+                                <span className="text-xs font-semibold text-emerald-600">Accepted</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* CARD 1: Available Requests */}
-                <div className="bg-white border border-slate-200 rounded-lg hover:border-slate-300 hover:shadow-sm transition-all duration-200">
-                  <div className="p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-2">
-                        <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center">
-                          <span className="material-symbols-outlined text-slate-600 text-xl">description</span>
+              {/* Card 2: My Quotes - Square */}
+              <div className="group">
+                <div className="relative bg-white rounded-3xl border border-slate-200/60 shadow-lg hover:shadow-2xl transition-all duration-500 overflow-hidden aspect-square">
+                  {/* Featured Image Section */}
+                  <div className="relative h-full overflow-hidden">
+                    <Image
+                      src="/images/quotes.webp"
+                      alt="My Quotes"
+                      fill
+                      className="object-cover group-hover:scale-105 transition-transform duration-500"
+                      priority
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-emerald-900/70 via-emerald-900/30 to-transparent"></div>
+                    {/* Number at top left */}
+                    <div className="absolute top-6 left-6 z-10">
+                      <p className="text-6xl font-black text-white leading-none">{myQuotes.length}</p>
+                    </div>
+                    <div className="absolute bottom-0 left-0 right-0 p-8">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center">
+                          <span className="material-symbols-outlined text-white text-2xl">request_quote</span>
                         </div>
-                        <h3 className="text-lg font-bold text-slate-900">Available Requests ({availableRequests.length})</h3>
+                        <div>
+                          <h2 className="text-2xl font-black text-white">My Quotes</h2>
+                          <p className="text-sm font-semibold text-white/90">Your submissions</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 mb-4">
+                        <span className="px-3 py-1 bg-white/20 backdrop-blur-sm text-white rounded-lg text-xs font-bold border border-white/30">{acceptedQuotes.length} Accepted</span>
+                        <span className="px-3 py-1 bg-white/20 backdrop-blur-sm text-white rounded-lg text-xs font-bold border border-white/30">{pendingQuotes.length} Pending</span>
+                      </div>
+                      
+                      {/* Content Overlay */}
+                      <div>
+                        <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-4 border border-white/20">
+                          {quotesLoading ? (
+                            <div className="h-12 bg-slate-100 rounded-xl animate-pulse"></div>
+                          ) : myQuotes.length === 0 ? (
+                            <p className="text-xs font-semibold text-slate-600 text-center py-2">No quotes yet</p>
+                          ) : (
+                            <div className="space-y-2">
+                              {myQuotes.slice(0, 2).map((quote: any) => (
+                                <div
+                                  key={quote._id}
+                                  onClick={() => router.push(`/provider/my-quotes`)}
+                                  className="p-2 bg-slate-50 rounded-lg hover:bg-slate-100 transition-all cursor-pointer"
+                                >
+                                  <p className="text-xs font-bold text-slate-900 truncate mb-1">
+                                    {quote.quoteServiceReqData?.reqTitle || 'Quote'}
+                                  </p>
+                                  <div className="flex items-center justify-between">
+                                    <span className={`text-xs font-bold px-2 py-0.5 rounded ${
+                                      quote.quoteStatus === 'ACCEPTED' 
+                                        ? 'bg-emerald-100 text-emerald-700'
+                                        : quote.quoteStatus === 'REJECTED'
+                                        ? 'bg-red-100 text-red-700'
+                                        : 'bg-amber-100 text-amber-700'
+                                    }`}>
+                                      {quote.quoteStatus}
+                                    </span>
+                                    <span className="text-xs font-bold text-slate-600">
+                                      ${quote.quoteAmount?.toLocaleString()}
+                                    </span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
-                    {loading ? (
-                      <div className="space-y-2">
-                        <div className="h-12 bg-slate-100 rounded animate-pulse"></div>
-                        <div className="h-12 bg-slate-100 rounded animate-pulse"></div>
-                      </div>
-                    ) : availableRequests.length === 0 ? (
-                      <p className="text-sm text-slate-500 text-center py-4">No available requests</p>
-                    ) : (
-                      <div className="space-y-2 mb-4">
-                        {availableRequests.slice(0, 3).map((req: any) => (
-                          <div
-                            key={req._id}
-                            className="p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
-                            onClick={() => router.push(`/provider/jobs?id=${req._id}`)}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-semibold text-slate-900 truncate">{req.reqTitle}</p>
-                                <div className="flex items-center gap-2 mt-1 text-xs text-slate-600">
-                                  <span>{req.reqBudgetRange || 'N/A'}</span>
-                                  <span>•</span>
-                                  <span>{req.reqDeadline ? formatDate(req.reqDeadline) : 'No deadline'}</span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    <button
-                      onClick={() => router.push('/provider/jobs')}
-                      className="w-full mt-4 px-4 py-2 text-sm font-semibold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"
-                    >
-                      ➕ View All
-                    </button>
                   </div>
                 </div>
+              </div>
+            </div>
 
-                {/* CARD 2: My Quotes */}
-                <div className="bg-white border border-slate-200 rounded-lg hover:border-slate-300 hover:shadow-sm transition-all duration-200">
-                  <div className="p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-2">
-                        <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center">
-                          <span className="material-symbols-outlined text-slate-600 text-xl">request_quote</span>
+            {/* Card 3: Available Requests - Long Horizontal */}
+            <div className="group">
+              <div className="relative bg-white rounded-3xl border border-slate-200/60 shadow-lg hover:shadow-2xl transition-all duration-500 overflow-hidden">
+                {/* Featured Image Section */}
+                <div className="relative h-80 overflow-hidden">
+                  <Image
+                    src="/images/request.webp"
+                    alt="Available Requests"
+                    fill
+                    className="object-cover group-hover:scale-105 transition-transform duration-500"
+                    priority
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-indigo-900/70 via-indigo-900/30 to-transparent"></div>
+                  {/* Number at top left */}
+                  <div className="absolute top-8 left-8 lg:left-10 z-10">
+                    <p className="text-7xl font-black text-white leading-none">{availableRequests.length}</p>
+                  </div>
+                  <div className="absolute bottom-0 left-0 right-0 p-8 lg:p-10">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center">
+                          <span className="material-symbols-outlined text-white text-3xl">description</span>
                         </div>
-                        <h3 className="text-lg font-bold text-slate-900">My Quotes ({myQuotes.length})</h3>
+                        <div>
+                          <h2 className="text-3xl font-black text-white mb-1">Available Requests</h2>
+                          <p className="text-base font-semibold text-white/90">New opportunities waiting for you</p>
+                        </div>
                       </div>
                     </div>
-                    {loading ? (
-                      <div className="space-y-2">
-                        <div className="h-12 bg-slate-100 rounded animate-pulse"></div>
-                        <div className="h-12 bg-slate-100 rounded animate-pulse"></div>
-                      </div>
-                    ) : myQuotes.length === 0 ? (
-                      <p className="text-sm text-slate-500 text-center py-4">No quotes submitted</p>
-                    ) : (
-                      <div className="space-y-2 mb-4">
-                        {myQuotes.slice(0, 3).map((quote: any) => (
-                          <div
-                            key={quote._id}
-                            className="p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
-                            onClick={() => router.push(`/provider/jobs?id=${quote._id}`)}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs font-mono font-bold text-slate-400">#{quote._id}</span>
-                                  <span className="text-sm font-semibold text-slate-900 truncate">{quote.reqTitle}</span>
-                                </div>
-                                <div className="flex items-center gap-2 mt-1">
-                                  <span className="text-xs text-slate-600">→</span>
-                                  <span className={`text-xs font-semibold ${
-                                    quote.status === 'ACCEPTED' 
-                                      ? 'text-emerald-600' 
-                                      : quote.status === 'REJECTED'
-                                      ? 'text-red-600'
-                                      : 'text-slate-600'
-                                  }`}>
-                                    {quote.status === 'ACCEPTED' ? 'Accepted ✓' : quote.status === 'REJECTED' ? 'Rejected' : 'Pending'}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    <button
-                      onClick={() => router.push('/provider/jobs')}
-                      className="w-full mt-4 px-4 py-2 text-sm font-semibold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"
-                    >
-                      👀 Manage
-                    </button>
                   </div>
                 </div>
-
-                {/* CARD 3: Active Orders */}
-                <div className="bg-white border border-slate-200 rounded-lg hover:border-slate-300 hover:shadow-sm transition-all duration-200">
-                  <div className="p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-2">
-                        <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center">
-                          <span className="material-symbols-outlined text-slate-600 text-xl">work</span>
-                        </div>
-                        <h3 className="text-lg font-bold text-slate-900">Active Orders ({activeOrders.length})</h3>
-                      </div>
+                
+                {/* Content */}
+                <div className="relative p-8 lg:p-10 bg-white">
+                  {requestsLoading ? (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="h-24 bg-slate-100 rounded-xl animate-pulse"></div>
+                      ))}
                     </div>
-                    {loading ? (
-                      <div className="space-y-2">
-                        <div className="h-16 bg-slate-100 rounded animate-pulse"></div>
+                  ) : availableRequests.length === 0 ? (
+                    <div className="text-center py-12">
+                      <div className="w-16 h-16 rounded-2xl bg-slate-100 mx-auto mb-4 flex items-center justify-center">
+                        <span className="material-symbols-outlined text-slate-400 text-3xl">work_off</span>
                       </div>
-                    ) : activeOrders.length === 0 ? (
-                      <p className="text-sm text-slate-500 text-center py-4">No active orders</p>
-                    ) : (
-                      <div className="space-y-3 mb-4">
-                        {activeOrders.slice(0, 3).map((order: any) => (
-                          <div
-                            key={order._id}
-                            className="p-4 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
-                            onClick={() => router.push(`/provider/projects?id=${order._id}`)}
-                          >
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs font-mono font-bold text-slate-400">#{order._id}</span>
-                                <span className="text-sm font-semibold text-slate-900">{order.reqTitle}</span>
-                              </div>
+                      <p className="text-sm font-semibold text-slate-600 mb-1">No available requests</p>
+                      <p className="text-xs text-slate-500">Check back later for new opportunities</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                      {availableRequests.slice(0, 3).map((req: any) => (
+                        <div
+                          key={req._id}
+                          onClick={() => router.push(`/provider/jobs?id=${req._id}`)}
+                          className="p-5 bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200/60 hover:bg-white hover:shadow-lg transition-all cursor-pointer group"
+                        >
+                          <h3 className="text-base font-bold text-slate-900 mb-2 line-clamp-2">{req.reqTitle}</h3>
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+                              <span className="material-symbols-outlined text-sm">attach_money</span>
+                              <span>{req.reqBudgetRange || 'Contact to discuss'}</span>
                             </div>
-                            <div className="flex items-center gap-2 mt-2 mb-2">
-                              <span className="text-xs font-semibold text-blue-600">In Progress</span>
-                            </div>
-                            <div className="mt-3">
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="text-xs font-semibold text-slate-600">📊 Progress</span>
-                                <span className="text-xs font-bold text-slate-700">{order.progress || 0}%</span>
+                            {req.reqDeadline && (
+                              <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+                                <span className="material-symbols-outlined text-sm">calendar_today</span>
+                                <span>{formatDate(req.reqDeadline)}</span>
                               </div>
-                              <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
-                                <div 
-                                  className="h-full bg-blue-500 rounded-full transition-all duration-300" 
-                                  style={{ width: `${order.progress || 0}%` }}
-                                ></div>
-                              </div>
-                            </div>
+                            )}
+                            {req.reqCategory && (
+                              <span className="inline-block px-2 py-1 bg-indigo-100 text-indigo-700 text-xs font-bold rounded-lg">
+                                {req.reqCategory}
+                              </span>
+                            )}
                           </div>
-                        ))}
-                      </div>
-                    )}
-                    <button
-                      onClick={() => router.push('/provider/projects')}
-                      className="w-full mt-4 px-4 py-2 text-sm font-semibold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"
-                    >
-                      👀 View All
-                    </button>
-                  </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => router.push('/provider/jobs')}
+                    className="w-full px-6 py-3.5 bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-sky-500/20 flex items-center justify-center gap-2 group"
+                  >
+                    Browse All Jobs
+                    <span className="material-symbols-outlined text-lg transition-transform group-hover:translate-x-1">arrow_forward</span>
+                  </button>
                 </div>
               </div>
             </div>

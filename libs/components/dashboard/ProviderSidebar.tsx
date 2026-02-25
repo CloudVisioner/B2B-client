@@ -10,14 +10,10 @@ import { GET_PROVIDER_ORGANIZATION } from '../../../apollo/user/query';
 const NAV_ITEMS = [
   { icon: 'dashboard', label: 'Dashboard', href: '/provider/dashboard' },
   { icon: 'work', label: 'Find Jobs', href: '/provider/jobs' },
+  { icon: 'request_quote', label: 'My Quotes', href: '/provider/my-quotes' },
   { icon: 'corporate_fare', label: 'Organizations', href: '/provider/organizations' },
-  { icon: 'settings', label: 'Settings', href: '/provider/settings' },
-];
-
-const PROJECT_ITEMS = [
-  { icon: 'work', label: 'My Projects', href: '/provider/projects' },
-  { icon: 'receipt_long', label: 'Billing & Invoices', href: '/provider/billing' },
   { icon: 'group', label: 'Team Members', href: '/provider/team' },
+  { icon: 'settings', label: 'Settings', href: '/provider/settings' },
 ];
 
 export const ProviderSidebar: React.FC = () => {
@@ -127,33 +123,17 @@ export const ProviderSidebar: React.FC = () => {
             </Link>
           );
         })}
-
-        {PROJECT_ITEMS.map((item) => {
-          const isActive = router.pathname === item.href;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm transition-colors ${
-                isActive
-                  ? 'bg-indigo-50 text-[var(--primary)] font-semibold'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white font-medium'
-              }`}
-            >
-              <span
-                className="material-symbols-outlined text-[22px]"
-                style={isActive ? { fontVariationSettings: "'FILL' 1", color: 'var(--primary)' } : undefined}
-              >
-                {item.icon}
-              </span>
-              <span>{item.label}</span>
-            </Link>
-          );
-        })}
       </div>
 
       {/* Sidebar Footer */}
-      <div className="p-4 border-t border-slate-100 dark:border-slate-800">
+      <div className="p-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
+        <Link
+          href="/provider/help-support"
+          className="w-full flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+        >
+          <span className="material-symbols-outlined text-[22px]">help</span>
+          <span className="text-sm font-medium">Help & Support</span>
+        </Link>
         <button
           onClick={handleLogout}
           className="w-full flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"

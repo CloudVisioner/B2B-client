@@ -338,6 +338,65 @@ export const GET_RECOMMENDED_PROVIDERS = gql`
 `;
 
 // ============================================
+// QUOTE QUERIES
+// ============================================
+
+/**
+ * Get Quotes by Service Request (Buyer/Provider views)
+ */
+export const GET_QUOTES_BY_REQUEST = gql`
+  query QuotesByRequest($requestId: String!) {
+    getQuotesByRequest(requestId: $requestId) {
+      _id
+      quoteMessage
+      quoteAmount
+      quoteStatus
+      quoteValidUntil
+      createdAt
+      quoteProviderOrgData {
+        _id
+        organizationName
+      }
+      quoteCreatedByUserData {
+        _id
+        userNick
+        userEmail
+      }
+    }
+  }
+`;
+
+/**
+ * Get Quotes by Provider Organization
+ */
+export const GET_QUOTES_BY_ORGANIZATION = gql`
+  query QuotesByOrganization($orgId: String!) {
+    getQuotesByOrganization(orgId: $orgId) {
+      _id
+      quoteMessage
+      quoteAmount
+      quoteStatus
+      quoteValidUntil
+      createdAt
+      updatedAt
+      quoteServiceReqData {
+        _id
+        reqTitle
+        reqStatus
+        reqCategory
+        reqSubCategory
+        reqBudgetRange
+        reqDeadline
+      }
+      quoteProviderOrgData {
+        _id
+        organizationName
+      }
+    }
+  }
+`;
+
+// ============================================
 // LEGACY QUERIES (Keep for backward compatibility)
 // ============================================
 

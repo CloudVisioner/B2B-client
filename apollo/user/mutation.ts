@@ -338,6 +338,144 @@ export const UPDATE_SERVICE_REQUEST_STATUS = gql`
 `;
 
 // ============================================
+// QUOTE MUTATIONS
+// ============================================
+
+/**
+ * Create Quote (Provider)
+ * Role: PROVIDER
+ * Args: orgId, input: QuoteInput
+ */
+export const CREATE_QUOTE = gql`
+  mutation CreateQuote($orgId: String!, $input: QuoteInput!) {
+    createQuote(orgId: $orgId, input: $input) {
+      _id
+      quoteProviderOrgId
+      quoteServiceReqId
+      quoteCreatedByUserId
+      quoteMessage
+      quoteAmount
+      quoteValidUntil
+      quoteStatus
+      quoteTotalLikes
+      createdAt
+      updatedAt
+      quoteProviderOrgData {
+        _id
+        organizationName
+      }
+      quoteServiceReqData {
+        _id
+        reqTitle
+        reqStatus
+      }
+    }
+  }
+`;
+
+/**
+ * Accept Quote (Buyer)
+ * Role: BUYER
+ */
+export const ACCEPT_QUOTE = gql`
+  mutation AcceptQuote($quoteId: String!) {
+    acceptQuote(quoteId: $quoteId) {
+      quote {
+        _id
+        quoteServiceReqId
+        quoteProviderOrgId
+        quoteMessage
+        quoteAmount
+        quoteStatus
+        createdAt
+      }
+      serviceRequest {
+        _id
+        reqTitle
+        reqStatus
+        reqBuyerOrgId
+        createdAt
+      }
+      order {
+        _id
+        orderBuyerOrgId
+        orderProviderOrgId
+        orderServiceReqId
+        orderQuoteId
+        orderAmount
+        orderStatus
+        createdAt
+      }
+    }
+  }
+`;
+
+/**
+ * Reject Quote (Buyer)
+ * Role: BUYER
+ */
+export const REJECT_QUOTE = gql`
+  mutation RejectQuote($quoteId: String!) {
+    rejectQuote(quoteId: $quoteId) {
+      _id
+      quoteServiceReqId
+      quoteProviderOrgId
+      quoteMessage
+      quoteAmount
+      quoteStatus
+      createdAt
+      updatedAt
+    }
+  }
+`;
+
+/**
+ * Update Quote (Provider)
+ * Role: PROVIDER
+ * Updates a PENDING quote created by the current provider org
+ */
+export const UPDATE_QUOTE = gql`
+  mutation UpdateQuote($input: QuoteUpdate!) {
+    updateQuote(input: $input) {
+      _id
+      quoteProviderOrgId
+      quoteServiceReqId
+      quoteCreatedByUserId
+      quoteMessage
+      quoteAmount
+      quoteValidUntil
+      quoteStatus
+      quoteTotalLikes
+      createdAt
+      updatedAt
+      quoteProviderOrgData {
+        _id
+        organizationName
+      }
+      quoteServiceReqData {
+        _id
+        reqTitle
+        reqStatus
+      }
+    }
+  }
+`;
+
+/**
+ * Delete Quote (Provider)
+ * Role: PROVIDER
+ * Deletes a PENDING quote created by the current provider org
+ */
+export const DELETE_QUOTE = gql`
+  mutation DeleteQuote($quoteId: String!) {
+    deleteQuote(quoteId: $quoteId) {
+      _id
+      quoteStatus
+    }
+  }
+`;
+
+// ============================================
 // PROVIDER ORGANIZATION MUTATIONS
 // ============================================
 

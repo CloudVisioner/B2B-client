@@ -1,134 +1,152 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { useReactiveVar } from '@apollo/client';
+import { useReactiveVar, useQuery, useMutation } from '@apollo/client';
 import { userVar } from '../apollo/store';
 import { isLoggedIn } from '../libs/auth';
+import { getHeaders } from '../apollo/utils';
 import { Sidebar } from '../libs/components/dashboard/Sidebar';
+import { ProviderSidebar } from '../libs/components/dashboard/ProviderSidebar';
+import { Header } from '../libs/components/dashboard/Header';
+import { ProviderHeader } from '../libs/components/dashboard/ProviderHeader';
+import { GET_NOTIFICATIONS, GET_UNREAD_NOTIFICATION_COUNT, MARK_NOTIFICATION_AS_READ, MARK_ALL_NOTIFICATIONS_AS_READ } from '../apollo/user/notification';
 
-/* ─── Types ─── */
-interface NotificationItem {
-  id: string;
-  type: 'QUOTE' | 'MESSAGE' | 'MILESTONE' | 'ORDER' | 'SYSTEM';
-  label: string;
-  time: string;
-  description: string;
-  boldWords: string[];
-  actionLabel: string;
-  actionStyle: 'primary' | 'outline';
-  hasMenu?: boolean;
-  icon: string;
-  iconBg: string;
-  iconColor: string;
-  labelColor: string;
+interface Notification {
+  _id: string;
+  type: 'QUOTE_SENT' | 'QUOTE_ACCEPTED';
+  message: string;
+  read: boolean;
+  createdAt: string;
+  relatedQuoteId?: string;
+  senderUserData?: {
+    _id: string;
+    userNick?: string;
+    userEmail?: string;
+  };
 }
 
-/* ─── Mock Data ─── */
-const MOCK_NOTIFICATIONS: NotificationItem[] = [
-  {
-    id: 'n1',
-    type: 'QUOTE',
-    label: 'New Quote Received',
-    time: '14m ago',
-    description: 'Provider Alex submitted a premium proposal for your project Mobile App UI. Pricing matches your budget.',
-    boldWords: ['Provider Alex', 'Mobile App UI'],
-    actionLabel: 'View Quote',
-    actionStyle: 'primary',
-    hasMenu: true,
-    icon: 'request_quote',
-    iconBg: 'bg-amber-50',
-    iconColor: 'text-amber-600',
-    labelColor: 'text-indigo-600',
-  },
-  {
-    id: 'n2',
-    type: 'MESSAGE',
-    label: 'New Message',
-    time: '42m ago',
-    description: 'Legal Solutions LLC sent you a message regarding the Compliance Audit documentation.',
-    boldWords: ['Legal Solutions LLC', 'Compliance Audit'],
-    actionLabel: 'Message',
-    actionStyle: 'outline',
-    hasMenu: true,
-    icon: 'chat',
-    iconBg: 'bg-indigo-50',
-    iconColor: 'text-indigo-600',
-    labelColor: 'text-indigo-600',
-  },
-  {
-    id: 'n3',
-    type: 'MILESTONE',
-    label: 'Milestone Completed',
-    time: '2h ago',
-    description: 'Phase 1 of Website Rebrand has been completed by Design Studio.',
-    boldWords: ['Website Rebrand', 'Design Studio'],
-    actionLabel: 'Approve',
-    actionStyle: 'outline',
-    icon: 'check_circle',
-    iconBg: 'bg-slate-100',
-    iconColor: 'text-slate-500',
-    labelColor: 'text-slate-600',
-  },
-  {
-    id: 'n4',
-    type: 'ORDER',
-    label: 'Order Confirmed',
-    time: '3h ago',
-    description: 'Order #ORD-9902 has been accepted by the provider. Work is scheduled to start on Monday.',
-    boldWords: ['#ORD-9902'],
-    actionLabel: 'Track Order',
-    actionStyle: 'primary',
-    icon: 'shopping_cart',
-    iconBg: 'bg-indigo-50',
-    iconColor: 'text-indigo-600',
-    labelColor: 'text-indigo-600',
-  },
-  {
-    id: 'n5',
-    type: 'SYSTEM',
-    label: 'System Update',
-    time: '1d ago',
-    description: "We've updated our Privacy Policy. Please review the changes in your account settings.",
-    boldWords: ['Privacy Policy'],
-    actionLabel: 'Review',
-    actionStyle: 'outline',
-    icon: 'info',
-    iconBg: 'bg-slate-100',
-    iconColor: 'text-slate-400',
-    labelColor: 'text-slate-500',
-  },
-];
+const FILTER_TABS = ['All', 'Unread', 'Archived'] as const;
+type FilterTab = typeof FILTER_TABS[number];
 
-const FILTER_TABS = ['All', 'Quotes', 'Messages', 'Milestones', 'Orders', 'System'];
-
-/* ─── Bold-word renderer ─── */
-function renderDescription(text: string, boldWords: string[]) {
-  if (!boldWords.length) return text;
-
-  const regex = new RegExp(`(${boldWords.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'g');
-  const parts = text.split(regex);
-
-  return parts.map((part, i) =>
-    boldWords.includes(part) ? (
-      <span key={i} className="font-bold text-slate-900">{part}</span>
-    ) : (
-      <span key={i}>{part}</span>
-    )
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════
-   Page
-   ═══════════════════════════════════════════════════════════ */
 export default function NotificationsPage() {
   const router = useRouter();
   const currentUser = useReactiveVar(userVar);
   const [mounted, setMounted] = useState(false);
-  const [activeFilter, setActiveFilter] = useState('All');
+  const [activeFilter, setActiveFilter] = useState<FilterTab>('All');
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [isMarkingAll, setIsMarkingAll] = useState(false);
+
+  const isProvider = currentUser?.userRole === 'PROVIDER' || currentUser?.userRole === 'provider';
 
   useEffect(() => {
     setMounted(true);
     if (!isLoggedIn()) router.push('/login');
   }, [router]);
+
+  // Fetch notifications
+  const getSearchFilter = () => {
+    if (activeFilter === 'Unread') {
+      return { read: false, type: null };
+    }
+    return { read: null, type: null };
+  };
+
+  const { data, loading, refetch } = useQuery(GET_NOTIFICATIONS, {
+    skip: !isLoggedIn() || !currentUser?._id,
+    variables: {
+      input: {
+        page: 1,
+        limit: 50,
+        search: getSearchFilter(),
+      },
+    },
+    fetchPolicy: 'network-only',
+    context: { headers: isLoggedIn() ? getHeaders() : {} },
+  });
+
+  // Fetch unread count
+  const { data: countData } = useQuery(GET_UNREAD_NOTIFICATION_COUNT, {
+    skip: !isLoggedIn() || !currentUser?._id,
+    variables: {
+      input: {
+        page: 1,
+        limit: 1,
+        search: {
+          read: false,
+          type: null,
+        },
+      },
+    },
+    fetchPolicy: 'cache-and-network',
+    pollInterval: 30000,
+    context: { headers: isLoggedIn() ? getHeaders() : {} },
+  });
+
+  const [markAsRead] = useMutation(MARK_NOTIFICATION_AS_READ, {
+    context: { headers: isLoggedIn() ? getHeaders() : {} },
+    refetchQueries: [
+      { query: GET_NOTIFICATIONS, variables: { input: { page: 1, limit: 50, search: getSearchFilter() } } },
+      { query: GET_UNREAD_NOTIFICATION_COUNT, variables: { input: { page: 1, limit: 1, search: { read: false, type: null } } } },
+    ],
+  });
+
+  const [markAllAsReadMutation] = useMutation(MARK_ALL_NOTIFICATIONS_AS_READ, {
+    context: { headers: isLoggedIn() ? getHeaders() : {} },
+    refetchQueries: [
+      { query: GET_NOTIFICATIONS, variables: { input: { page: 1, limit: 50, search: getSearchFilter() } } },
+      { query: GET_UNREAD_NOTIFICATION_COUNT, variables: { input: { page: 1, limit: 1, search: { read: false, type: null } } } },
+    ],
+  });
+
+  const allNotifications: Notification[] = data?.getMyNotifications?.list || [];
+  const unreadCount = countData?.getUnreadNotificationCount || allNotifications.filter(n => !n.read).length;
+
+  const filteredNotifications = allNotifications;
+
+  const markAllAsRead = async () => {
+    setIsMarkingAll(true);
+    try {
+      await markAllAsReadMutation();
+      if (refetch) await refetch();
+    } catch (error) {
+      console.error('Failed to mark all as read:', error);
+    } finally {
+      setIsMarkingAll(false);
+    }
+  };
+
+  const handleNotificationClick = async (notification: Notification) => {
+    // Mark as read if not already read
+    if (!notification.read) {
+      try {
+        await markAsRead({ variables: { notificationId: notification._id } });
+      } catch (error) {
+        console.error('Failed to mark notification as read:', error);
+      }
+    }
+
+    // Navigate based on notification type
+    if (notification.relatedQuoteId) {
+      if (isProvider) {
+        router.push(`/provider/jobs?quoteId=${notification.relatedQuoteId}`);
+      } else {
+        router.push(`/service-requests?quoteId=${notification.relatedQuoteId}`);
+      }
+    }
+  };
+
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
 
   if (!mounted) {
     return (
@@ -143,35 +161,43 @@ export default function NotificationsPage() {
   if (!isLoggedIn()) return null;
 
   return (
-    <div className="flex h-screen w-full bg-[#F9FAFB] overflow-hidden antialiased">
-      <Sidebar />
-
+    <div className="flex h-screen w-full bg-white overflow-hidden antialiased">
+      {isProvider ? <ProviderSidebar /> : <Sidebar />}
+      
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <main className="flex-1 overflow-y-auto bg-[#F9FAFB]">
-          <div className="max-w-5xl mx-auto px-10 py-10 space-y-8">
-            {/* Title row */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Notifications</h1>
-                <span className="bg-red-500 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center">
-                  5
-                </span>
+        {isProvider ? <ProviderHeader title="Notifications" /> : <Header title="Notifications" />}
+        
+        <main className="flex-1 overflow-y-auto bg-slate-50">
+          <div className="max-w-4xl mx-auto px-6 py-8">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h1 className="text-2xl font-semibold text-slate-900">Notifications</h1>
+                {unreadCount > 0 && (
+                  <p className="text-sm text-slate-500 mt-1">{unreadCount} unread</p>
+                )}
               </div>
-              <button className="bg-[var(--primary)] hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg font-bold text-sm transition-all shadow-sm">
-                Mark All as Read
-              </button>
+              {unreadCount > 0 && (
+                <button
+                  onClick={markAllAsRead}
+                  disabled={isMarkingAll}
+                  className="px-4 py-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 disabled:opacity-50 transition-colors"
+                >
+                  {isMarkingAll ? 'Marking...' : 'Mark all as read'}
+                </button>
+              )}
             </div>
 
-            {/* Filter tabs */}
-            <div className="flex items-center gap-2">
+            {/* Modern Filter Tabs */}
+            <div className="flex items-center gap-2 mb-6">
               {FILTER_TABS.map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveFilter(tab)}
-                  className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${
+                  className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${
                     activeFilter === tab
-                      ? 'bg-[var(--primary)] text-white'
-                      : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                      ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white shadow-lg shadow-indigo-500/30 scale-105'
+                      : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50 border border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
                   }`}
                 >
                   {tab}
@@ -179,96 +205,99 @@ export default function NotificationsPage() {
               ))}
             </div>
 
-            {/* Notification list */}
-            <div className="space-y-0">
-              {MOCK_NOTIFICATIONS.map((notif) => (
-                <div
-                  key={notif.id}
-                  className="flex items-start gap-4 px-6 py-6 border-l-[3px] border-l-indigo-500 bg-white border-b border-slate-100 hover:bg-slate-50/50 transition-colors"
-                >
-                  {/* Icon */}
-                  <div className={`w-10 h-10 rounded-full ${notif.iconBg} flex items-center justify-center flex-shrink-0`}>
-                    <span className={`material-symbols-outlined ${notif.iconColor} text-xl`}>{notif.icon}</span>
-                  </div>
-
-                  {/* Content */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className={`text-xs font-bold uppercase tracking-wider ${notif.labelColor}`}>
-                        {notif.label}
-                      </span>
-                      <span className="w-1 h-1 rounded-full bg-slate-300" />
-                      <span className="text-xs text-slate-400 font-medium">{notif.time}</span>
-                    </div>
-                    <p className="text-sm text-slate-600 leading-relaxed">
-                      {renderDescription(notif.description, notif.boldWords)}
-                    </p>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <button
-                      className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
-                        notif.actionStyle === 'primary'
-                          ? 'bg-[var(--primary)] hover:bg-indigo-700 text-white shadow-sm'
-                          : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
-                      }`}
-                    >
-                      {notif.actionLabel}
-                    </button>
-                    {notif.hasMenu && (
-                      <button className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
-                        <span className="material-symbols-outlined text-lg">more_horiz</span>
-                      </button>
-                    )}
-                  </div>
+            {/* Ultra-Modern Notifications List */}
+            {loading ? (
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-16 text-center">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-100 to-indigo-200 dark:from-indigo-900/30 dark:to-indigo-800/30 mx-auto mb-4 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-indigo-600 dark:text-indigo-400 text-2xl animate-spin">sync</span>
                 </div>
-              ))}
-            </div>
-
-            {/* Pagination — centered */}
-            <div className="flex flex-col items-center gap-3 py-8">
-              <div className="flex items-center gap-2">
-                <button className="w-9 h-9 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:bg-white hover:text-[var(--primary)] transition-colors">
-                  <span className="material-symbols-outlined text-lg">chevron_left</span>
-                </button>
-                <button className="w-9 h-9 flex items-center justify-center rounded-lg border border-[var(--primary)] bg-indigo-50 text-[var(--primary)] text-sm font-bold">
-                  1
-                </button>
-                <button className="w-9 h-9 flex items-center justify-center rounded-lg border border-transparent text-slate-600 hover:bg-white hover:border-slate-200 text-sm font-medium">
-                  2
-                </button>
-                <button className="w-9 h-9 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:bg-white hover:text-[var(--primary)] transition-colors">
-                  <span className="material-symbols-outlined text-lg">chevron_right</span>
-                </button>
+                <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Loading notifications...</p>
               </div>
-              <p className="text-sm text-slate-400 font-medium">
-                Showing 5 of 12 notifications
-              </p>
-            </div>
+            ) : filteredNotifications.length === 0 ? (
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-16 text-center">
+                <div className="w-24 h-24 mx-auto mb-5 opacity-10">
+                  <svg viewBox="0 0 24 24" fill="none" className="w-full h-full text-slate-400">
+                    <path
+                      d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </div>
+                <p className="text-base font-semibold text-slate-700 dark:text-slate-300">You're all caught up</p>
+                <p className="text-sm text-slate-400 dark:text-slate-500 mt-1.5">No notifications to display</p>
+              </div>
+            ) : (
+              <div className="space-y-2 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+                {filteredNotifications.map((notification) => (
+                  <button
+                    key={notification._id}
+                    onClick={() => handleNotificationClick(notification)}
+                    className={`w-full px-6 py-5 text-left hover:bg-gradient-to-r hover:from-slate-50 hover:to-white dark:hover:from-slate-800/50 dark:hover:to-slate-900/50 transition-all group relative ${
+                      !notification.read ? 'bg-gradient-to-r from-indigo-50/50 to-white dark:from-indigo-900/10 dark:to-slate-900' : ''
+                    }`}
+                  >
+                    {/* Modern Active Indicator */}
+                    {!notification.read && (
+                      <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-indigo-500 to-indigo-600 rounded-r-full"></div>
+                    )}
 
-            {/* Management Footer */}
-            <div className="flex flex-wrap items-center gap-4 pt-8 border-t border-[var(--border)]">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mr-4">Management</p>
-              <button
-                onClick={() => router.push('/marketplace')}
-                className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-md text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
-              >
-                <span className="material-symbols-outlined text-lg">groups</span>
-                Browse Talent
-              </button>
-              <button className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-md text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
-                <span className="material-symbols-outlined text-lg">settings_suggest</span>
-                Manage Organizations
-              </button>
-              <button className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-md text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
-                <span className="material-symbols-outlined text-lg">help</span>
-                Help &amp; Support
-              </button>
-            </div>
-            <div className="pb-8">
-              <p className="text-xs text-slate-400 font-medium">© 2024 SME Connect. Enterprise Buyer Protocol v2.4.1</p>
-            </div>
+                    <div className="flex items-start gap-4">
+                      {/* Modern Status Icon */}
+                      <div className={`flex-shrink-0 w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm transition-transform group-hover:scale-110 ${
+                        notification.type === 'QUOTE_ACCEPTED'
+                          ? 'bg-gradient-to-br from-emerald-100 to-emerald-200 dark:from-emerald-900/40 dark:to-emerald-800/40'
+                          : 'bg-gradient-to-br from-amber-100 to-amber-200 dark:from-amber-900/40 dark:to-amber-800/40'
+                      }`}>
+                        <span className={`material-symbols-outlined text-lg ${
+                          notification.type === 'QUOTE_ACCEPTED'
+                            ? 'text-emerald-600 dark:text-emerald-400'
+                            : 'text-amber-600 dark:text-amber-400'
+                        }`}>
+                          {notification.type === 'QUOTE_ACCEPTED' ? 'check_circle' : 'request_quote'}
+                        </span>
+                      </div>
+
+                      {/* Content */}
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm leading-relaxed mb-2 ${
+                          notification.read
+                            ? 'text-slate-600 dark:text-slate-400'
+                            : 'text-slate-900 dark:text-white font-semibold'
+                        }`}>
+                          {notification.message}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs text-slate-400 dark:text-slate-500">
+                            {formatTime(notification.createdAt)}
+                          </p>
+                          {notification.senderUserData?.userNick && (
+                            <>
+                              <span className="text-slate-300 dark:text-slate-600">•</span>
+                              <p className="text-xs text-slate-400 dark:text-slate-500">
+                                {notification.senderUserData.userNick}
+                              </p>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Modern Indicators */}
+                      <div className="flex-shrink-0 flex items-center gap-2">
+                        {!notification.read && (
+                          <div className="w-2.5 h-2.5 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-full shadow-sm"></div>
+                        )}
+                        <span className="material-symbols-outlined text-slate-300 dark:text-slate-600 text-xl opacity-0 group-hover:opacity-100 transition-opacity">
+                          arrow_forward
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </main>
       </div>

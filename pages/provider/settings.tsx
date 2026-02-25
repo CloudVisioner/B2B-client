@@ -16,7 +16,6 @@ import { mapCategoryToBackend, mapSubCategoryToBackend } from '../../libs/utils/
 const TABS = [
   { id: 'organization', label: 'Organization', icon: 'business' },
   { id: 'profile', label: 'Profile', icon: 'person' },
-  { id: 'notifications', label: 'Notifications', icon: 'notifications' },
   { id: 'billing', label: 'Billing', icon: 'credit_card' },
 ] as const;
 
@@ -171,6 +170,12 @@ function OrganizationTab() {
     context: {
       headers: isLoggedIn() ? getHeaders() : {},
     },
+    refetchQueries: [
+      {
+        query: GET_PROVIDER_ORGANIZATION,
+      },
+    ],
+    awaitRefetchQueries: true,
     onCompleted: (data) => {
       setShowSuccessMessage(true);
       setIsEditMode(false);
@@ -190,6 +195,12 @@ function OrganizationTab() {
     context: {
       headers: isLoggedIn() ? getHeaders() : {},
     },
+    refetchQueries: [
+      {
+        query: GET_PROVIDER_ORGANIZATION,
+      },
+    ],
+    awaitRefetchQueries: true,
     onCompleted: (data) => {
       setShowSuccessMessage(true);
       setIsEditMode(false);
@@ -730,14 +741,33 @@ function ProfileTab() {
     };
   }, []);
 
+  // Get userId from multiple sources - userVar or JWT token
+  const getUserIdFromToken = (): string | null => {
+    const token = getJwtToken();
+    if (token) {
+      try {
+        const claims = decodeJWT(token);
+        return claims?._id || claims?.userId || null;
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  };
+
+  const userIdFromVar = currentUser?._id && currentUser._id.trim() && currentUser._id.length === 24 ? currentUser._id : null;
+  const userIdFromToken = getUserIdFromToken();
+  const validUserId = userIdFromVar || (userIdFromToken && userIdFromToken.trim() && userIdFromToken.length === 24 ? userIdFromToken : null);
+  
   const { data: profileData, loading: profileLoading, refetch: refetchProfile } = useQuery(GET_MY_PROFILE, {
-    skip: !isLoggedIn() || !currentUser?._id,
-    variables: { userId: currentUser?._id || '' },
+    skip: !isLoggedIn() || !validUserId,
+    variables: { userId: validUserId || '' },
     fetchPolicy: 'cache-and-network',
     errorPolicy: 'all',
     context: {
       headers: isLoggedIn() ? getHeaders() : {},
     },
+    notifyOnNetworkStatusChange: false,
     onCompleted: (data) => {
       if (data?.getUser && !isEditMode && !imageFile) {
         const user = data.getUser;
@@ -770,7 +800,7 @@ function ProfileTab() {
     refetchQueries: [
       {
         query: GET_MY_PROFILE,
-        variables: { userId: currentUser?._id || '' },
+        variables: { userId: validUserId || '' },
       },
     ],
     awaitRefetchQueries: true,
@@ -797,6 +827,9 @@ function ProfileTab() {
           updateUserInfo(updatedUser.accessToken);
         }
       }
+      
+      // Refetch profile to ensure data is up to date
+      await refetchProfile();
 
       if (passwordTimeoutRef.current) clearTimeout(passwordTimeoutRef.current);
       passwordTimeoutRef.current = setTimeout(() => {
@@ -1239,130 +1272,6 @@ function ProfileTab() {
   );
 }
 
-/* ═══════════════════════════════════════════════════════════
-   Notifications Tab
-   ═══════════════════════════════════════════════════════════ */
-function NotificationsTab() {
-  const [notifications, setNotifications] = useState({
-    emailNotifications: true,
-    quoteNotifications: true,
-    orderNotifications: true,
-    messageNotifications: true,
-    marketingEmails: false,
-  });
-
-  const handleToggle = (key: string) => {
-    setNotifications((prev) => ({ ...prev, [key]: !prev[key as keyof typeof prev] }));
-  };
-
-  return (
-    <div className="space-y-8">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-8">
-        <div className="mb-6">
-          <h3 className="text-lg font-bold text-slate-900 dark:text-white">Notification Preferences</h3>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Manage how you receive notifications</p>
-        </div>
-
-        <div className="space-y-6">
-          <div className="flex items-center justify-between py-4 border-b border-slate-200 dark:border-slate-700">
-            <div>
-              <p className="font-semibold text-slate-900 dark:text-white">Email Notifications</p>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Receive notifications via email</p>
-            </div>
-              <button
-              onClick={() => handleToggle('emailNotifications')}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                notifications.emailNotifications ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-600'
-              }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  notifications.emailNotifications ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-              </button>
-          </div>
-
-          <div className="flex items-center justify-between py-4 border-b border-slate-200 dark:border-slate-700">
-            <div>
-              <p className="font-semibold text-slate-900 dark:text-white">Quote Notifications</p>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Get notified when you receive new quotes</p>
-            </div>
-              <button
-              onClick={() => handleToggle('quoteNotifications')}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                notifications.quoteNotifications ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-600'
-              }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  notifications.quoteNotifications ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-              </button>
-          </div>
-
-          <div className="flex items-center justify-between py-4 border-b border-slate-200 dark:border-slate-700">
-            <div>
-              <p className="font-semibold text-slate-900 dark:text-white">Order Notifications</p>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Updates about your active orders</p>
-            </div>
-            <button
-              onClick={() => handleToggle('orderNotifications')}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                notifications.orderNotifications ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-600'
-              }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  notifications.orderNotifications ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-              </button>
-            </div>
-
-          <div className="flex items-center justify-between py-4 border-b border-slate-200 dark:border-slate-700">
-            <div>
-              <p className="font-semibold text-slate-900 dark:text-white">Message Notifications</p>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Notifications for new messages</p>
-            </div>
-            <button
-              onClick={() => handleToggle('messageNotifications')}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                notifications.messageNotifications ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-600'
-              }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  notifications.messageNotifications ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between py-4">
-            <div>
-              <p className="font-semibold text-slate-900 dark:text-white">Marketing Emails</p>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Receive marketing and promotional emails</p>
-            </div>
-            <button
-              onClick={() => handleToggle('marketingEmails')}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                notifications.marketingEmails ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-600'
-              }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  notifications.marketingEmails ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 /* ═══════════════════════════════════════════════════════════
    Billing Tab
@@ -1468,8 +1377,6 @@ export default function ProviderSettingsPage() {
         return <OrganizationTab />;
       case 'profile':
         return <ProfileTab />;
-      case 'notifications':
-        return <NotificationsTab />;
       case 'billing':
         return <BillingTab />;
       default:
@@ -1495,7 +1402,6 @@ export default function ProviderSettingsPage() {
               {TABS.map((tab) => {
                 const IconComponent = tab.icon === 'business' ? 'business' :
                                     tab.icon === 'person' ? 'person' :
-                                    tab.icon === 'notifications' ? 'notifications' :
                                     'credit_card';
                 const isActive = activeTab === tab.id;
                 return (

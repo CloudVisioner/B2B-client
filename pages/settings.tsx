@@ -15,7 +15,6 @@ import { getHeaders } from '../apollo/utils';
 const TABS = [
   { id: 'organization', label: 'Organization', icon: 'business' },
   { id: 'profile', label: 'Profile', icon: 'person' },
-  { id: 'notifications', label: 'Notifications', icon: 'notifications' },
   { id: 'billing', label: 'Billing', icon: 'credit_card' },
 ] as const;
 
@@ -119,6 +118,12 @@ function OrganizationTab() {
     context: {
       headers: isLoggedIn() ? getHeaders() : {},
     },
+    refetchQueries: [
+      {
+        query: GET_BUYER_ORGANIZATION,
+      },
+    ],
+    awaitRefetchQueries: true,
     onCompleted: async (data) => {
       setShowSuccessMessage(true);
       setIsCreated(true);
@@ -155,6 +160,12 @@ function OrganizationTab() {
     context: {
       headers: isLoggedIn() ? getHeaders() : {},
     },
+    refetchQueries: [
+      {
+        query: GET_BUYER_ORGANIZATION,
+      },
+    ],
+    awaitRefetchQueries: true,
     onCompleted: async (data) => {
       setShowSuccessMessage(true);
       setIsCreated(false);
@@ -592,14 +603,33 @@ function ProfileTab() {
     };
   }, []);
 
+  // Get userId from multiple sources - userVar or JWT token
+  const getUserIdFromToken = (): string | null => {
+    const token = getJwtToken();
+    if (token) {
+      try {
+        const claims = decodeJWT(token);
+        return claims?._id || claims?.userId || null;
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  };
+
+  const userIdFromVar = currentUser?._id && currentUser._id.trim() && currentUser._id.length === 24 ? currentUser._id : null;
+  const userIdFromToken = getUserIdFromToken();
+  const validUserId = userIdFromVar || (userIdFromToken && userIdFromToken.trim() && userIdFromToken.length === 24 ? userIdFromToken : null);
+  
   const { data: profileData, loading: profileLoading, refetch: refetchProfile } = useQuery(GET_MY_PROFILE, {
-    skip: !isLoggedIn() || !currentUser?._id,
-    variables: { userId: currentUser?._id || '' },
+    skip: !isLoggedIn() || !validUserId,
+    variables: { userId: validUserId || '' },
     fetchPolicy: 'cache-and-network',
     errorPolicy: 'all',
     context: {
       headers: isLoggedIn() ? getHeaders() : {},
     },
+    notifyOnNetworkStatusChange: false,
     onCompleted: (data) => {
       if (data?.getUser && !isEditMode && !imageFile) {
         const user = data.getUser;
@@ -635,7 +665,7 @@ function ProfileTab() {
     refetchQueries: [
       {
         query: GET_MY_PROFILE,
-        variables: { userId: currentUser?._id || '' },
+        variables: { userId: validUserId || '' },
       },
     ],
     awaitRefetchQueries: true,
@@ -665,6 +695,9 @@ function ProfileTab() {
           updateUserInfo(updatedUser.accessToken);
         }
       }
+      
+      // Refetch profile to ensure data is up to date
+      await refetchProfile();
 
       if (passwordTimeoutRef.current) clearTimeout(passwordTimeoutRef.current);
       passwordTimeoutRef.current = setTimeout(() => {
@@ -1180,150 +1213,6 @@ function ToggleSwitch({
   );
 }
 
-function NotificationsTab() {
-  const [notifications, setNotifications] = useState({
-    orderUpdates: true,
-    messages: true,
-    billing: true,
-  });
-  const [isSaving, setIsSaving] = useState(false);
-  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
-  const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (successTimeoutRef.current) {
-        clearTimeout(successTimeoutRef.current);
-        successTimeoutRef.current = null;
-      }
-    };
-  }, []);
-
-  const handleToggle = (key: keyof typeof notifications) => {
-    setNotifications((prev) => ({
-      ...prev,
-      [key]: !prev[key],
-    }));
-  };
-
-  const handleSave = async () => {
-    setIsSaving(true);
-    try {
-      // TODO: Add API call to save notification preferences
-      // await saveNotificationPreferences(notifications);
-      
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      
-      setShowSuccessMessage(true);
-      if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current);
-      successTimeoutRef.current = setTimeout(() => {
-        setShowSuccessMessage(false);
-      }, 3000);
-    } catch (error) {
-      console.error('Error saving notification preferences:', error);
-      alert('Failed to save notification preferences. Please try again.');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const notificationItems = [
-    {
-      key: 'orderUpdates' as const,
-      title: 'Order Updates',
-      description: 'Quotes and status changes',
-      icon: 'local_shipping',
-      iconBg: 'bg-indigo-50',
-      iconColor: 'text-indigo-600',
-    },
-    {
-      key: 'messages' as const,
-      title: 'Messages',
-      description: 'Provider chats',
-      icon: 'chat',
-      iconBg: 'bg-emerald-50',
-      iconColor: 'text-emerald-600',
-    },
-    {
-      key: 'billing' as const,
-      title: 'Billing',
-      description: 'Payments and invoices',
-      icon: 'payments',
-      iconBg: 'bg-rose-50',
-      iconColor: 'text-rose-600',
-    },
-  ];
-
-  return (
-    <div className="space-y-8">
-      {showSuccessMessage && (
-        <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-top-5 fade-in duration-300">
-          <div className="bg-emerald-500 text-white px-6 py-4 rounded-lg shadow-lg flex items-center gap-3 min-w-[300px]">
-            <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-            <div>
-              <p className="font-bold text-sm">Success!</p>
-              <p className="text-xs text-emerald-50">Notification preferences saved</p>
-            </div>
-            <button onClick={() => setShowSuccessMessage(false)} className="ml-auto text-white/80 hover:text-white">
-              <span className="material-symbols-outlined text-lg">close</span>
-            </button>
-          </div>
-        </div>
-      )}
-
-      <div className="bg-white border border-slate-200 rounded-xl p-8">
-        <div className="mb-6">
-          <h3 className="text-lg font-bold text-slate-900 mb-1">🔔 Notifications</h3>
-          <p className="text-sm text-slate-500">Manage your notification preferences</p>
-        </div>
-
-        <div className="space-y-3">
-          {notificationItems.map((item) => (
-            <div
-              key={item.key}
-              className="flex items-center justify-between p-4 border border-slate-100 rounded-lg hover:border-slate-200 transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-lg ${item.iconBg} flex items-center justify-center flex-shrink-0`}>
-                  <span className={`material-symbols-outlined ${item.iconColor}`}>{item.icon}</span>
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-slate-900">{item.title}</p>
-                  <p className="text-xs text-slate-500">{item.description}</p>
-                </div>
-              </div>
-              <ToggleSwitch
-                isOn={notifications[item.key]}
-                onToggle={() => handleToggle(item.key)}
-              />
-            </div>
-          ))}
-        </div>
-
-        <div className="flex justify-end mt-8 pt-6 border-t border-slate-100">
-          <button
-            onClick={handleSave}
-            disabled={isSaving}
-            className="bg-[var(--primary)] hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-6 py-2.5 rounded-lg font-bold text-sm transition-all shadow-sm flex items-center gap-2"
-          >
-            {isSaving ? (
-              <>
-                <span className="material-symbols-outlined text-lg animate-spin">sync</span>
-                Saving...
-              </>
-            ) : (
-              <>
-                <span className="material-symbols-outlined text-lg">save</span>
-                Save
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 /* ═══════════════════════════════════════════════════════════
    Billing Tab
@@ -1527,7 +1416,6 @@ export default function SettingsPage() {
     switch (activeTab) {
       case 'organization': return <OrganizationTab />;
       case 'profile': return <ProfileTab />;
-      case 'notifications': return <NotificationsTab />;
       case 'billing': return <BillingTab />;
     }
   };

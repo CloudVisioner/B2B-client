@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useReactiveVar, useQuery } from '@apollo/client';
 import { userVar } from '../../../apollo/store';
-import { GET_BUYER_ORGANIZATION } from '../../../apollo/user/query';
+import { GET_BUYER_ORGANIZATION, GET_MY_PROFILE } from '../../../apollo/user/query';
 import { getHeaders } from '../../../apollo/utils';
-import { isLoggedIn } from '../../auth';
+import { isLoggedIn, getJwtToken, decodeJWT } from '../../auth';
+import { NotificationBell } from './NotificationBell';
 
 interface HeaderProps {
   title?: string;
@@ -15,6 +16,82 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
   const router = useRouter();
   const currentUser = useReactiveVar(userVar);
   const userName = currentUser?.userNick || 'User';
+
+  // Initialize userVar from JWT token on mount if not already set
+  useEffect(() => {
+    if (!currentUser?._id && isLoggedIn()) {
+      const token = getJwtToken();
+      if (token) {
+        try {
+          const claims = decodeJWT(token);
+          if (claims?._id || claims?.userId) {
+            userVar({
+              _id: claims._id || claims.userId,
+              userNick: claims.userNick || '',
+              userEmail: claims.userEmail || '',
+              userImage: claims.userImage || '',
+              userRole: claims.userRole || '',
+              ...claims,
+            });
+          }
+        } catch (e) {
+          // Ignore
+        }
+      }
+    }
+  }, []);
+
+  // Get userId from currentUser or token
+  const getUserId = (): string | null => {
+    if (currentUser?._id && currentUser._id.length === 24) return currentUser._id;
+    const token = getJwtToken();
+    if (token) {
+      try {
+        const claims = decodeJWT(token);
+        return claims?._id || claims?.userId || null;
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  };
+
+  const validUserId = getUserId();
+
+  // Fetch user profile to get latest image on page load and after updates
+  const { data: profileData } = useQuery(GET_MY_PROFILE, {
+    skip: !isLoggedIn() || !validUserId,
+    variables: { userId: validUserId || '' },
+    fetchPolicy: 'cache-and-network',
+    errorPolicy: 'all',
+    context: {
+      headers: isLoggedIn() ? getHeaders() : {},
+    },
+    onCompleted: (data) => {
+      if (data?.getUser?.userImage) {
+        const current = userVar();
+        // Update userVar with latest image
+        userVar({
+          ...current,
+          userImage: data.getUser.userImage,
+        });
+      }
+    },
+  });
+
+  // Use profile image if available, otherwise use currentUser image or token claims
+  const userImage = profileData?.getUser?.userImage || currentUser?.userImage || (() => {
+    const token = getJwtToken();
+    if (token) {
+      try {
+        const claims = decodeJWT(token);
+        return claims?.userImage || null;
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  })();
 
   // Fetch organization data
   const { data: orgData } = useQuery(GET_BUYER_ORGANIZATION, {
@@ -51,17 +128,27 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
 
         <div className="h-8 w-px bg-slate-200 mx-2" />
 
-        <button className="relative w-10 h-10 flex items-center justify-center text-slate-500 hover:bg-slate-50 rounded-full transition-colors">
-          <span className="material-symbols-outlined">notifications</span>
-          <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-white" />
-        </button>
+        <NotificationBell userId={currentUser?._id} userRole={currentUser?.userRole} />
 
         <button className="flex items-center gap-2 pl-2 py-1 pr-1 hover:bg-slate-50 rounded-full transition-colors border border-slate-100">
-          <img
-            alt="Profile"
-            className="w-8 h-8 rounded-full object-cover"
-            src={currentUser?.userImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=4F46E5&color=fff`}
-          />
+          {userImage ? (
+            <img
+              alt="Profile"
+              className="w-8 h-8 rounded-full object-cover"
+              src={userImage}
+              onError={(e) => {
+                // Fallback to initials if image fails
+                const target = e.target as HTMLImageElement;
+                target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=4F46E5&color=fff`;
+              }}
+            />
+          ) : (
+            <img
+              alt="Profile"
+              className="w-8 h-8 rounded-full object-cover"
+              src={`https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=4F46E5&color=fff`}
+            />
+          )}
           <span className="material-symbols-outlined text-slate-400">expand_more</span>
         </button>
       </div>

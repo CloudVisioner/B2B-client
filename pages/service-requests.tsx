@@ -5,8 +5,8 @@ import { userVar } from '../apollo/store';
 import { isLoggedIn } from '../libs/auth';
 import { getHeaders } from '../apollo/utils';
 import { Sidebar } from '../libs/components/dashboard/Sidebar';
-import { GET_BUYER_SERVICE_REQUESTS } from '../apollo/user/query';
-import { UPDATE_SERVICE_REQUEST } from '../apollo/user/mutation';
+import { GET_BUYER_SERVICE_REQUESTS, GET_QUOTES_BY_REQUEST } from '../apollo/user/query';
+import { UPDATE_SERVICE_REQUEST, ACCEPT_QUOTE, REJECT_QUOTE } from '../apollo/user/mutation';
 
 /* ─── Service Request Interface ─── */
 /* ✅ Using correct field names from backend */
@@ -183,6 +183,8 @@ export default function ServiceRequestsPage() {
   const [selectedRequest, setSelectedRequest] = useState<ServiceRequest | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isQuotesOpen, setIsQuotesOpen] = useState(false);
+  const [quotesForRequest, setQuotesForRequest] = useState<ServiceRequest | null>(null);
   const [editingRequest, setEditingRequest] = useState<ServiceRequest | null>(null);
 
   // Debounce search to avoid firing a query on every keystroke
@@ -214,6 +216,21 @@ export default function ServiceRequestsPage() {
   });
 
   const serviceRequests = data?.getBuyerServiceRequests?.list || [];
+  
+  // Fetch quotes for selected request
+  const quotesRequestId = quotesForRequest?._id;
+  const shouldFetchQuotes = isQuotesOpen && !!quotesRequestId && quotesRequestId.length > 0;
+  const {
+    data: quotesData,
+    loading: quotesLoading,
+    refetch: refetchQuotes,
+  } = useQuery(GET_QUOTES_BY_REQUEST, {
+    variables: { requestId: quotesRequestId || '' },
+    skip: !shouldFetchQuotes,
+    fetchPolicy: 'network-only',
+    context: { headers: isLoggedIn() ? getHeaders() : {} },
+  });
+
   const metaCounter = data?.getBuyerServiceRequests?.metaCounter || {
     total: 0,
     open: 0,
@@ -223,6 +240,69 @@ export default function ServiceRequestsPage() {
     draft: 0,
     cancelled: 0,
   };
+
+  // Accept/Reject Quote mutations
+  const [acceptQuote, { loading: isAcceptingQuote }] = useMutation(ACCEPT_QUOTE, {
+    context: { headers: isLoggedIn() ? getHeaders() : {} },
+    refetchQueries: [
+      {
+        query: GET_BUYER_SERVICE_REQUESTS,
+        variables: {
+          input: {
+            status: statusFilter !== 'all' ? statusFilter.toUpperCase() : undefined,
+            search: debouncedSearch || undefined,
+            sortBy: sortBy === 'newest' ? 'createdAt' : sortBy === 'deadline' ? 'reqDeadline' : 'reqBudgetRange',
+            sortOrder: 'desc',
+            page: 1,
+            limit: 50,
+          },
+        },
+      },
+      {
+        query: GET_QUOTES_BY_REQUEST,
+        variables: { requestId: quotesForRequest?._id || '' },
+        skip: !isQuotesOpen || !quotesForRequest?._id,
+      },
+    ],
+    awaitRefetchQueries: true,
+    onCompleted: () => {
+      // Success message could go here
+    },
+    onError: (error) => {
+      alert(error?.graphQLErrors?.[0]?.message || error?.message || 'Failed to accept quote');
+    },
+  });
+
+  const [rejectQuote, { loading: isRejectingQuote }] = useMutation(REJECT_QUOTE, {
+    context: { headers: isLoggedIn() ? getHeaders() : {} },
+    refetchQueries: [
+      {
+        query: GET_BUYER_SERVICE_REQUESTS,
+        variables: {
+          input: {
+            status: statusFilter !== 'all' ? statusFilter.toUpperCase() : undefined,
+            search: debouncedSearch || undefined,
+            sortBy: sortBy === 'newest' ? 'createdAt' : sortBy === 'deadline' ? 'reqDeadline' : 'reqBudgetRange',
+            sortOrder: 'desc',
+            page: 1,
+            limit: 50,
+          },
+        },
+      },
+      {
+        query: GET_QUOTES_BY_REQUEST,
+        variables: { requestId: quotesForRequest?._id || '' },
+        skip: !isQuotesOpen || !quotesForRequest?._id,
+      },
+    ],
+    awaitRefetchQueries: true,
+    onCompleted: () => {
+      // Success message could go here
+    },
+    onError: (error) => {
+      alert(error?.graphQLErrors?.[0]?.message || error?.message || 'Failed to reject quote');
+    },
+  });
 
   // Update mutation
   const [updateServiceRequest, { loading: isUpdating }] = useMutation(UPDATE_SERVICE_REQUEST, {
@@ -520,7 +600,18 @@ export default function ServiceRequestsPage() {
                         >
                           View Details
                         </button>
-                        <button className="bg-[var(--primary)] hover:bg-indigo-700 text-white px-5 py-2 rounded-lg font-bold text-sm transition-all shadow-sm flex items-center gap-2">
+                        <button 
+                          onClick={() => {
+                            if (req.reqStatus === 'OPEN') {
+                              setQuotesForRequest(req);
+                              setIsQuotesOpen(true);
+                            } else {
+                              setSelectedRequest(req);
+                              setIsModalOpen(true);
+                            }
+                          }}
+                          className="bg-[var(--primary)] hover:bg-indigo-700 text-white px-5 py-2 rounded-lg font-bold text-sm transition-all shadow-sm flex items-center gap-2"
+                        >
                           {actionIcon(req.reqStatus) && (
                             <span className="material-symbols-outlined text-sm">{actionIcon(req.reqStatus)}</span>
                           )}
@@ -759,7 +850,15 @@ export default function ServiceRequestsPage() {
                     Edit
                   </button>
                 )}
-                <button className="bg-[var(--primary)] hover:bg-indigo-700 text-white px-6 py-2.5 rounded-lg font-bold text-sm transition-all shadow-sm flex items-center gap-2">
+                <button 
+                  onClick={() => {
+                    if (selectedRequest.reqStatus === 'OPEN') {
+                      setIsModalOpen(false);
+                      setIsQuotesOpen(true);
+                    }
+                  }}
+                  className="bg-[var(--primary)] hover:bg-indigo-700 text-white px-6 py-2.5 rounded-lg font-bold text-sm transition-all shadow-sm flex items-center gap-2"
+                >
                   {actionIcon(selectedRequest.reqStatus) && (
                     <span className="material-symbols-outlined text-sm">{actionIcon(selectedRequest.reqStatus)}</span>
                   )}
@@ -805,6 +904,228 @@ export default function ServiceRequestsPage() {
           isSaving={isUpdating}
         />
       )}
+
+      {/* ── Premium Buyer Quotes Modal ── */}
+      {isQuotesOpen && quotesForRequest && (
+        <BuyerQuotesModal
+          open={isQuotesOpen}
+          onClose={() => {
+            setIsQuotesOpen(false);
+            setQuotesForRequest(null);
+          }}
+          request={quotesForRequest}
+          quotes={quotesData?.getQuotesByRequest || []}
+          loading={quotesLoading}
+          onAcceptQuote={async (quoteId) => {
+            try {
+              await acceptQuote({ variables: { quoteId } });
+              if (refetchQuotes) await refetchQuotes();
+            } catch (error) {
+              // Error handled in mutation onError
+            }
+          }}
+          onRejectQuote={async (quoteId) => {
+            try {
+              await rejectQuote({ variables: { quoteId } });
+              if (refetchQuotes) await refetchQuotes();
+            } catch (error) {
+              // Error handled in mutation onError
+            }
+          }}
+          refetchQuotes={refetchQuotes}
+          isAccepting={isAcceptingQuote}
+          isRejecting={isRejectingQuote}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Premium Buyer Quotes Modal Component
+   ═══════════════════════════════════════════════════════════ */
+interface BuyerQuotesModalProps {
+  open: boolean;
+  onClose: () => void;
+  request: ServiceRequest;
+  quotes: any[];
+  loading: boolean;
+  onAcceptQuote: (quoteId: string) => Promise<void>;
+  onRejectQuote: (quoteId: string) => Promise<void>;
+  isAccepting?: boolean;
+  isRejecting?: boolean;
+  refetchQuotes?: () => Promise<any>;
+}
+
+function BuyerQuotesModal({ open, onClose, request, quotes, loading, onAcceptQuote, onRejectQuote, isAccepting, isRejecting, refetchQuotes }: BuyerQuotesModalProps) {
+  const [acceptingQuote, setAcceptingQuote] = useState<string | null>(null);
+  const [rejectingQuote, setRejectingQuote] = useState<string | null>(null);
+
+  if (!open) return null;
+
+  const handleAccept = async (quoteId: string) => {
+    setAcceptingQuote(quoteId);
+    try {
+      await onAcceptQuote(quoteId);
+      if (refetchQuotes) await refetchQuotes();
+    } finally {
+      setAcceptingQuote(null);
+    }
+  };
+
+  const handleReject = async (quoteId: string) => {
+    if (!confirm('Are you sure you want to reject this quote?')) return;
+    setRejectingQuote(quoteId);
+    try {
+      await onRejectQuote(quoteId);
+      if (refetchQuotes) await refetchQuotes();
+    } finally {
+      setRejectingQuote(null);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-5xl bg-white dark:bg-slate-900 shadow-xl rounded-2xl overflow-hidden max-h-[90vh] flex flex-col">
+        {/* Simple Header */}
+        <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex-shrink-0">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-xl font-semibold text-slate-900 dark:text-white">Quotes Received</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+                {request.reqTitle || `Request #${request._id.slice(-6).toUpperCase()}`}
+              </p>
+            </div>
+            <button 
+              onClick={onClose} 
+              className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-400"
+            >
+              <span className="material-symbols-outlined text-xl">close</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto px-6 py-5">
+          {loading ? (
+            <div className="text-center py-12">
+              <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 mx-auto mb-3 flex items-center justify-center">
+                <span className="material-symbols-outlined text-slate-400 text-2xl animate-spin">sync</span>
+              </div>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Loading quotes...</p>
+            </div>
+          ) : quotes.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 mx-auto mb-4 opacity-20">
+                <svg viewBox="0 0 24 24" fill="none" className="w-full h-full text-slate-400">
+                  <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
+              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">No quotes yet</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Providers haven't submitted quotes for this request</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {quotes.map((quote: any) => (
+                <div
+                  key={quote._id}
+                  className={`p-5 rounded-xl border transition-all ${
+                    quote.quoteStatus === 'ACCEPTED'
+                      ? 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-800'
+                      : quote.quoteStatus === 'REJECTED'
+                      ? 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800'
+                      : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:shadow-md'
+                  }`}
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1">
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mb-0.5">Provider</p>
+                      <p className="text-base font-semibold text-slate-900 dark:text-white">
+                        {quote.quoteProviderOrgData?.organizationName || 'Unknown Provider'}
+                      </p>
+                    </div>
+                    <div className="text-right ml-4">
+                      <p className="text-lg font-semibold text-slate-900 dark:text-white">${quote.quoteAmount?.toLocaleString()}</p>
+                    </div>
+                  </div>
+
+                  <div className="mb-3">
+                    <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed bg-slate-50 dark:bg-slate-900/50 p-3 rounded-lg">
+                      {quote.quoteMessage}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-3 border-t border-slate-200 dark:border-slate-700">
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-slate-400">
+                        {new Date(quote.createdAt).toLocaleDateString()}
+                      </span>
+                      {quote.quoteValidUntil && (
+                        <>
+                          <span className="text-slate-300">•</span>
+                          <span className="text-xs text-slate-400">
+                            Valid until {new Date(quote.quoteValidUntil).toLocaleDateString()}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`px-2 py-1 text-xs font-medium rounded ${
+                        quote.quoteStatus === 'ACCEPTED' 
+                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                          : quote.quoteStatus === 'REJECTED'
+                          ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                          : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                      }`}>
+                        {quote.quoteStatus}
+                      </span>
+                      {quote.quoteStatus === 'PENDING' && (
+                        <>
+                          <button
+                            onClick={() => handleReject(quote._id)}
+                            disabled={rejectingQuote === quote._id || acceptingQuote === quote._id || isRejecting || isAccepting}
+                            className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {(rejectingQuote === quote._id || isRejecting) ? (
+                              <>
+                                <span className="material-symbols-outlined text-sm animate-spin">sync</span>
+                                Rejecting...
+                              </>
+                            ) : (
+                              <>
+                                <span className="material-symbols-outlined text-sm">close</span>
+                                Reject
+                              </>
+                            )}
+                          </button>
+                          <button
+                            onClick={() => handleAccept(quote._id)}
+                            disabled={acceptingQuote === quote._id || rejectingQuote === quote._id || isAccepting || isRejecting}
+                            className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {(acceptingQuote === quote._id || isAccepting) ? (
+                              <>
+                                <span className="material-symbols-outlined text-sm animate-spin">sync</span>
+                                Accepting...
+                              </>
+                            ) : (
+                              <>
+                                <span className="material-symbols-outlined text-sm">check_circle</span>
+                                Accept
+                              </>
+                            )}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
