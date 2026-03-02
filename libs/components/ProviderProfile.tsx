@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { useQuery } from '@apollo/client';
+import { useQuery, useMutation } from '@apollo/client';
 import { 
   CheckCircle, Star, Users, MapPin, 
   Loader2, AlertCircle, Monitor, 
@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { Provider, BackendTestimonial, BackendPortfolio, ClientTestimonial, PortfolioItem } from '../types/index';
 import { GET_PROVIDER_DETAIL, GET_PROVIDER_DETAIL_FALLBACK } from '../../apollo/user/query';
+import { RATE_ORGANIZATION } from '../../apollo/user/mutation';
 import { mapBackendProviderDetail } from '../utils/providerMapper';
 import { getHeaders } from '../../apollo/utils';
 import { isLoggedIn } from '../auth';
@@ -27,20 +28,47 @@ const ProviderProfile: React.FC<ProviderProfileProps> = ({ providerId, onBrowseS
   const router = useRouter();
   const userLoggedIn = isLoggedIn();
   const [useFallbackQuery, setUseFallbackQuery] = React.useState(false);
+  const [selectedRating, setSelectedRating] = useState<number | null>(null);
+  const [hoveredRating, setHoveredRating] = useState<number | null>(null);
+  const [isRatingAnimating, setIsRatingAnimating] = useState(false);
+  const [ratingJustSubmitted, setRatingJustSubmitted] = useState(false);
+  const [showRatingSelector, setShowRatingSelector] = useState(false);
 
   // ========== APOLLO REQUESTS ==========
   const { data, loading, error, refetch } = useQuery(
     useFallbackQuery ? GET_PROVIDER_DETAIL_FALLBACK : GET_PROVIDER_DETAIL,
     {
-      variables: { orgId: providerId || '' },
-      skip: !providerId,
-      fetchPolicy: 'cache-and-network',
-      errorPolicy: 'all',
-      context: {
-        headers: userLoggedIn ? getHeaders() : {},
+    variables: { orgId: providerId || '' },
+    skip: !providerId,
+    fetchPolicy: 'cache-and-network',
+    errorPolicy: 'all',
+    context: {
+      headers: userLoggedIn ? getHeaders() : {},
       },
     }
   );
+
+  const [rateOrganization, { loading: isRatingLoading }] = useMutation(RATE_ORGANIZATION, {
+    context: {
+      headers: userLoggedIn ? getHeaders() : {},
+    },
+    refetchQueries: [
+      {
+        query: useFallbackQuery ? GET_PROVIDER_DETAIL_FALLBACK : GET_PROVIDER_DETAIL,
+        variables: { orgId: providerId || '' },
+      },
+    ],
+    onCompleted: (data) => {
+      setIsRatingAnimating(false);
+      setRatingJustSubmitted(true);
+      setTimeout(() => setRatingJustSubmitted(false), 2000);
+    },
+    onError: (error) => {
+      console.error('Error rating organization:', error);
+      setIsRatingAnimating(false);
+      alert('Failed to submit rating. Please try again.');
+    },
+  });
 
   // ========== LIFECYCLES ==========
   useEffect(() => {
@@ -66,6 +94,21 @@ const ProviderProfile: React.FC<ProviderProfileProps> = ({ providerId, onBrowseS
     }
   }, [error, providerId, useFallbackQuery]);
 
+  // Close rating selector when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (showRatingSelector && !target.closest('.rating-selector-container')) {
+        setShowRatingSelector(false);
+      }
+    };
+
+    if (showRatingSelector) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showRatingSelector]);
+
   // ========== UTILITIES ==========
   const getImageUrl = (imagePath: string | null | undefined): string => {
     if (!imagePath) return '';
@@ -90,8 +133,68 @@ const ProviderProfile: React.FC<ProviderProfileProps> = ({ providerId, onBrowseS
       })()
     : null;
 
+  // Get raw backend data for budgetRange
+  const backendData = data?.getProviderDetail;
+  const budgetRange = backendData?.budgetRange 
+    ? (typeof backendData.budgetRange === 'string' ? parseFloat(backendData.budgetRange) : backendData.budgetRange)
+    : null;
+  const displayPrice = budgetRange || provider?.startingRate || 0;
+
   const dynamicTestimonials: ClientTestimonial[] = [];
   const dynamicPortfolios: PortfolioItem[] = [];
+
+  // ========== HANDLERS ==========
+  const handleRatingClick = async (rating: number) => {
+    if (!userLoggedIn) {
+      router.push('/signup?role=buyer');
+      return;
+    }
+
+    if (!providerId) return;
+
+    // Toggle logic: if clicking the same rating, remove it (set to 0)
+    const isTogglingOff = selectedRating === rating;
+    const ratingToSend = isTogglingOff ? 0 : rating;
+
+    setIsRatingAnimating(true);
+    setSelectedRating(isTogglingOff ? null : rating);
+    setShowRatingSelector(false);
+
+    try {
+      await rateOrganization({
+        variables: {
+          input: {
+            orgId: providerId,
+            rating: ratingToSend,
+          },
+        },
+      });
+    } catch (err) {
+      // Error handled in onError callback
+    }
+  };
+
+  const handleStarHover = (rating: number) => {
+    if (!isRatingLoading && !isRatingAnimating) {
+      setHoveredRating(rating);
+    }
+  };
+
+  const handleStarLeave = () => {
+    setHoveredRating(null);
+  };
+
+  // Sync selectedRating with backend myRating (toggle-aware)
+  useEffect(() => {
+    if (!backendData) return;
+    if (isRatingAnimating || isRatingLoading) return;
+
+    if (backendData.myRating != null) {
+      setSelectedRating(backendData.myRating);
+    } else {
+      setSelectedRating(null);
+    }
+  }, [backendData?.myRating, backendData, isRatingAnimating, isRatingLoading]);
 
   // ========== CONDITIONAL RENDERING ==========
   if (loading && !provider) {
@@ -197,30 +300,110 @@ const ProviderProfile: React.FC<ProviderProfileProps> = ({ providerId, onBrowseS
     ? provider.expertise 
     : ['Next.js', 'TypeScript', 'Tailwind CSS', 'AWS Lambda', 'PostgreSQL', 'Redis', 'Vercel', 'Prisma', 'GraphQL', 'Docker'];
 
+  const primaryCategoryId = Array.isArray(provider.categoryId) ? provider.categoryId[0] : provider.categoryId;
+
   // Fallback case studies (used only when backend returns no data)
-  const fallbackCaseStudies = [
-    {
-      title: 'Nebula Bank Platform',
-      metricLabel: 'OUTCOME',
-      metricValue: 'Reduced processing time by 62%',
-      image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuD9BbX55NP6Kz0xjcEMeCkfIxpvSp2luvBoQm8765IlpnkWDuM5sdByfv4gz74tZWGQT2RNi2lFzkF2313fOqJIXT1q_GkfBIVLlPGSgfizHlG704OJ_Z4UVKEC9RVz1uNKVI-hJRJqrARbN4xqhqWzokU7ma009GlUSoxN3h-dOjW7aVYDON7Ztku2QU23dj4W-WSlK_8riC58BZb3I52k7MzDa5EJ9DibCUSsj_Vqf6e9Bw7ykySRWS-eS86VPCLBumCUuHgQsvg',
-      tags: ['Next.js', 'Redis', 'AWS']
-    },
-    {
-      title: 'EduLearn Global',
-      metricLabel: 'OUTCOME',
-      metricValue: 'Scaled to 1M+ active learners',
-      image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCItMdh2W4tRWDe1Jv7O2vB2pz-0FnvELT5vIa6B_G5k-xrOz6L1rcEom1TU_6oEQpik1snBIG8kudXYOzsESWULEzCk5pGQIUr-YPEYpGHkrdJL-Hljo68R5OFkhuojs-s24OkqMcJrLr7ico6ISld6N9UThTMhRCKeNRtum_7aeRDqn3wSGmB3U5j8kc_BPRt3CEJ49rRHQKC_EQwKObaKNpPhQedJJqu6LAhQuuGZD21JRWpw5wKHLxEl8agbI-TaHl9KJVGsr0',
-      tags: ['React Native', 'GraphQL', 'Vercel']
-    },
-    {
-      title: 'ShopFlow Pro',
-      metricLabel: 'OUTCOME',
-      metricValue: '+45% conversion rate increase',
-      image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDw1gf1h3AcUrV1-KEMCBmOYaPAGqs_9EsyhM9fMq-rvXccB8hrREWL8BHyr2bqEJUL_mgP-orcXZku8kqZXETlgTEm82DyIChVgzei1Dlsd7dL9tJWx0k3eUGR8Mu_TW1GCaNVDfsOEeT7OWatg04OcQFw-S9HeS1DGDUpV80djHbIhTOMOToyXa8N5WbE-LLtnVHZ0sK2gq15o-DDc06rVSUQ1GjYK6D1UCOb-X_QC4PJ3bSlMuJzCZOKmTEuli0Qj4PQrOd8n5M',
-      tags: ['TypeScript', 'Prisma', 'PostgreSQL']
+  const fallbackCaseStudies = (() => {
+    switch (primaryCategoryId) {
+      case 'it-software':
+        return [
+          {
+          title: 'AI-Powered Analytics Platform',
+          metricLabel: 'AI',
+          metricValue: 'Real-time insights across millions of events',
+          image: '/portfolios/IT_SOFTWARE/AI.webp',
+          tags: ['Machine Learning', 'Data Engineering', 'Python'],
+          },
+          {
+          title: 'Cloud Infrastructure Migration',
+          metricLabel: 'CLOUD',
+          metricValue: '99.99% uptime on modern cloud stack',
+          image: '/portfolios/IT_SOFTWARE/cloud-infrastructure.webp',
+          tags: ['AWS', 'Kubernetes', 'Scalability'],
+          },
+          {
+          title: 'Enterprise Cybersecurity Overhaul',
+          metricLabel: 'SECURITY',
+          metricValue: '96% reduction in critical incidents',
+          image: '/portfolios/IT_SOFTWARE/cyber-security.webp',
+          tags: ['Zero Trust', 'Monitoring', 'Incident Response'],
+          },
+        ];
+      case 'business':
+        return [
+          {
+            title: 'Global Operations Transformation',
+            metricLabel: 'EFFICIENCY',
+            metricValue: '30% reduction in operating costs',
+            image: '/portfolios/BUSINESS_SERVICES/photo-1661956602116-aa6865609028.webp',
+            tags: ['Process Design', 'Automation'],
+          },
+          {
+            title: 'SME Growth Playbook',
+            metricLabel: 'GROWTH',
+            metricValue: '3.2x revenue in 18 months',
+            image: '/portfolios/BUSINESS_SERVICES/949d121c4eecc542ca29d2506c311e5a.webp',
+            tags: ['Strategy', 'Go-To-Market'],
+          },
+          {
+            title: 'Outsourced Ops Hub',
+            metricLabel: 'SCALABILITY',
+            metricValue: '24/7 support across 4 regions',
+            image: '/portfolios/BUSINESS_SERVICES/cfc9087b9eb4488c2d540bdcca540564.webp',
+            tags: ['BPO', 'CX Operations'],
+          },
+        ];
+      case 'marketing-sales':
+        return [
+          {
+          title: 'Multi-Channel Advertising Campaign',
+          metricLabel: 'ADVERTISING',
+          metricValue: '5.4x return on ad spend',
+          image: '/portfolios/MARKETING_SALES/advertising.webp',
+          tags: ['Paid Media', 'Display', 'Social Ads'],
+          },
+          {
+          title: 'SEO Growth Program',
+          metricLabel: 'SEO',
+          metricValue: 'Top-3 rankings for 60+ keywords',
+          image: '/portfolios/MARKETING_SALES/SEO.webp',
+          tags: ['SEO', 'Content Marketing', 'Technical SEO'],
+          },
+          {
+          title: 'Go-To-Market Strategy',
+          metricLabel: 'STRATEGY',
+          metricValue: '3x qualified pipeline in 9 months',
+          image: '/portfolios/MARKETING_SALES/strategy.webp',
+          tags: ['Positioning', 'Messaging', 'Sales Enablement'],
+          },
+        ];
+      case 'design-creative':
+      default:
+        return [
+          {
+            title: 'Global Brand Refresh',
+            metricLabel: 'BRAND LIFT',
+            metricValue: '+38% top‑of‑mind awareness',
+            image: '/portfolios/DESIGN_CREATIVE/photo-1516131206008-dd041a9764fd.webp',
+            tags: ['Brand Identity', 'Guidelines'],
+          },
+          {
+            title: 'Product Experience Redesign',
+            metricLabel: 'ENGAGEMENT',
+            metricValue: '+27% time on product',
+            image: '/portfolios/DESIGN_CREATIVE/photo-1652449823136-b279fbe5dfd3.webp',
+            tags: ['UX/UI', 'Design Systems'],
+          },
+          {
+            title: 'Campaign Visual System',
+            metricLabel: 'CONVERSION',
+            metricValue: '+19% campaign CTR',
+            image: '/portfolios/DESIGN_CREATIVE/photo-1690228254548-31ef53e40cd1.webp',
+            tags: ['Art Direction', 'Motion Graphics'],
+          },
+        ];
     }
-  ];
+  })();
 
   // Use dynamic portfolios from backend, fallback to legacy case studies or mock data
   const caseStudies = dynamicPortfolios.length > 0
@@ -243,6 +426,7 @@ const ProviderProfile: React.FC<ProviderProfileProps> = ({ providerId, onBrowseS
       author: "CTO",
       role: "CTO",
       company: "Fintech Startup",
+      avatar: "/people/CTO.webp",
     },
     {
       id: 'fallback-2',
@@ -251,6 +435,7 @@ const ProviderProfile: React.FC<ProviderProfileProps> = ({ providerId, onBrowseS
       author: "Product Manager",
       role: "Product Manager",
       company: "Global Retailer",
+      avatar: "/people/product_manager.jpg",
     }
   ];
 
@@ -338,12 +523,89 @@ const ProviderProfile: React.FC<ProviderProfileProps> = ({ providerId, onBrowseS
                     {Array.isArray(provider.subCategory) ? provider.subCategory[0] : provider.subCategory || 'Service'}
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
+                {/* Premium Rating Display with Interactive Button */}
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2 bg-gradient-to-r from-amber-50 to-amber-100/50 dark:from-amber-900/20 dark:to-amber-800/20 border border-amber-200 dark:border-amber-800/50 rounded-2xl px-4 py-2">
                   <div className="flex items-center gap-1">
                     <Star className="w-5 h-5 fill-amber-400 text-amber-400" />
-                    <span className="font-black text-xl text-slate-900 dark:text-white">{provider.rating?.toFixed(1) || '4.9'}</span>
+                      <span className="font-black text-xl text-slate-900 dark:text-white">
+                        {backendData?.orgAverageRating?.toFixed(1) || provider.rating?.toFixed(1) || '0.0'}
+                      </span>
                   </div>
-                  <span className="text-slate-500 dark:text-slate-400 text-sm">({provider.reviewsCount || 0} reviews)</span>
+                    <span className="text-slate-600 dark:text-slate-400 text-sm font-semibold">
+                      ({backendData?.reviewsCount || provider.reviewsCount || 0} reviews)
+                    </span>
+                  </div>
+                  
+                  {/* Premium Rating Button with Star Selector */}
+                  {userLoggedIn && (
+                    <div className="relative rating-selector-container">
+                      <button
+                        onClick={() => setShowRatingSelector(!showRatingSelector)}
+                        disabled={isRatingLoading || isRatingAnimating}
+                        className={`group relative flex items-center gap-2 px-5 py-2.5 rounded-2xl font-bold text-sm transition-all duration-300 ${
+                          isRatingAnimating || ratingJustSubmitted
+                            ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/30 scale-105'
+                            : showRatingSelector
+                            ? 'bg-gradient-to-r from-amber-100 to-amber-200 dark:from-amber-800/40 dark:to-amber-700/40 border-2 border-amber-400 dark:border-amber-600 text-amber-800 dark:text-amber-300 shadow-lg scale-105'
+                            : 'bg-gradient-to-r from-amber-50 to-amber-100/50 dark:from-amber-900/20 dark:to-amber-800/20 border border-amber-200 dark:border-amber-800/50 text-amber-700 dark:text-amber-400 hover:from-amber-100 hover:to-amber-200 dark:hover:from-amber-800/30 dark:hover:to-amber-700/30 hover:border-amber-300 dark:hover:border-amber-700 hover:shadow-lg hover:scale-105'
+                        } ${isRatingLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                      >
+                        <Star 
+                          className={`w-5 h-5 transition-all duration-300 ${
+                            isRatingAnimating || ratingJustSubmitted
+                              ? 'fill-white text-white animate-pulse scale-125'
+                              : showRatingSelector
+                              ? 'fill-amber-500 text-amber-500 scale-110 rotate-12'
+                              : 'fill-amber-400 text-amber-400 group-hover:scale-110 group-hover:rotate-12'
+                          }`}
+                        />
+                        <span className={isRatingAnimating || ratingJustSubmitted ? 'text-white' : ''}>
+                          {ratingJustSubmitted ? 'Rated!' : isRatingLoading ? 'Rating...' : 'Rate Us'}
+                        </span>
+                        {isRatingAnimating && (
+                          <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-emerald-400 to-emerald-500 animate-pulse"></div>
+                        )}
+                      </button>
+
+                      {/* Premium Star Rating Selector */}
+                      {showRatingSelector && !isRatingLoading && !isRatingAnimating && (
+                        <div className="absolute top-full left-0 mt-2 bg-white dark:bg-slate-800 border-2 border-amber-200 dark:border-amber-700 rounded-2xl shadow-2xl p-4 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                          <p className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-3 text-center">
+                            Select Your Rating
+                          </p>
+                          <div className="flex items-center gap-2">
+                            {[1, 2, 3, 4, 5].map((rating) => (
+                              <button
+                                key={rating}
+                                onClick={() => handleRatingClick(rating)}
+                                onMouseEnter={() => handleStarHover(rating)}
+                                onMouseLeave={handleStarLeave}
+                                className="group relative transition-all duration-200 hover:scale-125 active:scale-95"
+                              >
+                                <Star
+                                  className={`w-8 h-8 transition-all duration-200 ${
+                                    hoveredRating !== null
+                                      ? rating <= hoveredRating
+                                        ? 'fill-amber-400 text-amber-400 scale-110'
+                                        : 'fill-slate-200 text-slate-300 dark:fill-slate-700 dark:text-slate-600'
+                                      : rating <= (selectedRating || 0)
+                                      ? 'fill-amber-400 text-amber-400'
+                                      : 'fill-slate-200 text-slate-300 dark:fill-slate-700 dark:text-slate-600 group-hover:fill-amber-300 group-hover:text-amber-300'
+                                  }`}
+                                />
+                                {rating === hoveredRating && (
+                                  <div className="absolute -bottom-6 left-1/2 transform -translate-x-1/2 text-xs font-bold text-amber-600 dark:text-amber-400 whitespace-nowrap">
+                                    {rating} {rating === 1 ? 'star' : 'stars'}
+                                  </div>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -358,8 +620,16 @@ const ProviderProfile: React.FC<ProviderProfileProps> = ({ providerId, onBrowseS
                 </div>
               )}
 
-              {/* CTA Buttons */}
+              {/* Pricing & CTA Section */}
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
+                {/* Dynamic Budget Display */}
+                <div className="flex items-baseline gap-1.5 px-6 py-3 bg-gradient-to-r from-white/80 to-slate-50/80 dark:from-slate-800/80 dark:to-slate-900/80 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50 rounded-2xl">
+                  <span className="text-sm text-slate-500 dark:text-slate-400 font-semibold">Starting from</span>
+                  <span className="text-2xl font-black text-slate-900 dark:text-white">${displayPrice}</span>
+                  <span className="text-sm text-slate-500 dark:text-slate-400 font-semibold">/hr</span>
+                </div>
+
+                {/* CTA Buttons */}
                 {userLoggedIn ? (
                   <button className="group px-8 py-4 bg-gradient-to-r from-indigo-600 via-indigo-600 to-purple-600 dark:from-primary dark:via-primary dark:to-purple-600 text-white font-black text-lg rounded-2xl shadow-xl shadow-indigo-500/30 dark:shadow-primary/30 hover:shadow-2xl hover:shadow-indigo-500/40 dark:hover:shadow-primary/40 transition-all duration-300 hover:scale-[1.02] flex items-center justify-center gap-2 whitespace-nowrap">
                     <MessageCircle className="w-5 h-5 flex-shrink-0 text-white" />
@@ -367,22 +637,12 @@ const ProviderProfile: React.FC<ProviderProfileProps> = ({ providerId, onBrowseS
                     <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform flex-shrink-0 text-white" />
                   </button>
                 ) : (
-                  <>
-                    <button 
-                      onClick={() => router.push('/signup?role=buyer')}
-                      className="group px-8 py-4 bg-gradient-to-r from-indigo-600 via-indigo-600 to-purple-600 dark:from-primary dark:via-primary dark:to-purple-600 text-white font-black text-lg rounded-2xl shadow-xl shadow-indigo-500/30 dark:shadow-primary/30 hover:shadow-2xl hover:shadow-indigo-500/40 dark:hover:shadow-primary/40 transition-all duration-300 hover:scale-[1.02] flex items-center justify-center gap-2 whitespace-nowrap"
-                    >
-                      <MessageCircle className="w-5 h-5 flex-shrink-0 text-white" />
-                      <span className="text-white">Get Started</span>
-                      <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform flex-shrink-0 text-white" />
-                    </button>
                     <button 
                       onClick={() => router.push('/signup?role=buyer')}
                       className="px-8 py-4 bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-black text-lg rounded-2xl hover:border-primary dark:hover:border-primary transition-all duration-300 whitespace-nowrap"
                     >
                       Sign Up to Contact
                     </button>
-                  </>
                 )}
               </div>
             </div>
@@ -402,9 +662,6 @@ const ProviderProfile: React.FC<ProviderProfileProps> = ({ providerId, onBrowseS
               <p className="text-xl md:text-2xl text-slate-700 dark:text-slate-300 leading-[1.8] mb-6 pb-2 font-bold">
                 {provider.bio || provider.description}
               </p>
-              <p className="text-lg md:text-xl text-slate-600 dark:text-slate-400 leading-[1.8] pb-2 font-semibold">
-                With a dedicated team of senior developers and architects, we ensure every line of code is optimized for speed, SEO, and maintainability. From initial discovery to post-launch support, we are committed to technical excellence and transparent communication, ensuring our partners stay ahead in the digital landscape.
-              </p>
             </div>
 
             {/* Stats Info - Clean Layout with Icons */}
@@ -414,7 +671,7 @@ const ProviderProfile: React.FC<ProviderProfileProps> = ({ providerId, onBrowseS
                   <Briefcase className="w-6 h-6 text-primary flex-shrink-0" />
                   <div>
                     <p className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white leading-none mb-1 tracking-tight">
-                      {provider.projectsCompleted || 18}
+                      {provider.projectsCompleted ?? 0}
                     </p>
                     <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider leading-[1.6] pb-0.5">
                       Projects
@@ -423,13 +680,18 @@ const ProviderProfile: React.FC<ProviderProfileProps> = ({ providerId, onBrowseS
                 </div>
 
                 <div className="flex items-center gap-3">
+                  <div className="relative">
                   <Star className="w-6 h-6 text-amber-500 fill-amber-500 flex-shrink-0" />
+                    {ratingJustSubmitted && (
+                      <div className="absolute -inset-2 bg-amber-400/30 rounded-full animate-ping"></div>
+                    )}
+                  </div>
                   <div>
                     <p className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white leading-none mb-1 tracking-tight">
-                      {provider.rating?.toFixed(1) || '4.9'}
+                      {backendData?.orgAverageRating?.toFixed(1) || provider.rating?.toFixed(1) || '0.0'}
                     </p>
                     <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider leading-[1.6] pb-0.5">
-                      Rating
+                      Rating ({backendData?.reviewsCount || provider.reviewsCount || 0} reviews)
                     </p>
                   </div>
                 </div>
@@ -450,10 +712,10 @@ const ProviderProfile: React.FC<ProviderProfileProps> = ({ providerId, onBrowseS
                   <DollarSign className="w-6 h-6 text-purple-600 dark:text-purple-400 flex-shrink-0" />
                   <div>
                     <p className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white leading-none mb-1 tracking-tight">
-                      ${provider.startingRate || 50}
+                      ${displayPrice}
                     </p>
                     <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider leading-[1.6] pb-0.5">
-                      Starting Rate
+                      Starting Rate /hr
                     </p>
                   </div>
                 </div>
@@ -672,7 +934,7 @@ const ProviderProfile: React.FC<ProviderProfileProps> = ({ providerId, onBrowseS
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {caseStudies.map((study, idx) => (
-              <div key={idx} className="group relative bg-white dark:bg-slate-800/50 backdrop-blur-sm border border-slate-200 dark:border-slate-700/50 rounded-3xl overflow-hidden hover:border-primary/50 transition-all duration-300 hover:shadow-2xl hover:shadow-primary/20">
+              <div key={idx} className="group relative bg-white dark:bg-slate-800/50 backdrop-blur-sm border border-slate-200 dark:border-slate-700/50 rounded-xl overflow-hidden hover:border-primary/50 transition-all duration-300 hover:shadow-2xl hover:shadow-primary/20">
                 <div className="relative h-56 bg-slate-100 dark:bg-slate-700 overflow-hidden">
                   <img 
                     alt={study.title} 
@@ -681,9 +943,9 @@ const ProviderProfile: React.FC<ProviderProfileProps> = ({ providerId, onBrowseS
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 to-transparent dark:from-slate-900/80"></div>
                 </div>
-                <div className="p-8">
+                <div className="p-7">
                   <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-4">{study.title}</h3>
-                  <div className="bg-primary/20 dark:bg-primary/20 backdrop-blur-sm border border-primary/30 rounded-2xl p-5 mb-6">
+                  <div className="bg-primary/20 dark:bg-primary/20 backdrop-blur-sm border border-primary/30 rounded-xl p-4 mb-6">
                     <p className="text-xs font-bold text-primary/70 dark:text-primary/70 uppercase tracking-widest mb-2">{study.metricLabel}</p>
                     <p className="text-xl font-bold text-slate-900 dark:text-white">{study.metricValue}</p>
                   </div>

@@ -284,20 +284,25 @@ const ProvidersPage: React.FC<ProvidersPageProps> = ({ onSelectProvider }) => {
                           </span>
                           <div className="flex items-center gap-1.5">
                             <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                            <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">{p.rating}</span>
+                            <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                              {(p.rating ?? 0).toFixed(1)}
+                            </span>
+                            <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                              ({p.reviewsCount ?? 0})
+                            </span>
                           </div>
                         </div>
                       </div>
 
                       {/* Pricing + CTA */}
                       <div className="flex items-center justify-between w-full pt-2">
-                        <div className="flex items-baseline gap-1.5">
-                          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Starting from</span>
-                          <span className="text-base font-bold text-slate-900 dark:text-white">
-                            ${p.startingRate}
-                          </span>
-                          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">/hr</span>
-                        </div>
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Starting from</span>
+                            <span className="text-base font-bold text-slate-900 dark:text-white">
+                              ${p.startingRate ?? 0}
+                            </span>
+                            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">/hr</span>
+                          </div>
                         <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">
                           See details →
                         </span>

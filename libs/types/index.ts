@@ -36,9 +36,10 @@ export interface BackendProviderListItem {
   reviewsCount: number;
   orgTotalProjects: number;
   orgResponseTimeAvg: string;
-  orgCountry: string;
+  organizationCountry: string;
   orgCity?: string; // Optional - not always returned by backend
   flag: string;
+  budgetRange?: string | number | null; // Budget range as string (e.g., "1000-10000") or number
       categoryId: string | string[];
       subCategory: string | string[];
   serviceTitle: string;
@@ -65,6 +66,7 @@ export interface BackendProviderDetail extends BackendProviderListItem {
   twitter?: string;
   github?: string;
   updatedAt: string;
+  myRating?: number | null;
   orgOwnerData?: {
     _id: string;
     userNick: string;
@@ -97,6 +99,7 @@ export interface Provider {
   projectsCompleted: number;
   responseTime: string;
   startingRate: number;
+  budgetRange?: string | number | null; // Budget range as string (e.g., "1000-10000") or number
   location: string;
   city?: string;
   flag: string;

@@ -4,7 +4,7 @@ export interface UserOrganization {
   _id?: string;
   orgType?: string;
   orgStatus?: string;
-  orgCountry?: string;
+  organizationCountry?: string;
   orgCity?: string;
   orgWebsiteUrl?: string;
   orgTotalProjects?: number;

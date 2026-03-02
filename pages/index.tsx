@@ -7,6 +7,7 @@ import { isLoggedIn } from '../libs/auth';
 import HowItWorks from '../libs/components/HowItWorks';
 import TopCategories from '../libs/components/TopCategories';
 import TestimonialSection from '../libs/components/TestimonialSection';
+import CeoTestimonials from '../libs/components/CeoTestimonials';
 import Footer from '../libs/components/Footer';
 import { CategoryId } from '../libs/types';
 
@@ -54,6 +55,7 @@ export default function Home() {
         />
         <HowItWorks />
         <TopCategories onBrowse={handleBrowseCategory} />
+        <CeoTestimonials />
         <TestimonialSection />
       </main>
       <div className="relative z-10">

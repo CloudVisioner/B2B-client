@@ -489,7 +489,7 @@ export const CREATE_PROVIDER_ORG_PROF = gql`
       _id
       organizationName
       organizationEmail
-      orgCountry
+      organizationCountry
       organizationDescription
       categoryId
       subCategory
@@ -511,7 +511,7 @@ export const UPDATE_PROVIDER_ORG_PROF = gql`
       _id
       organizationName
       organizationEmail
-      orgCountry
+      organizationCountry
       organizationDescription
       categoryId
       subCategory
@@ -580,6 +580,26 @@ export const UPDATE_REVIEW = gql`
       comment
       createdAt
       updatedAt
+    }
+  }
+`;
+
+// ============================================
+// RATING MUTATIONS
+// ============================================
+
+/**
+ * Rate Organization
+ * Allows users to rate a provider organization (1-5 stars)
+ * Updates totalRatingValue, reviewsCount, and recalculates orgAverageRating
+ */
+export const RATE_ORGANIZATION = gql`
+  mutation RateOrganization($input: RateOrganizationInput!) {
+    rateOrganization(input: $input) {
+      _id
+      orgAverageRating
+      reviewsCount
+      totalRatingValue
     }
   }
 `;

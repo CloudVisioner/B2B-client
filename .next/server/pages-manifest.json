@@ -2,8 +2,7 @@
   "/_app": "pages/_app.js",
   "/_document": "pages/_document.js",
   "/_error": "pages/_error.js",
-  "/marketplace": "pages/marketplace.js",
   "/provider/[id]": "pages/provider/[id].js",
-  "/": "pages/index.js",
-  "/provider/settings": "pages/provider/settings.js"
+  "/dashboard": "pages/dashboard.js",
+  "/marketplace": "pages/marketplace.js"
 }

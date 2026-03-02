@@ -431,7 +431,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({
     };
     
     // Validate and add sortBy - only valid provider sort options
-    const validSortOptions = ['createdAt', 'organizationHourlyRate', 'orgAverageRating', 'orgTotalProjects'];
+    const validSortOptions = ['createdAt', 'organizationHourlyRate', 'orgAverageRating'];
     if (backendSortBy && validSortOptions.includes(backendSortBy)) {
       input.sortBy = backendSortBy;
     } else {
@@ -774,7 +774,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({
                 </div>
                 {isSortOpen && (
                   <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl shadow-xl dark:shadow-2xl z-20 py-1">
-                    {['Newest', 'Cheapest', 'Highest Rated', 'Most Projects'].map((opt) => (
+                    {['Newest', 'Cheapest', 'Highest Rated'].map((opt) => (
                       <button
                         key={opt}
                         onClick={() => handleSortChange(opt)}
@@ -925,19 +925,63 @@ const Marketplace: React.FC<MarketplaceProps> = ({
                             <span className="text-[11px] font-semibold tracking-wide text-slate-600 dark:text-slate-400 uppercase px-2 py-1 bg-slate-100 dark:bg-white/5 rounded backdrop-blur-sm">
                               {Array.isArray(provider.subCategory) ? provider.subCategory[0] : provider.subCategory}
                             </span>
-                            <div className="flex items-center gap-1.5">
-                              <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                              <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">{provider.rating}</span>
-                            </div>
+                          <div className="flex items-center gap-1.5">
+                            <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                            <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                              {(provider.rating ?? 0).toFixed(1)}
+                            </span>
+                          </div>
                           </div>
                         </div>
 
                         {/* Pricing + CTA */}
                         <div className="flex items-center justify-between w-full pt-2">
                           <div className="flex items-baseline gap-1.5">
-                            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Starting from</span>
-                            <span className="text-base font-bold text-slate-900 dark:text-white">${provider.startingRate}</span>
-                            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">/hr</span>
+                            {(() => {
+                              // Format budgetRange for display
+                              let displayPrice: string | number = provider.startingRate ?? 0;
+                              let showHourly = true;
+                              
+                              if (provider.budgetRange != null) {
+                                if (typeof provider.budgetRange === 'string') {
+                                  // If it's a string, check if it contains a dash (range) or is a single value
+                                  if (provider.budgetRange.includes('-')) {
+                                    displayPrice = provider.budgetRange;
+                                    showHourly = false;
+                                  } else {
+                                    // Try to parse as number
+                                    const parsed = parseFloat(provider.budgetRange.replace(/[^0-9.]/g, ''));
+                                    if (!isNaN(parsed)) {
+                                      displayPrice = parsed;
+                                    } else {
+                                      displayPrice = provider.budgetRange;
+                                      showHourly = false;
+                                    }
+                                  }
+                                } else {
+                                  // It's a number
+                                  displayPrice = provider.budgetRange;
+                                }
+                              }
+                              
+                              const priceDisplay = typeof displayPrice === 'number' 
+                                ? displayPrice.toLocaleString() 
+                                : displayPrice;
+                              
+                              return (
+                                <>
+                                  <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                                    {showHourly ? 'Starting from' : 'Budget'}
+                                  </span>
+                                  <span className="text-base font-bold text-slate-900 dark:text-white">
+                                    ${priceDisplay}
+                                  </span>
+                                  {showHourly && (
+                                    <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">/hr</span>
+                                  )}
+                                </>
+                              );
+                            })()}
                           </div>
                           <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">
                             See details →

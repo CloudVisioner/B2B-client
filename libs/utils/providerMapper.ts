@@ -46,7 +46,8 @@ export function mapBackendProviderToList(backend: BackendProviderListItem): Prov
     projectsCompleted: backend.orgTotalProjects || 0,
     responseTime: backend.orgResponseTimeAvg || '',
     startingRate: backend.organizationHourlyRate || backend.startingRate || 0,
-    location: backend.organizationLocation || backend.location || backend.orgCountry || '',
+    budgetRange: backend.budgetRange != null ? (typeof backend.budgetRange === 'string' ? backend.budgetRange : String(backend.budgetRange)) : null,
+    location: backend.organizationLocation || backend.location || backend.organizationCountry || '',
     city: (backend as any).orgCity || '',
     flag: backend.flag || '',
     expertise: normalizeToStringArray(backend.industries),
@@ -107,7 +108,6 @@ export function mapSortOption(uiSort: string): string {
     'Newest': 'createdAt',
     'Cheapest': 'organizationHourlyRate', // Updated to new field name
     'Highest Rated': 'orgAverageRating',
-    'Most Projects': 'orgTotalProjects',
   };
   
   return sortMap[uiSort] || 'createdAt';

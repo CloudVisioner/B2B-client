@@ -15,13 +15,15 @@ export const GET_PROVIDERS_BY_CATEGORY = gql`
         _id
         organizationName
         organizationEmail
-        orgCountry
+        organizationCountry
         organizationDescription
         categoryId
         subCategory
         organizationImage
         organizationHourlyRate
+        orgAverageRating
         reviewsCount
+        budgetRange
         createdAt
         deletedAt
       }
@@ -47,13 +49,14 @@ export const GET_PROVIDER_DETAIL = gql`
       organizationEmail
       organizationPhoneNumber
       organizationWebsiteUrl
-      orgCountry
+      organizationCountry
       organizationLocation
       flag
       
       # Rating & Social Proof
       orgAverageRating
       reviewsCount
+      myRating
       orgTotalLikes
       orgTotalViews
       orgTotalProjects
@@ -118,7 +121,7 @@ export const GET_PROVIDER_DETAIL_FALLBACK = gql`
       organizationEmail
       organizationPhoneNumber
       organizationWebsiteUrl
-      orgCountry
+      organizationCountry
       organizationLocation
       flag
       
@@ -178,7 +181,7 @@ export const GET_PROVIDER_DETAIL_WITH_OWNER = gql`
     getProviderDetail(orgId: $orgId) {
       _id
       organizationName
-      orgCountry
+      organizationCountry
       organizationDescription
       organizationImage
       categoryId
@@ -209,13 +212,15 @@ export const GET_PROVIDERS_SORTED = gql`
         _id
         organizationName
         organizationEmail
-        orgCountry
+        organizationCountry
         organizationDescription
         categoryId
         subCategory
         organizationImage
         organizationHourlyRate
+        orgAverageRating
         reviewsCount
+        budgetRange
         createdAt
         deletedAt
       }
@@ -651,6 +656,9 @@ export const GET_PROVIDER_ORGANIZATION = gql`
       budgetRange
       organizationHourlyRate
       minProjectSize
+      orgAverageRating
+      reviewsCount
+      totalRatingValue
       createdAt
       updatedAt
     }
