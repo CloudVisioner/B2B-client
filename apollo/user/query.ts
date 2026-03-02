@@ -20,6 +20,8 @@ export const GET_PROVIDERS_BY_CATEGORY = gql`
         categoryId
         subCategory
         organizationImage
+        organizationHourlyRate
+        reviewsCount
         createdAt
         deletedAt
       }
@@ -35,18 +37,138 @@ export const GET_PROVIDERS_BY_CATEGORY = gql`
  * Public query - email/phone only shown if user is logged in (pass auth token)
  */
 export const GET_PROVIDER_DETAIL = gql`
-  query ProviderDetail($orgId: String!) {
+  query GetProviderDetail($orgId: String!) {
     getProviderDetail(orgId: $orgId) {
       _id
       organizationName
-      organizationEmail
-      orgCountry
       organizationDescription
+      organizationImage
+      avatar
+      organizationEmail
+      organizationPhoneNumber
+      organizationWebsiteUrl
+      orgCountry
+      organizationLocation
+      flag
+      
+      # Rating & Social Proof
+      orgAverageRating
+      reviewsCount
+      orgTotalLikes
+      orgTotalViews
+      orgTotalProjects
+      orgVerified
+      
+      # Budget & Pricing
+      budgetRange
+      organizationHourlyRate
+      minProjectSize
+      
+      # Services & Categorization
       categoryId
       subCategory
-      organizationImage
+      serviceTitle
+      organizationSpecialties
+      industries
+      orgSkills
+      
+      # Additional Profile Info
+      bio
+      organizationIndustry
+      establishmentYear
+      organizationTeamSize
+      badges
+      color
+      
+      # Social Links
+      linkedIn
+      twitter
+      github
+      
+      # Owner Information
+      orgOwnerUserId
+      orgOwnerData {
+        _id
+        userNick
+        userEmail
+        userImage
+      }
+      
+      # Metadata
+      organizationType
+      organizationStatus
       createdAt
-      deletedAt
+      updatedAt
+    }
+  }
+`;
+
+/**
+ * Get Provider Detail (Fallback - without orgAverageRating)
+ * Used as fallback when orgAverageRating is null but schema requires non-null
+ */
+export const GET_PROVIDER_DETAIL_FALLBACK = gql`
+  query GetProviderDetailFallback($orgId: String!) {
+    getProviderDetail(orgId: $orgId) {
+      _id
+      organizationName
+      organizationDescription
+      organizationImage
+      avatar
+      organizationEmail
+      organizationPhoneNumber
+      organizationWebsiteUrl
+      orgCountry
+      organizationLocation
+      flag
+      
+      # Rating & Social Proof (orgAverageRating omitted - will default to 0 in mapper)
+      reviewsCount
+      orgTotalLikes
+      orgTotalViews
+      orgTotalProjects
+      orgVerified
+      
+      # Budget & Pricing
+      budgetRange
+      organizationHourlyRate
+      minProjectSize
+      
+      # Services & Categorization
+      categoryId
+      subCategory
+      serviceTitle
+      organizationSpecialties
+      industries
+      orgSkills
+      
+      # Additional Profile Info
+      bio
+      organizationIndustry
+      establishmentYear
+      organizationTeamSize
+      badges
+      color
+      
+      # Social Links
+      linkedIn
+      twitter
+      github
+      
+      # Owner Information
+      orgOwnerUserId
+      orgOwnerData {
+        _id
+        userNick
+        userEmail
+        userImage
+      }
+      
+      # Metadata
+      organizationType
+      organizationStatus
+      createdAt
+      updatedAt
     }
   }
 `;
@@ -92,6 +214,8 @@ export const GET_PROVIDERS_SORTED = gql`
         categoryId
         subCategory
         organizationImage
+        organizationHourlyRate
+        reviewsCount
         createdAt
         deletedAt
       }
@@ -524,6 +648,9 @@ export const GET_PROVIDER_ORGANIZATION = gql`
       categoryId
       subCategory
       orgOwnerUserId
+      budgetRange
+      organizationHourlyRate
+      minProjectSize
       createdAt
       updatedAt
     }
@@ -684,6 +811,68 @@ export const GET_SERVICE_REQUEST = gql`
         quoteDescription
         quoteStatus
         createdAt
+      }
+    }
+  }
+`;
+
+// ============================================
+// REVIEW QUERIES
+// ============================================
+
+/**
+ * Get Reviews by Provider Organization
+ * Fetches all reviews for a provider organization
+ */
+export const GET_REVIEWS_BY_PROVIDER = gql`
+  query GetReviewsByProvider($input: ReviewFilterInput!) {
+    getReviewsByProvider(input: $input) {
+      list {
+        _id
+        providerOrgId
+        buyerId
+        rating
+        comment
+        buyerData {
+          _id
+          userNick
+          userEmail
+          userImage
+        }
+        createdAt
+        updatedAt
+      }
+      metaCounter {
+        total
+        averageRating
+      }
+    }
+  }
+`;
+
+/**
+ * Get My Reviews
+ * Fetches reviews created by the current user
+ */
+export const GET_MY_REVIEWS = gql`
+  query GetMyReviews($input: ReviewFilterInput) {
+    getMyReviews(input: $input) {
+      list {
+        _id
+        providerOrgId
+        buyerId
+        rating
+        comment
+        providerOrgData {
+          _id
+          organizationName
+          organizationImage
+        }
+        createdAt
+        updatedAt
+      }
+      metaCounter {
+        total
       }
     }
   }

@@ -32,12 +32,12 @@ export interface BackendProviderListItem {
   location?: string;
   orgLogoImages?: string[];
   // Common fields
-  orgAverageRating: number;
+  orgAverageRating?: number | null;
   reviewsCount: number;
   orgTotalProjects: number;
   orgResponseTimeAvg: string;
   orgCountry: string;
-  orgCity: string;
+  orgCity?: string; // Optional - not always returned by backend
   flag: string;
       categoryId: string | string[];
       subCategory: string | string[];

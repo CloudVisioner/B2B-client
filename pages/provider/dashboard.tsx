@@ -26,11 +26,12 @@ function getGreeting(): string {
    Provider Dashboard - Premium Overview
    ═══════════════════════════════════════════════════════════ */
 export default function ProviderDashboardPage() {
+  // ========== HOOKS & STATE ==========
   const router = useRouter();
   const currentUser = useReactiveVar(userVar);
   const [mounted, setMounted] = useState(false);
 
-  // Fetch provider organization
+  // ========== APOLLO REQUESTS ==========
   const { data: providerOrgData } = useQuery(GET_PROVIDER_ORGANIZATION, {
     skip: !isLoggedIn(),
     fetchPolicy: 'network-only',
@@ -38,7 +39,6 @@ export default function ProviderDashboardPage() {
   });
   const providerOrgId: string | undefined = providerOrgData?.getProviderOrganization?._id;
 
-  // Fetch quotes by organization
   const { data: quotesData, loading: quotesLoading } = useQuery(GET_QUOTES_BY_ORGANIZATION, {
     skip: !isLoggedIn() || !providerOrgId || !mounted,
     fetchPolicy: 'network-only',
@@ -46,7 +46,6 @@ export default function ProviderDashboardPage() {
     variables: { orgId: providerOrgId || '' },
   });
 
-  // Fetch available service requests
   const { data: requestsData, loading: requestsLoading } = useQuery(GET_SERVICE_REQUESTS, {
     skip: !isLoggedIn() || !mounted,
     fetchPolicy: 'network-only',
@@ -64,6 +63,7 @@ export default function ProviderDashboardPage() {
     },
   });
 
+  // ========== LIFECYCLES ==========
   useEffect(() => {
     setMounted(true);
     if (!isLoggedIn()) {
@@ -77,6 +77,7 @@ export default function ProviderDashboardPage() {
     }
   }, [router, currentUser]);
 
+  // ========== CONDITIONAL RENDERING ==========
   if (!mounted) {
     return (
       <div className="flex h-screen w-full bg-slate-50 overflow-hidden">

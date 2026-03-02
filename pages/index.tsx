@@ -16,10 +16,11 @@ const Hero = dynamic(() => import('../libs/components/Hero'), { ssr: false });
 const AnimatedBackground = dynamic(() => import('../libs/components/AnimatedBackground'), { ssr: false });
 
 export default function Home() {
+  // ========== HOOKS & STATE ==========
   const router = useRouter();
   const currentUser = useReactiveVar(userVar);
 
-  // Redirect logged-in users to their dashboard (fixed: only depend on role, not entire user object)
+  // ========== LIFECYCLES ==========
   useEffect(() => {
     if (isLoggedIn() && currentUser?.userRole) {
       const role = currentUser.userRole;
@@ -31,6 +32,7 @@ export default function Home() {
     }
   }, [router, currentUser?.userRole]);
 
+  // ========== HANDLERS ==========
   const handleGetStarted = () => {
     router.push('/marketplace');
   };
@@ -39,6 +41,7 @@ export default function Home() {
     router.push(`/marketplace?category=${categoryId}`);
   };
 
+  // ========== RENDER ==========
   return (
     <div className="app-container relative min-h-screen">
       <AnimatedBackground />

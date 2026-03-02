@@ -47,7 +47,7 @@ export function mapBackendProviderToList(backend: BackendProviderListItem): Prov
     responseTime: backend.orgResponseTimeAvg || '',
     startingRate: backend.organizationHourlyRate || backend.startingRate || 0,
     location: backend.organizationLocation || backend.location || backend.orgCountry || '',
-    city: backend.orgCity,
+    city: (backend as any).orgCity || '',
     flag: backend.flag || '',
     expertise: normalizeToStringArray(backend.industries),
     caseStudies: [],
@@ -95,7 +95,7 @@ function mapBadges(backend: BackendProviderListItem): string[] {
     badges.push(...backend.badges);
   }
   
-  if (backend.orgAverageRating >= 4.8) {
+  if (backend.orgAverageRating != null && backend.orgAverageRating >= 4.8) {
     badges.push('TOP RATED');
   }
   

@@ -11,7 +11,7 @@ import {
   Building2, Briefcase, Sparkles
 } from 'lucide-react';
 import { Provider, BackendTestimonial, BackendPortfolio, ClientTestimonial, PortfolioItem } from '../types/index';
-import { GET_PROVIDER_DETAIL } from '../../apollo/user/query';
+import { GET_PROVIDER_DETAIL, GET_PROVIDER_DETAIL_FALLBACK } from '../../apollo/user/query';
 import { mapBackendProviderDetail } from '../utils/providerMapper';
 import { getHeaders } from '../../apollo/utils';
 import { isLoggedIn } from '../auth';
@@ -23,23 +23,39 @@ interface ProviderProfileProps {
 }
 
 const ProviderProfile: React.FC<ProviderProfileProps> = ({ providerId, onBrowseServices, onSelectProvider }) => {
+  // ========== HOOKS & STATE ==========
   const router = useRouter();
   const userLoggedIn = isLoggedIn();
+  const [useFallbackQuery, setUseFallbackQuery] = React.useState(false);
 
-  // Fetch provider detail from backend
-  const { data, loading, error, refetch } = useQuery(GET_PROVIDER_DETAIL, {
-    variables: { orgId: providerId || '' },
-    skip: !providerId,
-    fetchPolicy: 'cache-and-network',
-    errorPolicy: 'all',
-    context: {
-      headers: userLoggedIn ? getHeaders() : {},
-    },
-  });
+  // ========== APOLLO REQUESTS ==========
+  const { data, loading, error, refetch } = useQuery(
+    useFallbackQuery ? GET_PROVIDER_DETAIL_FALLBACK : GET_PROVIDER_DETAIL,
+    {
+      variables: { orgId: providerId || '' },
+      skip: !providerId,
+      fetchPolicy: 'cache-and-network',
+      errorPolicy: 'all',
+      context: {
+        headers: userLoggedIn ? getHeaders() : {},
+      },
+    }
+  );
 
-  // Log errors using useEffect instead of onError (Apollo Client best practice)
+  // ========== LIFECYCLES ==========
   useEffect(() => {
-    if (error) {
+    if (error && !useFallbackQuery) {
+      // Check if error is due to orgAverageRating being null
+      const isRatingError = error.graphQLErrors?.some(
+        (e: any) => e.message?.includes('orgAverageRating') && e.message?.includes('non-nullable')
+      ) || error.message?.includes('orgAverageRating');
+      
+      if (isRatingError) {
+        console.warn('orgAverageRating is null, switching to fallback query');
+        setUseFallbackQuery(true);
+        return;
+      }
+      
       console.error('Error fetching provider detail:', {
         error: error.message,
         graphQLErrors: error.graphQLErrors,
@@ -48,38 +64,36 @@ const ProviderProfile: React.FC<ProviderProfileProps> = ({ providerId, onBrowseS
         variables: { orgId: providerId || '' },
       });
     }
-  }, [error, providerId]);
+  }, [error, providerId, useFallbackQuery]);
 
-  // Note: getProviderTestimonials and getProviderPortfolio queries don't exist in backend
-  // These are commented out until backend implements them
-  // const { data: testimonialsData, loading: testimonialsLoading } = useQuery(GET_PROVIDER_TESTIMONIALS, {
-  //   variables: { input: { providerId: providerId || '', page: 1, limit: 10 } },
-  //   skip: !providerId,
-  //   fetchPolicy: 'cache-and-network',
-  //   errorPolicy: 'all',
-  // });
+  // ========== UTILITIES ==========
+  const getImageUrl = (imagePath: string | null | undefined): string => {
+    if (!imagePath) return '';
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+      return imagePath;
+    }
+    const apiUrl = process.env.NEXT_PUBLIC_API_GRAPHQL_URL || process.env.REACT_APP_API_GRAPHQL_URL || 'http://localhost:3010/graphql';
+    const baseUrl = apiUrl.replace('/graphql', '');
+    const cleanPath = imagePath.startsWith('/') ? imagePath.slice(1) : imagePath;
+    return `${baseUrl}/${cleanPath}`;
+  };
 
-  // const { data: portfolioData, loading: portfolioLoading } = useQuery(GET_PROVIDER_PORTFOLIO, {
-  //   variables: { providerId: providerId || '' },
-  //   skip: !providerId,
-  //   fetchPolicy: 'cache-and-network',
-  //   errorPolicy: 'all',
-  // });
-
-  // Map backend data to frontend format
+  // ========== COMPUTED VALUES ==========
   const provider: Provider | null = data?.getProviderDetail 
-    ? mapBackendProviderDetail(data.getProviderDetail)
+    ? (() => {
+        try {
+          return mapBackendProviderDetail(data.getProviderDetail);
+        } catch (err) {
+          console.error('Error mapping provider detail:', err);
+          return null;
+        }
+      })()
     : null;
 
-  // Map backend testimonials to frontend format
-  // Note: Using empty array until backend implements getProviderTestimonials
   const dynamicTestimonials: ClientTestimonial[] = [];
-
-  // Map backend portfolio to frontend format
-  // Note: Using empty array until backend implements getProviderPortfolio
   const dynamicPortfolios: PortfolioItem[] = [];
 
-  // Loading state
+  // ========== CONDITIONAL RENDERING ==========
   if (loading && !provider) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 flex items-center justify-center">
@@ -122,7 +136,10 @@ const ProviderProfile: React.FC<ProviderProfileProps> = ({ providerId, onBrowseS
             </div>
           )}
           <button
-            onClick={() => refetch()}
+            onClick={() => {
+              setUseFallbackQuery(false);
+              refetch();
+            }}
             className="w-full px-6 py-3.5 bg-gradient-to-r from-primary to-primary/80 text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-primary/25 transition-all duration-300"
           >
             Try Again
@@ -256,11 +273,29 @@ const ProviderProfile: React.FC<ProviderProfileProps> = ({ providerId, onBrowseS
               <div className="relative group">
                 <div className="absolute -inset-4 bg-gradient-to-r from-primary/20 to-purple-500/20 rounded-3xl blur-2xl opacity-75 group-hover:opacity-100 transition-opacity"></div>
                 <div className="relative w-40 h-40 rounded-3xl bg-white dark:bg-slate-900 border-2 border-slate-200/50 dark:border-slate-800/50 shadow-2xl flex items-center justify-center overflow-hidden backdrop-blur-sm">
-                  <img 
-                    alt={`${provider.name} Logo`} 
-                    className="w-full h-full object-cover" 
-                    src={provider.avatar || 'https://via.placeholder.com/160'}
-                  />
+                  {provider.avatar ? (
+                    <img 
+                      alt={`${provider.name} Logo`} 
+                      className="w-full h-full object-cover" 
+                      src={getImageUrl(provider.avatar)}
+                      onError={(e) => {
+                        // Fallback to placeholder if image fails
+                        const target = e.target as HTMLImageElement;
+                        target.src = 'https://via.placeholder.com/160';
+                      }}
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white text-4xl font-bold">
+                      {provider.name
+                        ? provider.name
+                            .split(' ')
+                            .map((n) => n[0])
+                            .join('')
+                            .toUpperCase()
+                            .slice(0, 2)
+                        : 'OR'}
+                    </div>
+                  )}
                 </div>
                 {provider.badges.includes("VERIFIED") && (
                   <div className="absolute -top-2 -right-2 bg-gradient-to-br from-emerald-500 to-emerald-600 text-white p-2.5 rounded-2xl shadow-xl border-4 border-white dark:border-slate-900">

@@ -62,6 +62,7 @@ const SUBCATEGORIES: Record<string, { value: string; label: string }[]> = {
    Organization Tab
    ═══════════════════════════════════════════════════════════ */
 function OrganizationTab() {
+  // ========== HOOKS & STATE ==========
   const router = useRouter();
   const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [formData, setFormData] = useState({
@@ -69,6 +70,7 @@ function OrganizationTab() {
     organizationDescription: '',
     organizationContactEmail: '',
     organizationCountry: '',
+    startingBudget: '',
     organizationCategories: [] as string[],
     organizationSubCategories: [] as string[],
     organizationImage: '',
@@ -84,85 +86,15 @@ function OrganizationTab() {
 
   const imageBlobUrlRef = useRef<string | null>(null);
 
-  // Cleanup "zombies" on unmount (timeouts + blob URLs)
-  useEffect(() => {
-    return () => {
-      if (successTimeoutRef.current) {
-        clearTimeout(successTimeoutRef.current);
-        successTimeoutRef.current = null;
-      }
-      if (imageBlobUrlRef.current) {
-        URL.revokeObjectURL(imageBlobUrlRef.current);
-        imageBlobUrlRef.current = null;
-      }
-    };
-  }, []);
-
+  // ========== APOLLO REQUESTS ==========
   const { data: orgData, loading: orgLoading, refetch, error: orgError } = useQuery(GET_PROVIDER_ORGANIZATION, {
     skip: !isLoggedIn(),
-    fetchPolicy: 'network-only', // Always fetch fresh data from server
+    fetchPolicy: 'network-only',
     errorPolicy: 'all',
     context: {
       headers: isLoggedIn() ? getHeaders() : {},
     },
   });
-
-  // Update form data when organization data is loaded
-  useEffect(() => {
-    if (orgData?.getProviderOrganization) {
-      const org = orgData.getProviderOrganization;
-      const categories = Array.isArray(org.categoryId) ? org.categoryId : org.categoryId ? [org.categoryId] : [];
-      const subCategories = Array.isArray(org.subCategory) ? org.subCategory : org.subCategory ? [org.subCategory] : [];
-      
-      // Always set image preview if organization has an image (unless user has selected a new file)
-      if (org.organizationImage && !imageFile) {
-        // Clean up any existing blob URL before setting a server URL
-        if (imageBlobUrlRef.current) {
-          URL.revokeObjectURL(imageBlobUrlRef.current);
-          imageBlobUrlRef.current = null;
-        }
-        const fullImageUrl = getImageUrl(org.organizationImage);
-        setImagePreview((prev) => (prev === fullImageUrl ? prev : fullImageUrl));
-      } else if (!org.organizationImage && !imageFile && !isEditMode) {
-        // Only clear preview if there's no image file selected, no org image, and not in edit mode
-        if (imageBlobUrlRef.current) {
-          URL.revokeObjectURL(imageBlobUrlRef.current);
-          imageBlobUrlRef.current = null;
-        }
-        setImagePreview('');
-      }
-      
-      // Only update form data if not in edit mode to avoid overwriting user input
-      if (!isEditMode) {
-        setFormData({
-          organizationName: org.organizationName || '',
-          organizationDescription: org.organizationDescription || '',
-          organizationContactEmail: org.organizationContactEmail || '',
-          organizationCountry: org.organizationCountry || '',
-          organizationCategories: categories,
-          organizationSubCategories: subCategories,
-          organizationImage: org.organizationImage || '',
-        });
-        // Clear imageFile when exiting edit mode
-        setImageFile(null);
-        if (categories.length > 0) {
-          setSelectedCategory(categories[0]);
-        }
-      }
-    } else if (orgData && !orgData.getProviderOrganization) {
-      // If no organization exists and not in edit mode, clear image preview
-      if (!isEditMode && !imageFile) {
-        setImagePreview('');
-      }
-    }
-  }, [orgData, isEditMode, imageFile]);
-
-  // Log errors
-  useEffect(() => {
-    if (orgError) {
-      console.error('Error loading organization:', orgError);
-    }
-  }, [orgError]);
 
   const organizationExists = orgData?.getProviderOrganization?._id;
 
@@ -218,6 +150,98 @@ function OrganizationTab() {
 
   const isSaving = isCreating || isUpdating;
 
+  // ========== LIFECYCLES ==========
+  useEffect(() => {
+    return () => {
+      if (successTimeoutRef.current) {
+        clearTimeout(successTimeoutRef.current);
+        successTimeoutRef.current = null;
+      }
+      if (imageBlobUrlRef.current) {
+        URL.revokeObjectURL(imageBlobUrlRef.current);
+        imageBlobUrlRef.current = null;
+      }
+    };
+  }, []);
+
+  // ========== LIFECYCLES ==========
+  useEffect(() => {
+    if (orgData?.getProviderOrganization) {
+      const org = orgData.getProviderOrganization;
+      const categories = Array.isArray(org.categoryId) ? org.categoryId : org.categoryId ? [org.categoryId] : [];
+      const subCategories = Array.isArray(org.subCategory) ? org.subCategory : org.subCategory ? [org.subCategory] : [];
+      
+      // Always set image preview if organization has an image (unless user has selected a new file)
+      if (org.organizationImage && !imageFile) {
+        // Clean up any existing blob URL before setting a server URL
+        if (imageBlobUrlRef.current) {
+          URL.revokeObjectURL(imageBlobUrlRef.current);
+          imageBlobUrlRef.current = null;
+        }
+        const fullImageUrl = getImageUrl(org.organizationImage);
+        // Always update imagePreview when org data loads, even if it's the same
+        setImagePreview(fullImageUrl);
+      } else if (!org.organizationImage && !imageFile) {
+        // Clear preview if there's no image file selected and no org image
+        if (imageBlobUrlRef.current) {
+          URL.revokeObjectURL(imageBlobUrlRef.current);
+          imageBlobUrlRef.current = null;
+        }
+        setImagePreview('');
+      }
+      
+      // Always update form data when organization data loads (but preserve user input in edit mode)
+      // Get budget value - check multiple possible field names
+      const budgetValue = org.budgetRange || org.minProjectSize || (org as any).startingBudget || '';
+      
+      // Always update form data when organization data loads
+      // This ensures all fields including image are populated on page reload
+      setFormData((prev) => {
+        // Only preserve user input if in edit mode AND form already has data
+        if (isEditMode && prev.organizationName) {
+          return {
+            ...prev,
+            // Still update image and budget even in edit mode if they're empty
+            organizationImage: org.organizationImage || prev.organizationImage || '',
+            startingBudget: prev.startingBudget || (budgetValue ? String(budgetValue) : ''),
+          };
+        }
+        // Otherwise, update all fields with fresh data
+        return {
+          organizationName: org.organizationName || '',
+          organizationDescription: org.organizationDescription || '',
+          organizationContactEmail: org.organizationContactEmail || '',
+          organizationCountry: org.organizationCountry || '',
+          startingBudget: budgetValue ? String(budgetValue) : '',
+          organizationCategories: categories,
+          organizationSubCategories: subCategories,
+          organizationImage: org.organizationImage || '',
+        };
+      });
+      
+      // Clear imageFile when exiting edit mode
+      if (!isEditMode) {
+        setImageFile(null);
+      }
+      
+      if (categories.length > 0 && !selectedCategory) {
+        setSelectedCategory(categories[0]);
+      }
+    } else if (orgData && !orgData.getProviderOrganization) {
+      // If no organization exists and not in edit mode, clear image preview
+      if (!isEditMode && !imageFile) {
+        setImagePreview('');
+      }
+    }
+  }, [orgData, isEditMode, imageFile]);
+
+  useEffect(() => {
+    if (orgError) {
+      console.error('Error loading organization:', orgError);
+    }
+  }, [orgError]);
+
+  // ========== HANDLERS ==========
   const handleInputChange = (field: string, value: string | string[]) => {
     if (!isEditMode) return;
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -279,17 +303,14 @@ function OrganizationTab() {
     }
   };
 
-  // Helper function to convert relative image paths to full URLs
+  // ========== UTILITIES ==========
   const getImageUrl = (imagePath: string | null | undefined): string => {
     if (!imagePath) return '';
-    // If it's already a full URL (starts with http:// or https://), return as is
     if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
       return imagePath;
     }
-    // If it's a relative path, prepend the base URL
     const apiUrl = process.env.NEXT_PUBLIC_API_GRAPHQL_URL || process.env.REACT_APP_API_GRAPHQL_URL || 'http://localhost:3010/graphql';
     const baseUrl = apiUrl.replace('/graphql', '');
-    // Remove leading slash from imagePath if present to avoid double slashes
     const cleanPath = imagePath.startsWith('/') ? imagePath.slice(1) : imagePath;
     return `${baseUrl}/${cleanPath}`;
   };
@@ -372,6 +393,14 @@ function OrganizationTab() {
         if (formData.organizationCountry.trim()) {
           updateInput.organizationCountry = formData.organizationCountry.trim();
         }
+        if (formData.startingBudget.trim()) {
+          const budgetValue = parseFloat(formData.startingBudget.trim());
+          if (!isNaN(budgetValue) && budgetValue > 0) {
+            // Use budgetRange instead of minProjectSize as backend expects budgetRange
+            // Convert to string as GraphQL schema expects String type
+            updateInput.budgetRange = String(budgetValue);
+          }
+        }
         if (formData.organizationCategories.length > 0) {
           updateInput.organizationCategories = formData.organizationCategories;
         }
@@ -399,6 +428,14 @@ function OrganizationTab() {
         if (formData.organizationCountry.trim()) {
           createInput.organizationCountry = formData.organizationCountry.trim();
         }
+        if (formData.startingBudget.trim()) {
+          const budgetValue = parseFloat(formData.startingBudget.trim());
+          if (!isNaN(budgetValue) && budgetValue > 0) {
+            // Use budgetRange instead of minProjectSize as backend expects budgetRange
+            // Convert to string as GraphQL schema expects String type
+            createInput.budgetRange = String(budgetValue);
+          }
+        }
         if (formData.organizationCategories.length > 0) {
           createInput.organizationCategories = formData.organizationCategories;
         }
@@ -418,6 +455,7 @@ function OrganizationTab() {
     }
   };
 
+  // ========== CONDITIONAL RENDERING ==========
   if (!organizationExists && !isEditMode) {
     return (
       <div className="space-y-8">
@@ -434,6 +472,7 @@ function OrganizationTab() {
     );
   }
 
+  // ========== RENDER ==========
   return (
     <div className="space-y-8">
       {showSuccessMessage && (
@@ -490,7 +529,7 @@ function OrganizationTab() {
               {(imagePreview || formData.organizationImage) ? (
                 <div className="w-24 h-24 rounded-2xl overflow-hidden border-2 border-slate-200 dark:border-slate-700 shadow-lg">
                   <img 
-                    src={imagePreview || getImageUrl(formData.organizationImage)} 
+                    src={imagePreview || (formData.organizationImage ? getImageUrl(formData.organizationImage) : '')} 
                     alt="Organization Logo" 
                     className="w-full h-full object-cover"
                     onError={(e) => {
@@ -576,6 +615,19 @@ function OrganizationTab() {
                 value={formData.organizationCountry}
                 onChange={(e) => handleInputChange('organizationCountry', e.target.value)}
                 placeholder="USA"
+                disabled={!isEditMode}
+                className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-3 text-sm font-medium text-slate-900 dark:text-white focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50 dark:bg-slate-900/40 disabled:bg-white dark:disabled:bg-slate-900 disabled:cursor-not-allowed"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
+                Starting Budget
+              </label>
+              <input
+                type="number"
+                value={formData.startingBudget}
+                onChange={(e) => handleInputChange('startingBudget', e.target.value)}
+                placeholder="1000"
                 disabled={!isEditMode}
                 className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-3 text-sm font-medium text-slate-900 dark:text-white focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50 dark:bg-slate-900/40 disabled:bg-white dark:disabled:bg-slate-900 disabled:cursor-not-allowed"
               />
@@ -701,6 +753,7 @@ function OrganizationTab() {
    Profile Tab
    ═══════════════════════════════════════════════════════════ */
 function ProfileTab() {
+  // ========== HOOKS & STATE ==========
   const currentUser = useReactiveVar(userVar);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const passwordTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -727,21 +780,7 @@ function ProfileTab() {
     confirmPassword: '',
   });
 
-  // Cleanup on unmount only — revoke blob URLs, clear timeouts
-  useEffect(() => {
-    return () => {
-      if (passwordTimeoutRef.current) {
-        clearTimeout(passwordTimeoutRef.current);
-        passwordTimeoutRef.current = null;
-      }
-      if (imageBlobUrlRef.current) {
-        URL.revokeObjectURL(imageBlobUrlRef.current);
-        imageBlobUrlRef.current = null;
-      }
-    };
-  }, []);
-
-  // Get userId from multiple sources - userVar or JWT token
+  // ========== UTILITIES ==========
   const getUserIdFromToken = (): string | null => {
     const token = getJwtToken();
     if (token) {
@@ -759,6 +798,7 @@ function ProfileTab() {
   const userIdFromToken = getUserIdFromToken();
   const validUserId = userIdFromVar || (userIdFromToken && userIdFromToken.trim() && userIdFromToken.length === 24 ? userIdFromToken : null);
   
+  // ========== APOLLO REQUESTS ==========
   const { data: profileData, loading: profileLoading, refetch: refetchProfile } = useQuery(GET_MY_PROFILE, {
     skip: !isLoggedIn() || !validUserId,
     variables: { userId: validUserId || '' },
@@ -792,7 +832,6 @@ function ProfileTab() {
     },
   });
 
-  // Use UPDATE_MY_PROFILE for all profile updates including images
   const [updateProfile, { loading: isUpdatingProfile }] = useMutation(UPDATE_MY_PROFILE, {
     context: {
       headers: isLoggedIn() ? getHeaders() : {},
@@ -859,6 +898,21 @@ function ProfileTab() {
     },
   });
 
+  // ========== LIFECYCLES ==========
+  useEffect(() => {
+    return () => {
+      if (passwordTimeoutRef.current) {
+        clearTimeout(passwordTimeoutRef.current);
+        passwordTimeoutRef.current = null;
+      }
+      if (imageBlobUrlRef.current) {
+        URL.revokeObjectURL(imageBlobUrlRef.current);
+        imageBlobUrlRef.current = null;
+      }
+    };
+  }, []);
+
+  // ========== HANDLERS ==========
   const handleInputChange = (field: string, value: string) => {
     if (!isEditMode) return;
     setFormData((prev) => ({ ...prev, [field]: value }));

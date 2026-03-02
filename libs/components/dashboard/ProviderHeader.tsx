@@ -89,8 +89,23 @@ export const ProviderHeader: React.FC<ProviderHeaderProps> = ({ title }) => {
   // Note: Profile refetch is handled by refetchQueries in the mutation
   // This component will automatically update when the cache is invalidated
 
+  // Helper function to convert relative image paths to full URLs
+  const getImageUrl = (imagePath: string | null | undefined): string => {
+    if (!imagePath) return '';
+    // If it's already a full URL (starts with http:// or https://), return as is
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+      return imagePath;
+    }
+    // If it's a relative path, prepend the base URL
+    const apiUrl = process.env.NEXT_PUBLIC_API_GRAPHQL_URL || process.env.REACT_APP_API_GRAPHQL_URL || 'http://localhost:3010/graphql';
+    const baseUrl = apiUrl.replace('/graphql', '');
+    // Remove leading slash from imagePath if present to avoid double slashes
+    const cleanPath = imagePath.startsWith('/') ? imagePath.slice(1) : imagePath;
+    return `${baseUrl}/${cleanPath}`;
+  };
+
   // Use profile image if available, otherwise use currentUser image or token claims
-  const userImage = profileData?.getUser?.userImage || currentUser?.userImage || (() => {
+  const rawUserImage = profileData?.getUser?.userImage || currentUser?.userImage || (() => {
     const token = getJwtToken();
     if (token) {
       try {
@@ -102,6 +117,8 @@ export const ProviderHeader: React.FC<ProviderHeaderProps> = ({ title }) => {
     }
     return null;
   })();
+  
+  const userImage = rawUserImage ? getImageUrl(rawUserImage) : null;
 
   // Fetch provider organization data
   const { data: orgData } = useQuery(GET_PROVIDER_ORGANIZATION, {

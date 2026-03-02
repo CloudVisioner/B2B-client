@@ -494,6 +494,7 @@ export const CREATE_PROVIDER_ORG_PROF = gql`
       categoryId
       subCategory
       organizationImage
+      minProjectSize
       createdAt
       deletedAt
     }
@@ -515,6 +516,7 @@ export const UPDATE_PROVIDER_ORG_PROF = gql`
       categoryId
       subCategory
       organizationImage
+      minProjectSize
       createdAt
       updatedAt
       deletedAt
@@ -536,6 +538,46 @@ export const UPDATE_PROVIDER_PROFILE = gql`
       userDescription
       userRole
       userStatus
+      createdAt
+      updatedAt
+    }
+  }
+`;
+
+// ============================================
+// REVIEW MUTATIONS
+// ============================================
+
+/**
+ * Create Review
+ * Creates a review for a provider organization
+ */
+export const CREATE_REVIEW = gql`
+  mutation CreateReview($input: ReviewInput!) {
+    createReview(input: $input) {
+      _id
+      providerOrgId
+      buyerId
+      rating
+      comment
+      createdAt
+      updatedAt
+    }
+  }
+`;
+
+/**
+ * Update Review
+ * Updates an existing review
+ */
+export const UPDATE_REVIEW = gql`
+  mutation UpdateReview($input: UpdateReviewInput!) {
+    updateReview(input: $input) {
+      _id
+      providerOrgId
+      buyerId
+      rating
+      comment
       createdAt
       updatedAt
     }

@@ -386,6 +386,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({
   onSelectProvider,
   onFilterChange 
 }) => {
+  // ========== HOOKS & STATE ==========
   const [selectedCatId, setSelectedCatId] = useState<CategoryId>(initialCategory);
   const [sortBy, setSortBy] = useState(initialFilters.sort || 'Newest');
   const [isSortOpen, setIsSortOpen] = useState(false);
@@ -396,19 +397,26 @@ const Marketplace: React.FC<MarketplaceProps> = ({
   const [searchQuery, setSearchQuery] = useState(initialFilters.search || '');
   const itemsPerPage = 9;
   
-  // Use refs to track if we're initializing from URL (prevent infinite loop)
   const isInitialMount = useRef(true);
   const lastFiltersRef = useRef<string>('');
 
   const currentCategory = CATEGORIES.find(c => c.id === selectedCatId)!;
   
-  // Map UI category to backend category format
-  const backendCategoryId = mapCategoryToBackend(selectedCatId);
+  // Helper function to convert relative image paths to full URLs
+  const getImageUrl = (imagePath: string | null | undefined): string => {
+    if (!imagePath) return '';
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+      return imagePath;
+    }
+    const apiUrl = process.env.NEXT_PUBLIC_API_GRAPHQL_URL || process.env.REACT_APP_API_GRAPHQL_URL || 'http://localhost:3010/graphql';
+    const baseUrl = apiUrl.replace('/graphql', '');
+    const cleanPath = imagePath.startsWith('/') ? imagePath.slice(1) : imagePath;
+    return `${baseUrl}/${cleanPath}`;
+  };
   
-  // Map UI sort option to backend sort format
+  const backendCategoryId = mapCategoryToBackend(selectedCatId);
   const backendSortBy = mapSortOption(sortBy);
   
-  // Prepare query variables with validation
   const queryVariables = useMemo(() => {
     // Validate categoryId - must be a valid backend category
     if (!backendCategoryId || !['IT_AND_SOFTWARE', 'BUSINESS_SERVICES', 'MARKETING_AND_SALES', 'DESIGN_AND_CREATIVE'].includes(backendCategoryId)) {
@@ -452,10 +460,8 @@ const Marketplace: React.FC<MarketplaceProps> = ({
     return { input };
   }, [backendCategoryId, activeSubCats, selectedLocation, maxBudget, currentPage, itemsPerPage, searchQuery, backendSortBy]);
   
-  // Always use sorted query since all options require backend sorting
+  // ========== APOLLO REQUESTS ==========
   const useSortedQuery = true;
-  
-  // Skip query if variables are invalid
   const shouldSkip = !backendCategoryId || !queryVariables || !['IT_AND_SOFTWARE', 'BUSINESS_SERVICES', 'MARKETING_AND_SALES', 'DESIGN_AND_CREATIVE'].includes(backendCategoryId);
   
   const { data, loading, error, refetch } = useQuery(
@@ -476,7 +482,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({
     }
   );
 
-  // Log errors when they occur (only re-log when error itself changes)
+  // ========== LIFECYCLES ==========
   useEffect(() => {
     if (error) {
       console.error('Marketplace query error:', {
@@ -488,7 +494,68 @@ const Marketplace: React.FC<MarketplaceProps> = ({
     }
   }, [error, queryVariables]);
   
-  // Extract providers from response and apply client-side filtering
+  useEffect(() => {
+    setSelectedCatId(initialCategory);
+  }, [initialCategory]);
+
+  useEffect(() => {
+    if (isInitialMount.current) {
+      setSortBy(initialFilters.sort || 'Newest');
+      setMaxBudget(initialFilters.budget || 5000);
+      setActiveSubCats(initialFilters.subcategory || []);
+      setSelectedLocation(initialFilters.location || 'All Countries');
+      setCurrentPage(initialFilters.page || 1);
+      setSearchQuery(initialFilters.search || '');
+      isInitialMount.current = false;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isInitialMount.current) {
+      lastFiltersRef.current = JSON.stringify({
+        category: selectedCatId,
+        subcategory: activeSubCats,
+        location: selectedLocation,
+        budget: maxBudget,
+        sort: sortBy,
+        page: currentPage,
+        search: searchQuery,
+      });
+      return;
+    }
+    
+    if (!onFilterChange) return;
+    
+    const currentFiltersString = JSON.stringify({
+      category: selectedCatId,
+      subcategory: activeSubCats,
+      location: selectedLocation,
+      budget: maxBudget,
+      sort: sortBy,
+      page: currentPage,
+      search: searchQuery,
+    });
+    
+    if (currentFiltersString !== lastFiltersRef.current) {
+      lastFiltersRef.current = currentFiltersString;
+      
+      const timeoutId = setTimeout(() => {
+        onFilterChange({
+          category: selectedCatId,
+          subcategory: activeSubCats.length > 0 ? activeSubCats : undefined,
+          location: selectedLocation !== 'All Countries' ? selectedLocation : undefined,
+          budget: maxBudget !== 5000 ? maxBudget : undefined,
+          sort: sortBy !== 'Newest' ? sortBy : undefined,
+          page: currentPage > 1 ? currentPage : undefined,
+          search: searchQuery || undefined,
+        });
+      }, 100);
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [selectedCatId, activeSubCats, selectedLocation, maxBudget, sortBy, currentPage, searchQuery, onFilterChange]);
+  
+  // ========== COMPUTED VALUES ==========
   const providers = useMemo(() => {
     if (!data) return [];
     
@@ -538,90 +605,19 @@ const Marketplace: React.FC<MarketplaceProps> = ({
     return mappedProviders;
   }, [data, useSortedQuery, activeSubCats, selectedCatId]);
   
-  // Get total count for pagination (use filtered providers count since we filter client-side)
   const totalCount = useMemo(() => {
     return providers.length;
   }, [providers]);
   
-  // Calculate pagination
   const totalPages = Math.ceil(totalCount / itemsPerPage);
   
-  // Paginate filtered providers
   const paginatedProviders = useMemo(() => {
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
     return providers.slice(startIndex, endIndex);
   }, [providers, currentPage, itemsPerPage]);
-  
-  // Sync category when initialCategory changes (from URL)
-  useEffect(() => {
-    setSelectedCatId(initialCategory);
-  }, [initialCategory]);
-  
-  // Sync initial filters from URL on mount
-  useEffect(() => {
-    if (isInitialMount.current) {
-      setSortBy(initialFilters.sort || 'Newest');
-      setMaxBudget(initialFilters.budget || 5000);
-      setActiveSubCats(initialFilters.subcategory || []);
-      setSelectedLocation(initialFilters.location || 'All Countries');
-      setCurrentPage(initialFilters.page || 1);
-      setSearchQuery(initialFilters.search || '');
-      isInitialMount.current = false;
-    }
-  }, []); // Only run once on mount
 
-  // Update URL when filters change (but only if user changed them, not from URL sync)
-  useEffect(() => {
-    // Skip on initial mount (filters are synced from URL in separate effect)
-    if (isInitialMount.current) {
-      // Set initial filters string to prevent false positives
-      lastFiltersRef.current = JSON.stringify({
-        category: selectedCatId,
-        subcategory: activeSubCats,
-        location: selectedLocation,
-        budget: maxBudget,
-        sort: sortBy,
-        page: currentPage,
-        search: searchQuery,
-      });
-      return;
-    }
-    
-    if (!onFilterChange) return;
-    
-    // Create a string representation of current filters to compare
-    const currentFiltersString = JSON.stringify({
-      category: selectedCatId,
-      subcategory: activeSubCats,
-      location: selectedLocation,
-      budget: maxBudget,
-      sort: sortBy,
-      page: currentPage,
-      search: searchQuery,
-    });
-    
-    // Only update URL if filters actually changed
-    if (currentFiltersString !== lastFiltersRef.current) {
-      lastFiltersRef.current = currentFiltersString;
-      
-      // Use setTimeout to debounce and prevent rapid-fire updates
-      const timeoutId = setTimeout(() => {
-        onFilterChange({
-          category: selectedCatId,
-          subcategory: activeSubCats.length > 0 ? activeSubCats : undefined,
-          location: selectedLocation !== 'All Countries' ? selectedLocation : undefined,
-          budget: maxBudget !== 5000 ? maxBudget : undefined,
-          sort: sortBy !== 'Newest' ? sortBy : undefined,
-          page: currentPage > 1 ? currentPage : undefined,
-          search: searchQuery || undefined,
-        });
-      }, 100); // 100ms debounce
-      
-      return () => clearTimeout(timeoutId);
-    }
-  }, [selectedCatId, activeSubCats, selectedLocation, maxBudget, sortBy, currentPage, searchQuery, onFilterChange]);
-
+  // ========== HANDLERS ==========
   const toggleSubCat = (id: string) => {
     setActiveSubCats(prev => {
       const newSubCats = prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id];
@@ -652,6 +648,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({
     setCurrentPage(1);
   };
 
+  // ========== RENDER ==========
   return (
     <div className="bg-slate-50 dark:bg-slate-800 min-h-screen py-10 transition-colors">
       <div className="max-w-7xl mx-auto px-4">
@@ -870,8 +867,8 @@ const Marketplace: React.FC<MarketplaceProps> = ({
                   const IconComponent = category?.icon || Code;
                   
                   // Use organization image or avatar, or fallback to a placeholder gradient
-                  const imageUrl = provider.avatar || provider.icon;
-                  const hasImage = imageUrl && typeof imageUrl === 'string' && imageUrl.startsWith('http');
+                  const imageUrl = provider.avatar ? getImageUrl(provider.avatar) : null;
+                  const hasImage = imageUrl && imageUrl.length > 0;
                   
                   return (
                     <div 
@@ -886,6 +883,18 @@ const Marketplace: React.FC<MarketplaceProps> = ({
                             src={imageUrl} 
                             alt={provider.name}
                             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                            onError={(e) => {
+                              // Fallback to icon if image fails to load
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                              const parent = target.parentElement;
+                              if (parent && !parent.querySelector('.fallback-icon')) {
+                                const fallback = document.createElement('div');
+                                fallback.className = `w-full h-full ${provider.color} flex items-center justify-center fallback-icon`;
+                                fallback.innerHTML = `<svg class="w-16 h-16 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" /></svg>`;
+                                parent.appendChild(fallback);
+                              }
+                            }}
                           />
                         ) : (
                           <div className={`w-full h-full ${provider.color} flex items-center justify-center`}>

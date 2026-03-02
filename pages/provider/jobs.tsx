@@ -68,6 +68,7 @@ const formatTimeAgo = (dateString: string): string => {
 };
 
 export default function ProviderJobsPage() {
+  // ========== HOOKS & STATE ==========
   const router = useRouter();
   const currentUser = useReactiveVar(userVar);
   const [mounted, setMounted] = useState(false);
@@ -87,8 +88,8 @@ export default function ProviderJobsPage() {
   const [currentPage, setCurrentPage] = useState<number>(1);
   const cardsPerPage = 4;
 
-  // Determine sort field based on selection
-  const getSortField = () => {
+  // ========== UTILITIES ==========
+  const getSortField = (): string => {
     switch (sortBy) {
       case 'newest': return 'createdAt';
       case 'budget': return 'reqBudgetRange';
@@ -97,8 +98,7 @@ export default function ProviderJobsPage() {
     }
   };
 
-  // Fetch available service requests (only OPEN status)
-  // ✅ CORRECT Input Structure: ServiceRequestInquiry with ServiceRequestSearch
+  // ========== APOLLO REQUESTS ==========
   const { data, loading, error, refetch } = useQuery(GET_SERVICE_REQUESTS, {
     skip: !isLoggedIn() || !mounted,
     fetchPolicy: 'network-only',
@@ -122,7 +122,6 @@ export default function ProviderJobsPage() {
     },
   });
 
-  // Provider organization (to obtain orgId for createQuote)
   const { data: providerOrgData } = useQuery(GET_PROVIDER_ORGANIZATION, {
     skip: !isLoggedIn(),
     fetchPolicy: 'network-only',
@@ -187,6 +186,7 @@ export default function ProviderJobsPage() {
     context: { headers: isLoggedIn() ? getHeaders() : {} },
   });
 
+  // ========== LIFECYCLES ==========
   useEffect(() => {
     setMounted(true);
     if (!isLoggedIn()) {
@@ -199,7 +199,7 @@ export default function ProviderJobsPage() {
     }
   }, [router, currentUser]);
 
-  // Category map for subcategories - using backend category values
+  // ========== CONSTANTS ==========
   const CATEGORY_MAP: Record<string, { label: string; subcategories: string[] }> = {
     'IT_AND_SOFTWARE': {
       label: 'IT & Software',
@@ -247,15 +247,14 @@ export default function ProviderJobsPage() {
   // Filter out any non-OPEN requests (backend should handle this via search.reqStatus, but double-check for safety)
   const openRequests = serviceRequests.filter(req => req.reqStatus === 'OPEN');
 
-  // Show only the 4 main categories
+  // ========== COMPUTED VALUES ==========
   const categories = CATEGORY_NAMES;
 
-  // Get subcategories for selected category
   const availableSubcategories = selectedCategory !== 'all' && CATEGORY_MAP[selectedCategory]
     ? ['all', ...CATEGORY_MAP[selectedCategory].subcategories]
     : ['all'];
 
-  // Filter jobs
+  // ========== UTILITIES ==========
   let filteredJobs = openRequests.filter(job => {
     const matchesSearch = !searchQuery || 
       job.reqTitle?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -310,6 +309,7 @@ export default function ProviderJobsPage() {
     return 'NORMAL';
   };
 
+  // ========== CONDITIONAL RENDERING ==========
   if (!mounted) {
     return (
       <div className="flex h-screen w-full bg-slate-50 dark:bg-slate-900 overflow-hidden">
@@ -324,6 +324,7 @@ export default function ProviderJobsPage() {
 
   if (!isLoggedIn()) return null;
 
+  // ========== RENDER ==========
   return (
     <div className="flex h-screen w-full bg-slate-50 dark:bg-slate-900 overflow-hidden antialiased">
       <ProviderSidebar />

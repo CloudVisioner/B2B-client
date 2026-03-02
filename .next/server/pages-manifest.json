@@ -1,10 +1,9 @@
 {
   "/_app": "pages/_app.js",
-  "/_error": "pages/_error.js",
   "/_document": "pages/_document.js",
-  "/provider/settings": "pages/provider/settings.js",
-  "/provider/organizations": "pages/provider/organizations.js",
+  "/_error": "pages/_error.js",
   "/marketplace": "pages/marketplace.js",
+  "/provider/[id]": "pages/provider/[id].js",
   "/": "pages/index.js",
-  "/login": "pages/login.js"
+  "/provider/settings": "pages/provider/settings.js"
 }

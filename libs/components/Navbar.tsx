@@ -14,6 +14,7 @@ interface NavbarProps {
 }
 
 const Navbar: React.FC<NavbarProps> = ({ currentPage }) => {
+  // ========== HOOKS & STATE ==========
   const { theme, toggleTheme } = useTheme();
   const router = useRouter();
   const currentUser = useReactiveVar(userVar);
@@ -22,13 +23,12 @@ const Navbar: React.FC<NavbarProps> = ({ currentPage }) => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Prevent hydration mismatch by only checking login status after mount
+  // ========== LIFECYCLES ==========
   useEffect(() => {
     setMounted(true);
     setLoggedIn(isLoggedIn());
   }, []);
 
-  // Handle scroll for dynamic sticky behavior
   useEffect(() => {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 20);
@@ -37,7 +37,7 @@ const Navbar: React.FC<NavbarProps> = ({ currentPage }) => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Determine current page from route
+  // ========== UTILITIES ==========
   const getCurrentPage = (): PageId => {
     if (currentPage) return currentPage;
     if (router.pathname === '/') return 'home';
@@ -49,7 +49,7 @@ const Navbar: React.FC<NavbarProps> = ({ currentPage }) => {
 
   const activePage = getCurrentPage();
 
-  const getDashboardPath = () => {
+  const getDashboardPath = (): string => {
     if (loggedIn && currentUser?.userRole) {
       const role = currentUser.userRole;
       if (role === 'PROVIDER' || role === 'provider') {
@@ -65,7 +65,7 @@ const Navbar: React.FC<NavbarProps> = ({ currentPage }) => {
     { href: '/results', label: 'Results', page: 'results' as PageId },
   ];
 
-  // Don't render motion components until mounted (client-side only)
+  // ========== CONDITIONAL RENDERING ==========
   if (!mounted) {
     return (
       <nav className={`fixed top-0 left-0 right-0 z-[100] transition-all duration-300 h-20 bg-white/70 dark:bg-slate-900/70 backdrop-blur-md border-b border-white/10 dark:border-slate-700/10`}>
@@ -81,6 +81,7 @@ const Navbar: React.FC<NavbarProps> = ({ currentPage }) => {
     );
   }
 
+  // ========== RENDER ==========
   return (
     <>
       <motion.nav

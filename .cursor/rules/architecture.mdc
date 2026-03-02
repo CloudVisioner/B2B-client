@@ -1,0 +1,132 @@
+---
+alwaysApply: true
+---
+
+# Nestar-Style Architecture Guide for This Project
+
+This project follows a **simplified version** of the Nestar client architecture you described, adapted for **Next.js + Tailwind + Apollo Client** and the existing folder names in this repo. Labels, existing names, and current APIs are **not** changed; this rule guides *structure and organization only*.
+
+## 1. Component Structure & Order
+
+All React components (pages and `libs/components/*`) should keep this **section ordering**:
+
+```tsx
+// 1) IMPORTS (grouped & ordered)
+// - React / Next core
+// - External libs (icons, etc.)
+// - Internal hooks
+// - Apollo (queries/mutations)
+// - Types & enums
+// - Utils/helpers
+// - Config/constants
+
+// 2) PROPS INTERFACES / TYPES (if needed)
+
+// 3) COMPONENT FUNCTION
+// 4) HOOKS & LOCAL STATE (useState, useEffect, useMemo, useCallback)
+// 5) APOLLO REQUESTS (useQuery, useMutation) grouped together
+// 6) LIFECYCLES (useEffect hooks) grouped under a comment
+// 7) HANDLERS (event & business logic)
+// 8) CONDITIONAL RENDERING (early returns for loading/error/mobile)
+// 9) MAIN JSX RETURN (desktop/default layout)
+// 10) DEFAULT PROPS (only if truly needed)
+```
+
+Use comments to keep this consistent:
+
+```tsx
+/** APOLLO REQUESTS **/
+/** LIFECYCLES **/
+/** HANDLERS **/
+```
+
+## 2. Handlers Pattern
+
+- **Event handlers**: `handle*` (e.g. `handleOpenFilters`, `handleChangeSearch`).
+- **Business logic handlers**: `*Handler` (e.g. `createQuoteHandler`, `saveOrganizationHandler`).
+- **Input handlers**: `handle*Change` or `getInput*Handler` (consistent per file).
+- Put **component-specific handlers inside the component**.
+- If a handler is reused across multiple components, move it to:
+  - `libs/utils.ts` or
+  - a more specific util file in `libs/utils/`.
+- All async handlers use `try/catch` and user-safe logging / toasts (this project may not use sweetAlert; reuse existing notification pattern instead of adding new ones).
+
+## 3. GraphQL Queries & Mutations
+
+- Keep the existing split:
+  - `apollo/user/query.ts`
+  - `apollo/user/mutation.ts`
+  - `apollo/admin/*` for admin-only operations
+- Group queries/mutations by **domain** using comment blocks:
+
+```ts
+// ============================================
+// PROVIDER QUERIES
+// ============================================
+```
+
+- Naming:
+  - Queries: `GET_*` (e.g. `GET_PROVIDER_ORGANIZATION`, `GET_SERVICE_REQUESTS`).
+  - Mutations: imperative verbs (e.g. `CREATE_*`, `UPDATE_*`, `CHANGE_*`).
+- Always request only the fields needed by the UI; when adding new UI fields (rating, budgets, images), extend the existing query blocks rather than creating new ones.
+
+## 4. Hooks
+
+- Custom hooks live in `lib/hooks/` or `libs/hooks/` (reuse existing structure).
+- Naming: always `useSomething`, typed returns.
+- Hooks wrap:
+  - Apollo calls + mapping logic, or
+  - shared stateful behaviors (device detection, profile organization, etc.).
+- Components should prefer using hooks like `useProviderOrganization` instead of duplicating query + mapping logic.
+
+## 5. Types & Enums
+
+- Types for providers/organizations and related entities live in `libs/types/`.
+- Enums live in `libs/enums/`.
+- General rules:
+  - Interfaces & types: PascalCase (`Provider`, `ProviderOrganizationInput`).
+  - Enum names: PascalCase (`OrganizationStatus`), values: `UPPER_SNAKE_CASE`.
+- When updating GraphQL fields (e.g. adding rating or budgets), also align the corresponding TypeScript types so components don’t fall back to `any`.
+
+## 6. Layout & Pages
+
+- Pages under `pages/` are thin:
+  - Import the main layout and high-level components from `libs/components/*`.
+  - Handle only routing, top-level layout selection, and simple prop wiring.
+- Shared layout elements:
+  - `Navbar`, `Footer`, dashboard headers/sidebars live in `libs/components/`.
+  - Keep them stateless where possible; stateful behavior in hooks or container components.
+
+## 7. Tailwind & Styling
+
+- Tailwind is the primary styling system.
+- Avoid introducing new SCSS; prefer Tailwind utility classes and existing design tokens.
+- When refactoring old SCSS-based components, keep layout & semantics but move styles into Tailwind classes gradually; do not mix many styling systems in the same new code.
+
+## 8. Code Organization & Cleanliness
+
+- **Do not change existing public names / labels / routes** unless explicitly required by the feature. Adapt structure only.
+- Prefer:
+  - Smaller, focused components over monolithic ones.
+  - Extracting repeated chunks (cards, rows) into `libs/components/` subcomponents.
+  - Moving low-level data transformation into `libs/utils/providerMapper.ts` or similar mappers.
+- Remove or avoid:
+  - New sprawling Markdown docs in the repo (we use this `.mdc` for architecture).
+  - Duplicated queries/mutations.
+  - Unused components or dead code when you are sure nothing imports them.
+
+## 9. Data Flow
+
+Follow this general pattern for UI → GraphQL → UI round trips:
+
+1. **Component** calls a handler (e.g. `handleSaveOrganization`).
+2. Handler invokes a **mutation** from `apollo/user/mutation.ts`.
+3. Use `refetch` or `refetchQueries` from the relevant `useQuery` to refresh data.
+4. Map backend data through mappers in `libs/utils/*` (e.g. `providerMapper`) into the internal `Provider` shape.
+5. React components render only this mapped shape.
+
+This keeps:
+- Components focused on rendering and interaction,
+- Mappers focused on field name differences between backend and frontend,
+- GraphQL files focused on transport.
+

@@ -6,11 +6,12 @@ import Footer from '../libs/components/Footer';
 import { CategoryId } from '../libs/types';
 
 export default function MarketplacePage() {
+  // ========== HOOKS & STATE ==========
   const router = useRouter();
   const { category, subcategory, location, budget, sort, page, search } = router.query;
   const lastQueryRef = useRef<string>('');
 
-  // Get initial category from URL or default
+  // ========== UTILITIES ==========
   const getInitialCategory = (): CategoryId => {
     const categoryParam = category as CategoryId;
     if (categoryParam && ['it-software', 'business', 'marketing-sales', 'design-creative'].includes(categoryParam)) {
@@ -19,6 +20,7 @@ export default function MarketplacePage() {
     return 'it-software';
   };
 
+  // ========== HANDLERS ==========
   const handleSelectProvider = (id: string) => {
     // Preserve category filter when navigating to provider detail
     const categoryParam = category as CategoryId;
@@ -59,6 +61,7 @@ export default function MarketplacePage() {
     }
   };
 
+  // ========== RENDER ==========
   return (
     <div className="app-container">
       <Navbar currentPage="marketplace" />
