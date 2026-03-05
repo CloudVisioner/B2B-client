@@ -603,6 +603,23 @@ function ProfileTab() {
     };
   }, []);
 
+  // Helper function to convert relative image paths to full URLs
+  const getImageUrl = (imagePath: string | null | undefined): string => {
+    if (!imagePath) return '';
+    // If it's already a full URL (starts with http:// or https://), return as is
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+      return imagePath;
+    }
+    // If it's a relative path, prepend the base URL (same logic as dashboard Header)
+    const apiUrl =
+      process.env.NEXT_PUBLIC_API_GRAPHQL_URL ||
+      process.env.REACT_APP_API_GRAPHQL_URL ||
+      'http://localhost:3010/graphql';
+    const baseUrl = apiUrl.replace('/graphql', '');
+    const cleanPath = imagePath.startsWith('/') ? imagePath.slice(1) : imagePath;
+    return `${baseUrl}/${cleanPath}`;
+  };
+
   // Get userId from multiple sources - userVar or JWT token
   const getUserIdFromToken = (): string | null => {
     const token = getJwtToken();
@@ -646,7 +663,7 @@ function ProfileTab() {
             URL.revokeObjectURL(imageBlobUrlRef.current);
             imageBlobUrlRef.current = null;
           }
-          setImagePreview(user.userImage);
+          setImagePreview(getImageUrl(user.userImage));
         } else {
           setImagePreview('');
         }

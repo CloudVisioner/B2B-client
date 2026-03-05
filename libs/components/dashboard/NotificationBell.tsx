@@ -67,7 +67,8 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ userId, user
     errorPolicy: 'all',
   });
 
-  // Fetch recent notifications for dropdown
+  // Fetch recent notifications for dropdown (kept for potential future use),
+  // but primary UX is now redirecting to the full notifications page.
   const { data, loading, refetch } = useQuery(GET_NOTIFICATIONS, {
     skip: !isLoggedIn() || !validUserId || !isOpen,
     variables: {
@@ -162,8 +163,9 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ userId, user
       <button
         ref={bellRef}
         onClick={() => {
-          setIsOpen(!isOpen);
-          if (!isOpen && refetch) refetch();
+          // Directly navigate to the full notifications page so users
+          // always see the complete, up-to-date list and can mark all as read.
+          router.push('/notifications');
         }}
         className="relative p-2.5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 transition-all duration-300 hover:bg-slate-100/80 dark:hover:bg-slate-800/80 rounded-xl active:scale-95"
       >
@@ -188,8 +190,13 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ userId, user
         )}
       </button>
 
-      {/* Ultra-Modern Dropdown - Using Portal-like fixed positioning */}
-      {isOpen && (
+      {/* NOTE:
+          The dropdown UI is kept in code for potential future use,
+          but the primary interaction now routes to /notifications.
+          To avoid confusing states, we do not render the dropdown
+          based on isOpen anymore.
+      */}
+      {false && isOpen && (
         <>
           {/* Backdrop to prevent page interaction */}
           <div 

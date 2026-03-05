@@ -1,8 +1,13 @@
 {
   "/_app": "pages/_app.js",
-  "/_document": "pages/_document.js",
   "/_error": "pages/_error.js",
-  "/provider/[id]": "pages/provider/[id].js",
-  "/dashboard": "pages/dashboard.js",
-  "/marketplace": "pages/marketplace.js"
+  "/_document": "pages/_document.js",
+  "/provider/jobs": "pages/provider/jobs.js",
+  "/service-requests": "pages/service-requests.js",
+  "/orders": "pages/orders.js",
+  "/provider/help-support": "pages/provider/help-support.js",
+  "/marketplace": "pages/marketplace.js",
+  "/results": "pages/results.js",
+  "/results/[slug]": "pages/results/[slug].js",
+  "/notifications": "pages/notifications.js"
 }

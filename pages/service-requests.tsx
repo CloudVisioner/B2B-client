@@ -6,7 +6,7 @@ import { isLoggedIn } from '../libs/auth';
 import { getHeaders } from '../apollo/utils';
 import { Sidebar } from '../libs/components/dashboard/Sidebar';
 import { GET_BUYER_SERVICE_REQUESTS, GET_QUOTES_BY_REQUEST } from '../apollo/user/query';
-import { UPDATE_SERVICE_REQUEST, ACCEPT_QUOTE, REJECT_QUOTE } from '../apollo/user/mutation';
+import { UPDATE_SERVICE_REQUEST, UPDATE_SERVICE_REQUEST_STATUS, ACCEPT_QUOTE, REJECT_QUOTE } from '../apollo/user/mutation';
 
 /* ─── Service Request Interface ─── */
 /* ✅ Using correct field names from backend */
@@ -336,6 +336,34 @@ export default function ServiceRequestsPage() {
     },
   });
 
+  // Dedicated status mutation for actions like publishing a draft
+  const [updateServiceRequestStatus, { loading: isUpdatingStatus }] = useMutation(UPDATE_SERVICE_REQUEST_STATUS, {
+    context: {
+      headers: isLoggedIn() ? getHeaders() : {},
+    },
+    refetchQueries: [
+      {
+        query: GET_BUYER_SERVICE_REQUESTS,
+        variables: {
+          input: {
+            status: statusFilter !== 'all' ? statusFilter.toUpperCase() : undefined,
+            search: debouncedSearch || undefined,
+            sortBy: sortBy === 'newest' ? 'createdAt' : sortBy === 'deadline' ? 'reqDeadline' : 'reqBudgetRange',
+            sortOrder: 'desc',
+            page: 1,
+            limit: 50,
+          },
+        },
+      },
+    ],
+    awaitRefetchQueries: true,
+    onError: (error) => {
+      console.error('Error updating service request status:', error);
+      const errorMessage = error?.graphQLErrors?.[0]?.message || error?.message || 'Failed to update service request status. Please try again.';
+      alert(errorMessage);
+    },
+  });
+
   useEffect(() => {
     setMounted(true);
     if (!isLoggedIn()) router.push('/login');
@@ -351,6 +379,36 @@ export default function ServiceRequestsPage() {
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
   }, [isModalOpen]);
+
+  /** HANDLERS **/
+
+  const handlePrimaryAction = async (req: ServiceRequest) => {
+    // DRAFT → publish immediately to OPEN
+    if (req.reqStatus === 'DRAFT') {
+      try {
+        await updateServiceRequestStatus({
+          variables: {
+            requestId: req._id,
+            status: 'OPEN',
+          },
+        });
+      } catch {
+        // Error surfaced via onError
+      }
+      return;
+    }
+
+    // OPEN → view quotes
+    if (req.reqStatus === 'OPEN') {
+      setQuotesForRequest(req);
+      setIsQuotesOpen(true);
+      return;
+    }
+
+    // Other statuses → open details
+    setSelectedRequest(req);
+    setIsModalOpen(true);
+  };
 
   /* SSR skeleton */
   if (!mounted) {
@@ -601,16 +659,9 @@ export default function ServiceRequestsPage() {
                           View Details
                         </button>
                         <button 
-                          onClick={() => {
-                            if (req.reqStatus === 'OPEN') {
-                              setQuotesForRequest(req);
-                              setIsQuotesOpen(true);
-                            } else {
-                              setSelectedRequest(req);
-                              setIsModalOpen(true);
-                            }
-                          }}
-                          className="bg-[var(--primary)] hover:bg-indigo-700 text-white px-5 py-2 rounded-lg font-bold text-sm transition-all shadow-sm flex items-center gap-2"
+                          onClick={() => handlePrimaryAction(req)}
+                          disabled={isUpdatingStatus}
+                          className="bg-[var(--primary)] hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-5 py-2 rounded-lg font-bold text-sm transition-all shadow-sm flex items-center gap-2"
                         >
                           {actionIcon(req.reqStatus) && (
                             <span className="material-symbols-outlined text-sm">{actionIcon(req.reqStatus)}</span>
@@ -851,13 +902,9 @@ export default function ServiceRequestsPage() {
                   </button>
                 )}
                 <button 
-                  onClick={() => {
-                    if (selectedRequest.reqStatus === 'OPEN') {
-                      setIsModalOpen(false);
-                      setIsQuotesOpen(true);
-                    }
-                  }}
-                  className="bg-[var(--primary)] hover:bg-indigo-700 text-white px-6 py-2.5 rounded-lg font-bold text-sm transition-all shadow-sm flex items-center gap-2"
+                  onClick={() => handlePrimaryAction(selectedRequest)}
+                  disabled={isUpdatingStatus && selectedRequest.reqStatus === 'DRAFT'}
+                  className="bg-[var(--primary)] hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-6 py-2.5 rounded-lg font-bold text-sm transition-all shadow-sm flex items-center gap-2"
                 >
                   {actionIcon(selectedRequest.reqStatus) && (
                     <span className="material-symbols-outlined text-sm">{actionIcon(selectedRequest.reqStatus)}</span>
@@ -1157,7 +1204,9 @@ function EditServiceRequestModal({ request, isOpen, onClose, onSave, isSaving }:
     title: request.reqTitle || '',
     category: request.reqCategory ? mapCategory(request.reqCategory) : '',
     subcategory: request.reqSubCategory ? request.reqSubCategory.replace(/_/g, ' ') : '',
-    budgetRange: request.reqBudgetRange || '',
+    budgetRange: request.reqBudgetRange
+      ? request.reqBudgetRange.replace(/[^0-9]/g, '')
+      : '',
     deadline: request.reqDeadline ? new Date(request.reqDeadline).toISOString().split('T')[0] : '',
     description: request.reqDescription || '',
     skills: request.reqSkillsNeeded || [],
@@ -1172,7 +1221,9 @@ function EditServiceRequestModal({ request, isOpen, onClose, onSave, isSaving }:
         title: request.reqTitle || '',
         category: request.reqCategory ? mapCategory(request.reqCategory) : '',
         subcategory: request.reqSubCategory ? request.reqSubCategory.replace(/_/g, ' ') : '',
-        budgetRange: request.reqBudgetRange || '',
+        budgetRange: request.reqBudgetRange
+          ? request.reqBudgetRange.replace(/[^0-9]/g, '')
+          : '',
         deadline: request.reqDeadline ? new Date(request.reqDeadline).toISOString().split('T')[0] : '',
         description: request.reqDescription || '',
         skills: request.reqSkillsNeeded || [],
@@ -1325,10 +1376,11 @@ function EditServiceRequestModal({ request, isOpen, onClose, onSave, isSaving }:
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">$</span>
                   <input
-                    type="text"
+                    type="number"
+                    min={0}
                     value={formData.budgetRange}
-                    onChange={(e) => update('budgetRange', e.target.value)}
-                    placeholder="3,500 or Contact to discuss"
+                    onChange={(e) => update('budgetRange', e.target.value.replace(/[^0-9]/g, ''))}
+                    placeholder="3500"
                     className="w-full border border-slate-200 rounded-lg pl-8 pr-4 py-3.5 text-sm font-medium text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-slate-50/50 placeholder:text-slate-300"
                     required
                     disabled={isSaving}

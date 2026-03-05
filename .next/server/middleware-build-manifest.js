@@ -19,20 +19,55 @@ self.__BUILD_MANIFEST = {
       "static/chunks/main.js",
       "static/chunks/pages/_error.js"
     ],
-    "/dashboard": [
+    "/help-support": [
       "static/chunks/webpack.js",
       "static/chunks/main.js",
-      "static/chunks/pages/dashboard.js"
+      "static/chunks/pages/help-support.js"
     ],
     "/marketplace": [
       "static/chunks/webpack.js",
       "static/chunks/main.js",
       "static/chunks/pages/marketplace.js"
     ],
-    "/provider/[id]": [
+    "/notifications": [
       "static/chunks/webpack.js",
       "static/chunks/main.js",
-      "static/chunks/pages/provider/[id].js"
+      "static/chunks/pages/notifications.js"
+    ],
+    "/orders": [
+      "static/chunks/webpack.js",
+      "static/chunks/main.js",
+      "static/chunks/pages/orders.js"
+    ],
+    "/organizations": [
+      "static/chunks/webpack.js",
+      "static/chunks/main.js",
+      "static/chunks/pages/organizations.js"
+    ],
+    "/provider/help-support": [
+      "static/chunks/webpack.js",
+      "static/chunks/main.js",
+      "static/chunks/pages/provider/help-support.js"
+    ],
+    "/provider/jobs": [
+      "static/chunks/webpack.js",
+      "static/chunks/main.js",
+      "static/chunks/pages/provider/jobs.js"
+    ],
+    "/results": [
+      "static/chunks/webpack.js",
+      "static/chunks/main.js",
+      "static/chunks/pages/results.js"
+    ],
+    "/results/[slug]": [
+      "static/chunks/webpack.js",
+      "static/chunks/main.js",
+      "static/chunks/pages/results/[slug].js"
+    ],
+    "/service-requests": [
+      "static/chunks/webpack.js",
+      "static/chunks/main.js",
+      "static/chunks/pages/service-requests.js"
     ]
   },
   "ampFirstPages": []

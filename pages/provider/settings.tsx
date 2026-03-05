@@ -798,6 +798,23 @@ function ProfileTab() {
   const userIdFromToken = getUserIdFromToken();
   const validUserId = userIdFromVar || (userIdFromToken && userIdFromToken.trim() && userIdFromToken.length === 24 ? userIdFromToken : null);
   
+  // Helper function to convert relative image paths to full URLs
+  const getImageUrl = (imagePath: string | null | undefined): string => {
+    if (!imagePath) return '';
+    // If it's already a full URL (starts with http:// or https://), return as is
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+      return imagePath;
+    }
+    // If it's a relative path, prepend the base URL (same logic as ProviderHeader)
+    const apiUrl =
+      process.env.NEXT_PUBLIC_API_GRAPHQL_URL ||
+      process.env.REACT_APP_API_GRAPHQL_URL ||
+      'http://localhost:3010/graphql';
+    const baseUrl = apiUrl.replace('/graphql', '');
+    const cleanPath = imagePath.startsWith('/') ? imagePath.slice(1) : imagePath;
+    return `${baseUrl}/${cleanPath}`;
+  };
+  
   // ========== APOLLO REQUESTS ==========
   const { data: profileData, loading: profileLoading, refetch: refetchProfile } = useQuery(GET_MY_PROFILE, {
     skip: !isLoggedIn() || !validUserId,
@@ -824,7 +841,7 @@ function ProfileTab() {
             URL.revokeObjectURL(imageBlobUrlRef.current);
             imageBlobUrlRef.current = null;
           }
-          setImagePreview(user.userImage);
+          setImagePreview(getImageUrl(user.userImage));
         } else {
           setImagePreview('');
         }

@@ -175,7 +175,9 @@ function PreviewCard({ form, userOrganization }: { form: FormData; userOrganizat
             <div>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Budget</p>
               <p className="text-sm font-bold text-slate-700">
-                {form.budgetRange || <span className="text-slate-300">Not set</span>}
+                {form.budgetRange
+                  ? `$${Number(form.budgetRange).toLocaleString()}`
+                  : <span className="text-slate-300">Not set</span>}
               </p>
             </div>
           </div>
@@ -385,7 +387,7 @@ export default function PostJobPage() {
         reqDescription: form.description.trim(),
         reqBuyerOrgId: organizationId,
         reqCategory: mapCategory(form.category),
-        reqBudgetRange: form.budgetRange.trim(),
+        reqBudgetRange: `$${Number(form.budgetRange.trim())}`,
         reqDeadline: new Date(form.deadline).toISOString(),
         reqUrgency: mapUrgency(form.urgency),
         reqStatus: mapStatus(status), // Use simplified enum mapping
@@ -688,14 +690,15 @@ export default function PostJobPage() {
                               $
                             </span>
                             <input
-                              type="text"
+                              type="number"
+                              min={0}
                               value={form.budgetRange}
-                              onChange={(e) => update('budgetRange', e.target.value)}
-                              placeholder="3,500 or Contact to discuss"
+                              onChange={(e) => update('budgetRange', e.target.value.replace(/[^\d]/g, ''))}
+                              placeholder="3500"
                               className="w-full border border-slate-200 rounded-lg pl-8 pr-4 py-3.5 text-sm font-medium text-slate-900 focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50 placeholder:text-slate-300"
                             />
                           </div>
-                          <p className="text-xs text-slate-400 mt-1.5">Enter budget amount (e.g., $3,500) or "Contact to discuss"</p>
+                          <p className="text-xs text-slate-400 mt-1.5">Enter numeric budget amount (e.g., 3500). $ will be added automatically.</p>
                         </div>
                         <div>
                           <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">

@@ -201,13 +201,13 @@ export default function BuyerHelpSupportPage() {
                     <span className="material-symbols-outlined text-sm">email</span>
                     Email Support
                   </a>
-                  <a 
-                    href="tel:+1234567890" 
-                    className="px-4 py-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2"
+                  <button 
+                    type="button"
+                    className="px-4 py-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 cursor-default"
                   >
                     <span className="material-symbols-outlined text-sm">phone</span>
                     Call Support
-                  </a>
+                  </button>
                 </div>
               </section>
             </div>

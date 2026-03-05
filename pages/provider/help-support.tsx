@@ -11,24 +11,15 @@ export default function ProviderHelpSupportPage() {
         <ProviderHeader title="Help & Support" />
         <main className="flex-1 overflow-y-auto p-8">
           <div className="max-w-5xl mx-auto space-y-8">
-            {/* Header with Image */}
-            <div className="relative bg-white rounded-3xl border border-slate-200/60 shadow-lg overflow-hidden">
-              <div className="relative h-80 overflow-hidden">
-                <Image
-                  src="/images/helpme.webp"
-                  alt="Help & Support"
-                  fill
-                  className="object-cover"
-                  priority
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-slate-900/40 to-transparent"></div>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="text-center px-8">
-                    <h1 className="text-5xl font-black text-white mb-4">Help & Support Center</h1>
-                    <p className="text-xl font-semibold text-white/95 max-w-2xl mx-auto">
-                      Find answers to frequently asked questions and get the help you need
-                    </p>
-                  </div>
+            {/* Header (clean gradient, no external photo) */}
+            <div className="relative bg-gradient-to-r from-indigo-600 via-indigo-500 to-sky-500 rounded-3xl border border-indigo-500/40 shadow-lg overflow-hidden">
+              <div className="relative h-80 flex items-center justify-center">
+                <div className="absolute inset-0 opacity-30 bg-[radial-gradient(circle_at_top,_#ffffff40,_transparent_55%),radial-gradient(circle_at_bottom,_#0f172a80,_transparent_55%)]" />
+                <div className="relative text-center px-8">
+                  <h1 className="text-5xl font-black text-white mb-4">Help &amp; Support Center</h1>
+                  <p className="text-xl font-semibold text-white/95 max-w-2xl mx-auto">
+                    Find answers to frequently asked questions and get the help you need
+                  </p>
                 </div>
               </div>
             </div>
@@ -201,13 +192,13 @@ export default function ProviderHelpSupportPage() {
                     <span className="material-symbols-outlined text-sm">email</span>
                     Email Support
                   </a>
-                  <a 
-                    href="tel:+1234567890" 
-                    className="px-4 py-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2"
+                  <button 
+                    type="button"
+                    className="px-4 py-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 cursor-default"
                   >
                     <span className="material-symbols-outlined text-sm">phone</span>
                     Call Support
-                  </a>
+                  </button>
                 </div>
               </section>
             </div>

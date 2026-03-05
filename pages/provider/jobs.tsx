@@ -545,9 +545,24 @@ export default function ProviderJobsPage() {
                                     <span className="font-semibold text-base">{job.reqTotalQuotes} quotes</span>
                                   </div>
                                 )}
+                                {/* Buyer organization info */}
+                                {job.reqBuyerOrgData && (
+                                  <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+                                    <span className="material-symbols-outlined text-base text-slate-400">business</span>
+                                    <span className="font-semibold truncate">
+                                      {job.reqBuyerOrgData.organizationName || 'Buyer organization'}
+                                    </span>
+                                  </div>
+                                )}
+                                {job.reqBuyerOrgData?.organizationLocation && (
+                                  <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                                    <span className="material-symbols-outlined text-base text-slate-400">location_on</span>
+                                    <span>{job.reqBuyerOrgData.organizationLocation}</span>
+                                  </div>
+                                )}
                                 {job.reqCategory && (
                                   <span className="inline-block px-4 py-2 rounded-full text-sm font-bold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400">
-                                    {job.reqCategory}
+                                    {CATEGORY_MAP[job.reqCategory]?.label || job.reqCategory}
                                   </span>
                                 )}
                               </div>
