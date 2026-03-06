@@ -6,7 +6,7 @@ import { userVar } from '../../apollo/store';
 import { isLoggedIn } from '../../libs/auth';
 import { ProviderSidebar } from '../../libs/components/dashboard/ProviderSidebar';
 import { ProviderHeader } from '../../libs/components/dashboard/ProviderHeader';
-import { GET_SERVICE_REQUESTS, GET_PROVIDER_ORGANIZATION, GET_QUOTES_BY_REQUEST } from '../../apollo/user/query';
+import { GET_SERVICE_REQUESTS, GET_PROVIDER_ORGANIZATION, GET_QUOTES_BY_REQUEST, GET_QUOTE_BY_ID } from '../../apollo/user/query';
 import { getHeaders } from '../../apollo/utils';
 import { CREATE_QUOTE, UPDATE_QUOTE, DELETE_QUOTE } from '../../apollo/user/mutation';
 
@@ -172,18 +172,32 @@ export default function ProviderJobsPage() {
     },
   });
 
+  // Handle quoteId from URL (from notification click)
+  const quoteIdFromUrl = router.query.quoteId as string | undefined;
+  
+  // Fetch quote by ID to get requestId when quoteId is in URL
+  const { data: quoteData, error: quoteError } = useQuery(GET_QUOTE_BY_ID, {
+    variables: { quoteId: quoteIdFromUrl || '' },
+    skip: !quoteIdFromUrl || !isLoggedIn() || !mounted || quoteIdFromUrl.length !== 24,
+    fetchPolicy: 'network-only',
+    context: { headers: isLoggedIn() ? getHeaders() : {} },
+    errorPolicy: 'all',
+  });
+
   // Quotes for a given request (for "View" action and Propose modal)
   const currentRequestId = quotesTarget?._id || quoteTarget?._id;
-  const shouldFetchQuotes = (isQuotesViewOpen || isQuoteOpen) && !!currentRequestId && currentRequestId.length > 0;
+  const isValidRequestId = currentRequestId && currentRequestId.length === 24;
+  const shouldFetchQuotes = (isQuotesViewOpen || isQuoteOpen) && isValidRequestId;
   const {
     data: quotesData,
     loading: quotesLoading,
     refetch: refetchQuotes,
   } = useQuery(GET_QUOTES_BY_REQUEST, {
-    variables: { requestId: currentRequestId || '' },
-    skip: !shouldFetchQuotes,
+    variables: { requestId: isValidRequestId ? currentRequestId : '' },
+    skip: !shouldFetchQuotes || !isValidRequestId,
     fetchPolicy: 'network-only',
     context: { headers: isLoggedIn() ? getHeaders() : {} },
+    errorPolicy: 'all',
   });
 
   // ========== LIFECYCLES ==========
@@ -246,6 +260,23 @@ export default function ProviderJobsPage() {
   
   // Filter out any non-OPEN requests (backend should handle this via search.reqStatus, but double-check for safety)
   const openRequests = serviceRequests.filter(req => req.reqStatus === 'OPEN');
+
+  // Effect to handle quoteId from URL and open quotes modal (moved after openRequests definition)
+  useEffect(() => {
+    if (quoteIdFromUrl && quoteData?.getQuoteById && openRequests.length > 0) {
+      const requestId = quoteData.getQuoteById.quoteServiceReqId;
+      if (requestId) {
+        // Find the request in the list and open quotes modal
+        const request = openRequests.find((r: ServiceRequest) => r._id === requestId);
+        if (request) {
+          setQuotesTarget(request);
+          setIsQuotesViewOpen(true);
+          // Clear the query parameter
+          router.replace('/provider/jobs', undefined, { shallow: true });
+        }
+      }
+    }
+  }, [quoteIdFromUrl, quoteData, openRequests, router]);
 
   // ========== COMPUTED VALUES ==========
   const categories = CATEGORY_NAMES;
@@ -474,122 +505,107 @@ export default function ProviderJobsPage() {
                 ) : (
                   <>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    {/* Apple-Style Cards - Bigger and Better */}
                     {(() => {
                       const startIndex = (currentPage - 1) * cardsPerPage;
                       const endIndex = startIndex + cardsPerPage;
                       return filteredJobs.slice(startIndex, endIndex).map((job) => (
                         <div
                           key={job._id}
-                          className="group cursor-pointer aspect-square"
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.transform = 'translateY(-5px)';
-                            e.currentTarget.style.transition = 'transform 0.3s ease';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.transform = 'translateY(0)';
-                          }}
+                          className="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden flex flex-col"
                         >
-                          <div 
-                            className="relative bg-white dark:bg-slate-900 rounded-[28px] h-full w-full flex flex-col"
-                            style={{
-                              boxShadow: '0 10px 30px rgba(0, 0, 0, 0.05), 0 1px 8px rgba(0, 0, 0, 0.02)',
-                              border: '1px solid rgba(0, 0, 0, 0.05)',
-                            }}
-                          >
-                            <div className="p-8 h-full flex flex-col">
-                              {/* Tags Row */}
-                              <div className="flex items-center gap-2 flex-wrap mb-6">
-                                <span className="px-3 py-1.5 rounded-full text-xs font-bold text-slate-500 bg-slate-100 dark:bg-slate-800">
-                                  #{job._id.slice(-6)}
+                          <div className="p-6 flex flex-col flex-1">
+                            {/* Tags Row */}
+                            <div className="flex items-center gap-2 flex-wrap mb-4">
+                              <span className="px-2.5 py-1 rounded-md text-xs font-bold text-slate-600 bg-slate-100">
+                                #{job._id.slice(-6)}
+                              </span>
+                              {job.reqUrgency && (
+                                <span className={`px-2.5 py-1 rounded-md text-xs font-bold ${
+                                  getUrgencyLabel(job.reqUrgency) === 'VERY URGENT'
+                                    ? 'bg-red-100 text-red-700 border border-red-200' 
+                                    : getUrgencyLabel(job.reqUrgency) === 'URGENT'
+                                    ? 'bg-amber-100 text-amber-700 border border-amber-200'
+                                    : 'bg-blue-100 text-blue-700 border border-blue-200'
+                                }`}>
+                                  {getUrgencyLabel(job.reqUrgency)}
                                 </span>
-                                {job.reqUrgency && (
-                                  <span className={`px-3 py-1.5 rounded-full text-xs font-bold ${
-                                    job.reqUrgency === 'URGENT' 
-                                      ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' 
-                                      : job.reqUrgency === 'HIGH'
-                                      ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                                      : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                                  }`}>
-                                    {getUrgencyLabel(job.reqUrgency)}
-                                  </span>
-                                )}
-                                <span className="px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-                                  OPEN
-                                </span>
-                              </div>
-                              
-                              {/* Title */}
-                              <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-4 leading-tight tracking-tight">
-                                {job.reqTitle || 'Untitled Request'}
-                              </h3>
-                              
-                              {/* Description */}
-                              {job.reqDescription && (
-                                <p className="text-base text-slate-600 dark:text-slate-300 mb-6 leading-relaxed line-clamp-3 flex-1">
-                                  {job.reqDescription}
-                                </p>
                               )}
-                              
-                              {/* Budget and Quotes */}
-                              <div className="mb-6 space-y-3">
-                                {job.reqBudgetRange && (
-                                  <div className="flex items-center gap-2">
-                                    <span className="material-symbols-outlined text-xl text-slate-400">payments</span>
-                                    <span className="font-bold text-lg text-slate-900 dark:text-white">{job.reqBudgetRange}</span>
-                                  </div>
-                                )}
-                                {job.reqTotalQuotes !== undefined && job.reqTotalQuotes > 0 && (
-                                  <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
-                                    <span className="material-symbols-outlined text-xl">people</span>
-                                    <span className="font-semibold text-base">{job.reqTotalQuotes} quotes</span>
-                                  </div>
-                                )}
-                                {/* Buyer organization info */}
-                                {job.reqBuyerOrgData && (
-                                  <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-                                    <span className="material-symbols-outlined text-base text-slate-400">business</span>
-                                    <span className="font-semibold truncate">
-                                      {job.reqBuyerOrgData.organizationName || 'Buyer organization'}
-                                    </span>
-                                  </div>
-                                )}
-                                {job.reqBuyerOrgData?.organizationLocation && (
-                                  <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                                    <span className="material-symbols-outlined text-base text-slate-400">location_on</span>
-                                    <span>{job.reqBuyerOrgData.organizationLocation}</span>
-                                  </div>
-                                )}
-                                {job.reqCategory && (
-                                  <span className="inline-block px-4 py-2 rounded-full text-sm font-bold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400">
+                              <span className="px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">
+                                OPEN
+                              </span>
+                            </div>
+                            
+                            {/* Title */}
+                            <h3 className="text-xl font-bold text-slate-900 mb-3 leading-tight line-clamp-2">
+                              {job.reqTitle || 'Untitled Request'}
+                            </h3>
+                            
+                            {/* Description */}
+                            {job.reqDescription && (
+                              <p className="text-sm text-slate-600 mb-4 leading-relaxed line-clamp-2 flex-1">
+                                {job.reqDescription}
+                              </p>
+                            )}
+                            
+                            {/* Details Section */}
+                            <div className="space-y-2.5 mb-4">
+                              {job.reqBudgetRange && (
+                                <div className="flex items-center gap-2">
+                                  <span className="material-symbols-outlined text-base text-slate-400">payments</span>
+                                  <span className="text-sm font-bold text-slate-900">{job.reqBudgetRange}</span>
+                                </div>
+                              )}
+                              {job.reqTotalQuotes !== undefined && job.reqTotalQuotes > 0 && (
+                                <div className="flex items-center gap-2">
+                                  <span className="material-symbols-outlined text-base text-amber-500">people</span>
+                                  <span className="text-sm font-semibold text-amber-600">{job.reqTotalQuotes} quotes</span>
+                                </div>
+                              )}
+                              {job.reqBuyerOrgData?.organizationName && (
+                                <div className="flex items-center gap-2">
+                                  <span className="material-symbols-outlined text-base text-slate-400">business</span>
+                                  <span className="text-sm font-semibold text-slate-700 truncate">
+                                    {job.reqBuyerOrgData.organizationName}
+                                  </span>
+                                </div>
+                              )}
+                              {job.reqBuyerOrgData?.organizationLocation && (
+                                <div className="flex items-center gap-2">
+                                  <span className="material-symbols-outlined text-base text-slate-400">location_on</span>
+                                  <span className="text-xs text-slate-500">{job.reqBuyerOrgData.organizationLocation}</span>
+                                </div>
+                              )}
+                              {job.reqCategory && (
+                                <div className="pt-1">
+                                  <span className="inline-block px-3 py-1 rounded-md text-xs font-bold bg-indigo-100 text-indigo-700 border border-indigo-200">
                                     {CATEGORY_MAP[job.reqCategory]?.label || job.reqCategory}
                                   </span>
-                                )}
-                              </div>
-                              
-                              {/* Buttons - Apple Style */}
-                              <div className="grid grid-cols-2 gap-3 mt-auto pt-4">
-                                <button 
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setQuotesTarget(job);
-                                    setIsQuotesViewOpen(true);
-                                  }}
-                                  className="px-4 py-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-sm font-semibold transition-all"
-                                >
-                                  View
-                                </button>
-                                <button 
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setQuoteTarget(job);
-                                    setIsQuoteOpen(true);
-                                  }}
-                                  className="px-4 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition-all shadow-lg shadow-indigo-500/20"
-                                >
-                                  Propose
-                                </button>
-                              </div>
+                                </div>
+                              )}
+                            </div>
+                            
+                            {/* Action Buttons */}
+                            <div className="grid grid-cols-2 gap-3 mt-auto pt-4 border-t border-slate-100">
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setQuotesTarget(job);
+                                  setIsQuotesViewOpen(true);
+                                }}
+                                className="px-4 py-2.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-sm font-semibold transition-all"
+                              >
+                                View
+                              </button>
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setQuoteTarget(job);
+                                  setIsQuoteOpen(true);
+                                }}
+                                className="px-4 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition-all shadow-sm"
+                              >
+                                Propose
+                              </button>
                             </div>
                           </div>
                         </div>
@@ -714,11 +730,25 @@ export default function ProviderJobsPage() {
                   },
                 },
               });
-            } else if (existingQuote && existingQuote.quoteStatus !== 'PENDING') {
-              alert('You already have a quote for this request. Please delete your existing quote first if you want to submit a new one.');
+            } else if (existingQuote && existingQuote.quoteStatus === 'REJECTED') {
+              // If quote was rejected, allow provider to submit a new/modified quote
+              // This creates a new quote (not updating the rejected one)
+              createQuote({
+                variables: {
+                  orgId: providerOrgId,
+                  input: {
+                    quoteServiceReqId: quoteTarget._id,
+                    quoteMessage: message.trim(),
+                    quoteAmount: amount,
+                    quoteValidUntil: new Date(validUntil).toISOString(),
+                  },
+                },
+              });
+            } else if (existingQuote && existingQuote.quoteStatus === 'ACCEPTED') {
+              alert('You already have an accepted quote for this request. You cannot submit a new quote.');
               return;
             } else {
-              // Create new quote
+              // Create new quote (no existing quote or first time submitting)
               createQuote({
                 variables: {
                   orgId: providerOrgId,
@@ -767,6 +797,29 @@ export default function ProviderJobsPage() {
               setIsQuoteOpen(true);
             }, 100);
           }}
+          onResubmitQuote={(quote) => {
+            // For rejected quotes, allow resubmission with modified quote
+            // Set the job target
+            setQuoteTarget(quotesTarget);
+            // Pre-fill form data from rejected quote (provider can modify)
+            setQuoteAmount(quote.quoteAmount);
+            setQuoteMessage(quote.quoteMessage);
+            if (quote.quoteValidUntil) {
+              const date = new Date(quote.quoteValidUntil);
+              setQuoteValidUntil(date.toISOString().slice(0, 16));
+            } else {
+              setQuoteValidUntil('');
+            }
+            // Clear editing quote since this is a new submission
+            setEditingQuote(null);
+            // Close View Quotes modal
+            setIsQuotesViewOpen(false);
+            setQuotesTarget(null);
+            // Open propose modal after a small delay to ensure state is set
+            setTimeout(() => {
+              setIsQuoteOpen(true);
+            }, 100);
+          }}
           onDeleteQuote={(quoteId) => {
             if (confirm('Are you sure you want to delete this quote? You can submit a new one after deletion.')) {
               deleteQuote({ variables: { quoteId } });
@@ -810,8 +863,11 @@ function ProposeQuoteModal({
   React.useEffect(() => {
     // Set initial values if provided (for editing) or reset
     if (open) {
+      // Priority: initial props > existingQuote > reset
       if (initialAmount !== null && initialAmount !== undefined) {
         setAmount(initialAmount);
+        setMessage(initialMessage || '');
+        setValidUntil(initialValidUntil || '');
       } else if (existingQuote) {
         setAmount(existingQuote.quoteAmount || '');
         setMessage(existingQuote.quoteMessage || '');
@@ -826,6 +882,11 @@ function ProposeQuoteModal({
         setMessage('');
         setValidUntil('');
       }
+    } else {
+      // Reset when modal closes
+      setAmount('');
+      setMessage('');
+      setValidUntil('');
     }
   }, [open, initialAmount, initialMessage, initialValidUntil, existingQuote]);
 
@@ -951,6 +1012,7 @@ function ViewQuotesModal({
   currentUserId,
   onEditQuote,
   onDeleteQuote,
+  onResubmitQuote,
   deletingQuote,
 }: {
   open: boolean;
@@ -962,6 +1024,7 @@ function ViewQuotesModal({
   currentUserId?: string;
   onEditQuote?: (quote: any) => void;
   onDeleteQuote?: (quoteId: string) => void;
+  onResubmitQuote?: (quote: any) => void;
   deletingQuote?: boolean;
 }) {
   if (!open || !job) return null;
@@ -1014,39 +1077,42 @@ function ViewQuotesModal({
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Others Left */}
               <div>
-                <h4 className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-4">
+                <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">
                   Other Quotes ({others.length})
                 </h4>
                 {others.length === 0 ? (
-                  <div className="p-6 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg text-center">
-                    <p className="text-sm text-slate-500 dark:text-slate-400">No other quotes yet</p>
+                  <div className="bg-white border border-slate-200 rounded-xl p-8 text-center">
+                    <div className="w-12 h-12 rounded-full bg-slate-100 mx-auto mb-3 flex items-center justify-center">
+                      <span className="material-symbols-outlined text-slate-400">inbox</span>
+                    </div>
+                    <p className="text-sm font-medium text-slate-600">No other quotes yet</p>
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     {others.map((q: any) => (
-                      <div key={q._id} className="p-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg">
-                        <div className="flex items-start justify-between mb-2">
+                      <div key={q._id} className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
+                        <div className="flex items-start justify-between mb-4">
                           <div className="min-w-0 flex-1">
-                            <p className="text-xs text-slate-500 dark:text-slate-400 mb-0.5">Provider</p>
-                            <p className="text-sm font-medium text-slate-900 dark:text-white truncate">
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Provider</p>
+                            <p className="text-base font-bold text-slate-900 truncate">
                               {q.quoteProviderOrgData?.organizationName || 'Unknown Org'}
                             </p>
                           </div>
-                          <div className="text-right ml-3">
-                            <p className="text-lg font-semibold text-slate-900 dark:text-white">${q.quoteAmount?.toLocaleString()}</p>
+                          <div className="text-right ml-4">
+                            <p className="text-2xl font-bold text-slate-900">${q.quoteAmount?.toLocaleString()}</p>
                           </div>
                         </div>
-                        <p className="text-sm text-slate-600 dark:text-slate-300 mb-3 leading-relaxed">{q.quoteMessage}</p>
-                        <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-700">
-                          <span className="text-xs text-slate-400">
-                            {new Date(q.createdAt).toLocaleDateString()}
+                        <p className="text-sm text-slate-700 mb-4 leading-relaxed bg-slate-50 p-3 rounded-lg border border-slate-100">{q.quoteMessage}</p>
+                        <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                          <span className="text-xs font-medium text-slate-500">
+                            {new Date(q.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                           </span>
-                          <span className={`px-2 py-0.5 text-xs font-medium rounded ${
+                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${
                             q.quoteStatus === 'ACCEPTED' 
-                              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                              ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
                               : q.quoteStatus === 'REJECTED'
-                              ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                              : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                              ? 'bg-red-100 text-red-700 border border-red-200'
+                              : 'bg-slate-100 text-slate-600 border border-slate-200'
                           }`}>
                             {q.quoteStatus}
                           </span>
@@ -1059,35 +1125,38 @@ function ViewQuotesModal({
 
               {/* Mine Right */}
               <div>
-                <h4 className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-4">My Quote</h4>
+                <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">My Quote</h4>
                 {!myQuote ? (
-                  <div className="p-6 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg text-center">
-                    <p className="text-sm text-slate-500 dark:text-slate-400">You have not proposed a quote for this request.</p>
+                  <div className="bg-white border border-slate-200 rounded-xl p-8 text-center">
+                    <div className="w-12 h-12 rounded-full bg-slate-100 mx-auto mb-3 flex items-center justify-center">
+                      <span className="material-symbols-outlined text-slate-400">request_quote</span>
+                    </div>
+                    <p className="text-sm font-medium text-slate-600">You have not proposed a quote for this request.</p>
                   </div>
                 ) : (
-                  <div className="p-4 bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-200 dark:border-emerald-800 rounded-lg">
-                    <div className="flex items-start justify-between mb-2">
+                  <div className="bg-white border-2 border-indigo-200 rounded-xl p-6 shadow-lg">
+                    <div className="flex items-start justify-between mb-4">
                       <div className="flex-1">
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mb-0.5">My Organization</p>
-                        <p className="text-sm font-medium text-slate-900 dark:text-white">
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">My Organization</p>
+                        <p className="text-base font-bold text-slate-900">
                           {myQuote.quoteProviderOrgData?.organizationName || 'My Organization'}
                         </p>
                       </div>
-                      <div className="text-right ml-3">
-                        <p className="text-lg font-semibold text-emerald-600 dark:text-emerald-400">${myQuote.quoteAmount?.toLocaleString()}</p>
+                      <div className="text-right ml-4">
+                        <p className="text-2xl font-bold text-indigo-600">${myQuote.quoteAmount?.toLocaleString()}</p>
                       </div>
                     </div>
-                    <p className="text-sm text-slate-600 dark:text-slate-300 mb-3 leading-relaxed">{myQuote.quoteMessage}</p>
-                    <div className="flex items-center justify-between pt-2 border-t border-emerald-200 dark:border-emerald-700 mb-3">
-                      <span className="text-xs text-slate-400">
-                        {new Date(myQuote.createdAt).toLocaleDateString()}
+                    <p className="text-sm text-slate-700 mb-4 leading-relaxed bg-indigo-50 p-3 rounded-lg border border-indigo-100">{myQuote.quoteMessage}</p>
+                    <div className="flex items-center justify-between pt-4 border-t border-slate-100 mb-4">
+                      <span className="text-xs font-medium text-slate-500">
+                        {new Date(myQuote.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                       </span>
-                      <span className={`px-2 py-0.5 text-xs font-medium rounded ${
+                      <span className={`px-3 py-1 rounded-full text-xs font-bold ${
                         myQuote.quoteStatus === 'ACCEPTED' 
-                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                          ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
                           : myQuote.quoteStatus === 'REJECTED'
-                          ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                          : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                          ? 'bg-red-100 text-red-700 border border-red-200'
+                          : 'bg-indigo-100 text-indigo-700 border border-indigo-200'
                       }`}>
                         {myQuote.quoteStatus}
                       </span>
@@ -1095,15 +1164,15 @@ function ViewQuotesModal({
                     
                     {/* Edit & Delete Buttons for PENDING quotes */}
                     {canEditDelete && (
-                      <div className="pt-3 border-t border-emerald-200 dark:border-emerald-700 flex gap-2">
+                      <div className="pt-4 border-t border-slate-100 flex gap-3">
                         {onEditQuote && (
                           <button
                             onClick={() => {
                               onEditQuote(myQuote);
                             }}
-                            className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2"
+                            className="flex-1 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2 shadow-sm"
                           >
-                            <span className="material-symbols-outlined text-sm">edit</span>
+                            <span className="material-symbols-outlined text-base">edit</span>
                             Edit Quote
                           </button>
                         )}
@@ -1115,21 +1184,39 @@ function ViewQuotesModal({
                               }
                             }}
                             disabled={deletingQuote}
-                            className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                           >
                             {deletingQuote ? (
                               <>
-                                <span className="material-symbols-outlined text-sm animate-spin">sync</span>
+                                <span className="material-symbols-outlined text-base animate-spin">sync</span>
                                 Deleting...
                               </>
                             ) : (
                               <>
-                                <span className="material-symbols-outlined text-sm">delete</span>
-                                Delete Quote
+                                <span className="material-symbols-outlined text-base">delete</span>
+                                Delete
                               </>
                             )}
                           </button>
                         )}
+                      </div>
+                    )}
+                    
+                    {/* Resubmit Button for REJECTED quotes */}
+                    {myQuote.quoteStatus === 'REJECTED' && onResubmitQuote && job && job.reqStatus === 'OPEN' && (
+                      <div className="pt-4 border-t border-slate-100">
+                        <button
+                          onClick={() => {
+                            onResubmitQuote(myQuote);
+                          }}
+                          className="w-full px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2 shadow-sm"
+                        >
+                          <span className="material-symbols-outlined text-base">refresh</span>
+                          Resubmit Modified Quote
+                        </button>
+                        <p className="text-xs text-slate-500 mt-2 text-center">
+                          Submit a revised quote with updated terms, pricing, or approach
+                        </p>
                       </div>
                     )}
                   </div>

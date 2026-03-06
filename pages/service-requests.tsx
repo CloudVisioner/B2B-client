@@ -5,8 +5,11 @@ import { userVar } from '../apollo/store';
 import { isLoggedIn } from '../libs/auth';
 import { getHeaders } from '../apollo/utils';
 import { Sidebar } from '../libs/components/dashboard/Sidebar';
-import { GET_BUYER_SERVICE_REQUESTS, GET_QUOTES_BY_REQUEST } from '../apollo/user/query';
+import { NotificationBell } from '../libs/components/dashboard/NotificationBell';
+import { NotificationToast } from '../libs/components/NotificationToast';
+import { GET_BUYER_SERVICE_REQUESTS, GET_QUOTES_BY_REQUEST, GET_QUOTE_BY_ID, GET_MY_PROFILE, GET_BUYER_ORGANIZATION } from '../apollo/user/query';
 import { UPDATE_SERVICE_REQUEST, UPDATE_SERVICE_REQUEST_STATUS, ACCEPT_QUOTE, REJECT_QUOTE } from '../apollo/user/mutation';
+import { getJwtToken, decodeJWT } from '../libs/auth';
 
 /* ─── Service Request Interface ─── */
 /* ✅ Using correct field names from backend */
@@ -186,6 +189,19 @@ export default function ServiceRequestsPage() {
   const [isQuotesOpen, setIsQuotesOpen] = useState(false);
   const [quotesForRequest, setQuotesForRequest] = useState<ServiceRequest | null>(null);
   const [editingRequest, setEditingRequest] = useState<ServiceRequest | null>(null);
+  const [isProgressModalOpen, setIsProgressModalOpen] = useState(false);
+  const [progressRequest, setProgressRequest] = useState<ServiceRequest | null>(null);
+  const [notificationToast, setNotificationToast] = useState<{
+    isOpen: boolean;
+    type: 'success' | 'error' | 'warning' | 'info';
+    title: string;
+    message: string;
+  }>({
+    isOpen: false,
+    type: 'info',
+    title: '',
+    message: '',
+  });
 
   // Debounce search to avoid firing a query on every keystroke
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -217,6 +233,98 @@ export default function ServiceRequestsPage() {
 
   const serviceRequests = data?.getBuyerServiceRequests?.list || [];
   
+  // Fetch user profile for image
+  const getUserId = (): string | null => {
+    if (currentUser?._id && currentUser._id.length === 24) return currentUser._id;
+    const token = getJwtToken();
+    if (token) {
+      try {
+        const claims = decodeJWT(token);
+        return claims?._id || claims?.userId || null;
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  };
+
+  const validUserId = getUserId();
+  const { data: profileData } = useQuery(GET_MY_PROFILE, {
+    skip: !isLoggedIn() || !validUserId,
+    variables: { userId: validUserId || '' },
+    fetchPolicy: 'cache-and-network',
+    errorPolicy: 'all',
+    context: {
+      headers: isLoggedIn() ? getHeaders() : {},
+    },
+  });
+
+  // Helper function to convert relative image paths to full URLs
+  const getImageUrl = (imagePath: string | null | undefined): string => {
+    if (!imagePath) return '';
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+      return imagePath;
+    }
+    const apiUrl = process.env.NEXT_PUBLIC_API_GRAPHQL_URL || process.env.REACT_APP_API_GRAPHQL_URL || 'http://localhost:3010/graphql';
+    const baseUrl = apiUrl.replace('/graphql', '');
+    const cleanPath = imagePath.startsWith('/') ? imagePath.slice(1) : imagePath;
+    return `${baseUrl}/${cleanPath}`;
+  };
+
+  const rawUserImage = profileData?.getUser?.userImage || currentUser?.userImage || (() => {
+    const token = getJwtToken();
+    if (token) {
+      try {
+        const claims = decodeJWT(token);
+        return claims?.userImage || null;
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  })();
+  
+  const userImage = rawUserImage ? getImageUrl(rawUserImage) : null;
+  
+  // Fetch buyer organization
+  const { data: orgData } = useQuery(GET_BUYER_ORGANIZATION, {
+    skip: !isLoggedIn(),
+    fetchPolicy: 'cache-first',
+    errorPolicy: 'all',
+    context: {
+      headers: isLoggedIn() ? getHeaders() : {},
+    },
+  });
+
+  // Handle quoteId from URL (from notification click)
+  const quoteIdFromUrl = router.query.quoteId as string | undefined;
+  
+  // Fetch quote by ID to get requestId when quoteId is in URL
+  const { data: quoteData, error: quoteError } = useQuery(GET_QUOTE_BY_ID, {
+    variables: { quoteId: quoteIdFromUrl || '' },
+    skip: !quoteIdFromUrl || !isLoggedIn() || quoteIdFromUrl.length !== 24,
+    fetchPolicy: 'network-only',
+    context: { headers: isLoggedIn() ? getHeaders() : {} },
+    errorPolicy: 'all',
+  });
+
+  // Effect to handle quoteId from URL and open quotes modal
+  useEffect(() => {
+    if (quoteIdFromUrl && quoteData?.getQuoteById && serviceRequests.length > 0) {
+      const requestId = quoteData.getQuoteById.quoteServiceReqId;
+      if (requestId) {
+        // Find the request in the list and open quotes modal
+        const request = serviceRequests.find((r: ServiceRequest) => r._id === requestId);
+        if (request) {
+          setQuotesForRequest(request);
+          setIsQuotesOpen(true);
+          // Clear the query parameter
+          router.replace('/service-requests', undefined, { shallow: true });
+        }
+      }
+    }
+  }, [quoteIdFromUrl, quoteData, serviceRequests, router]);
+
   // Fetch quotes for selected request
   const quotesRequestId = quotesForRequest?._id;
   const shouldFetchQuotes = isQuotesOpen && !!quotesRequestId && quotesRequestId.length > 0;
@@ -230,6 +338,22 @@ export default function ServiceRequestsPage() {
     fetchPolicy: 'network-only',
     context: { headers: isLoggedIn() ? getHeaders() : {} },
   });
+
+  // Fetch quotes for progress request (to get accepted quote)
+  const progressRequestId = progressRequest?._id;
+  const shouldFetchProgressQuotes = isProgressModalOpen && !!progressRequestId && progressRequestId.length > 0;
+  const {
+    data: progressQuotesData,
+    loading: progressQuotesLoading,
+  } = useQuery(GET_QUOTES_BY_REQUEST, {
+    variables: { requestId: progressRequestId || '' },
+    skip: !shouldFetchProgressQuotes,
+    fetchPolicy: 'network-only',
+    context: { headers: isLoggedIn() ? getHeaders() : {} },
+  });
+
+  const acceptedQuote = progressQuotesData?.getQuotesByRequest?.find((q: any) => q.quoteStatus === 'ACCEPTED');
+  const buyerOrganization = orgData?.getBuyerOrganization;
 
   const metaCounter = data?.getBuyerServiceRequests?.metaCounter || {
     total: 0,
@@ -300,7 +424,20 @@ export default function ServiceRequestsPage() {
       // Success message could go here
     },
     onError: (error) => {
-      alert(error?.graphQLErrors?.[0]?.message || error?.message || 'Failed to reject quote');
+      setNotificationToast({
+        isOpen: true,
+        type: 'error',
+        title: 'Quote Rejection Failed',
+        message: error?.graphQLErrors?.[0]?.message || error?.message || 'Failed to reject quote. Please try again.',
+      });
+    },
+    onCompleted: () => {
+      setNotificationToast({
+        isOpen: true,
+        type: 'success',
+        title: 'Quote Rejected',
+        message: 'The quote has been successfully rejected.',
+      });
     },
   });
 
@@ -386,14 +523,18 @@ export default function ServiceRequestsPage() {
     // DRAFT → publish immediately to OPEN
     if (req.reqStatus === 'DRAFT') {
       try {
-        await updateServiceRequestStatus({
+        const result = await updateServiceRequestStatus({
           variables: {
             requestId: req._id,
             status: 'OPEN',
           },
         });
-      } catch {
-        // Error surfaced via onError
+        // Success - the refetchQueries will update the list automatically
+        console.log('Request published successfully:', result);
+      } catch (error: any) {
+        console.error('Failed to publish request:', error);
+        // Show error to user
+        alert(error?.message || 'Failed to publish request. Please try again.');
       }
       return;
     }
@@ -402,6 +543,13 @@ export default function ServiceRequestsPage() {
     if (req.reqStatus === 'OPEN') {
       setQuotesForRequest(req);
       setIsQuotesOpen(true);
+      return;
+    }
+
+    // ACTIVE → view progress
+    if (req.reqStatus === 'ACTIVE') {
+      setProgressRequest(req);
+      setIsProgressModalOpen(true);
       return;
     }
 
@@ -417,11 +565,21 @@ export default function ServiceRequestsPage() {
         <div className="w-64 flex-shrink-0 h-full border-r border-slate-200 bg-white" />
         <div className="flex flex-1 flex-col overflow-hidden">
           <div className="h-16 bg-white border-b" />
-          <main className="flex-1 overflow-y-auto" />
-        </div>
+          <main className="flex-1 overflow-y-auto"         />
       </div>
-    );
-  }
+      
+      {/* Notification Toast */}
+      <NotificationToast
+        isOpen={notificationToast.isOpen}
+        onClose={() => setNotificationToast({ ...notificationToast, isOpen: false })}
+        type={notificationToast.type}
+        title={notificationToast.title}
+        message={notificationToast.message}
+        duration={5000}
+      />
+    </div>
+  );
+}
   if (!isLoggedIn()) return null;
 
   return (
@@ -453,18 +611,26 @@ export default function ServiceRequestsPage() {
 
               <div className="h-8 w-px bg-slate-200 mx-2" />
 
-              <button className="relative w-10 h-10 flex items-center justify-center text-slate-500 hover:bg-slate-50 rounded-full transition-colors">
-                <span className="material-symbols-outlined">notifications</span>
-                <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-white" />
-              </button>
+              <NotificationBell userId={currentUser?._id} userRole={currentUser?.userRole} />
 
-              <button className="flex items-center gap-2 pl-2 py-1 pr-1 hover:bg-slate-50 rounded-full transition-colors border border-slate-100">
-                <img
-                  alt="Profile"
-                  className="w-8 h-8 rounded-full object-cover"
-                  src={currentUser?.userImage || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser?.userNick || 'U')}&background=4F46E5&color=fff`}
-                />
-                <span className="material-symbols-outlined text-slate-400">expand_more</span>
+              <button className="flex items-center gap-2 pl-2 py-1 pr-2 hover:bg-slate-50 rounded-full transition-colors border border-slate-100">
+                {userImage ? (
+                  <img
+                    alt="Profile"
+                    className="w-8 h-8 rounded-full object-cover"
+                    src={userImage}
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser?.userNick || 'U')}&background=4F46E5&color=fff`;
+                    }}
+                  />
+                ) : (
+                  <img
+                    alt="Profile"
+                    className="w-8 h-8 rounded-full object-cover"
+                    src={`https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser?.userNick || 'U')}&background=4F46E5&color=fff`}
+                  />
+                )}
               </button>
             </div>
           </div>
@@ -613,10 +779,10 @@ export default function ServiceRequestsPage() {
                         </div>
 
                         {/* Status-specific section */}
-                        {isOpen && (req.reqTotalQuotes != null || req.reqNewQuotesCount != null) && (
+                        {isOpen && ((req.reqTotalQuotes != null && req.reqTotalQuotes > 0) || (req.reqNewQuotesCount != null && req.reqNewQuotesCount > 0)) && (
                           <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
                             <div className="flex items-center gap-4">
-                              {req.reqTotalQuotes != null && (
+                              {req.reqTotalQuotes != null && req.reqTotalQuotes > 0 && (
                                 <p className="text-sm font-bold text-slate-700">{req.reqTotalQuotes} Quotes Received</p>
                               )}
                               {req.reqNewQuotesCount && req.reqNewQuotesCount > 0 && (
@@ -694,11 +860,17 @@ export default function ServiceRequestsPage() {
                 <span className="material-symbols-outlined text-lg">groups</span>
                 Browse Talent
               </button>
-              <button className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-md text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+              <button
+                onClick={() => router.push('/organizations')}
+                className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-md text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+              >
                 <span className="material-symbols-outlined text-lg">settings_suggest</span>
                 Manage Organizations
               </button>
-              <button className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-md text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+              <button
+                onClick={() => router.push('/help-support')}
+                className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-md text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+              >
                 <span className="material-symbols-outlined text-lg">help</span>
                 Help &amp; Support
               </button>
@@ -709,6 +881,251 @@ export default function ServiceRequestsPage() {
           </div>
         </main>
       </div>
+
+      {/* ── View Progress Modal ── */}
+      {isProgressModalOpen && progressRequest && (
+        <>
+          <style jsx>{`
+            @keyframes fadeIn {
+              from { opacity: 0; }
+              to { opacity: 1; }
+            }
+            @keyframes slideUpFadeIn {
+              from { 
+                opacity: 0;
+                transform: translateY(20px);
+              }
+              to { 
+                opacity: 1;
+                transform: translateY(0);
+              }
+            }
+            @keyframes slideInLeft {
+              from {
+                opacity: 0;
+                transform: translateX(-30px);
+              }
+              to {
+                opacity: 1;
+                transform: translateX(0);
+              }
+            }
+            @keyframes slideInRight {
+              from {
+                opacity: 0;
+                transform: translateX(30px);
+              }
+              to {
+                opacity: 1;
+                transform: translateX(0);
+              }
+            }
+            @keyframes slideInUp {
+              from {
+                opacity: 0;
+                transform: translateY(30px);
+              }
+              to {
+                opacity: 1;
+                transform: translateY(0);
+              }
+            }
+            .modal-backdrop {
+              animation: fadeIn 0.3s ease-in;
+            }
+            .modal-content {
+              animation: slideUpFadeIn 0.5s ease-out;
+            }
+            .animate-slide-left {
+              animation: slideInLeft 0.7s ease-out;
+            }
+            .animate-slide-right {
+              animation: slideInRight 0.7s ease-out;
+            }
+            .animate-slide-up {
+              animation: slideInUp 0.7s ease-out;
+            }
+          `}</style>
+          <div 
+            className="fixed inset-0 bg-black/60 backdrop-blur-md z-[100] modal-backdrop"
+            onClick={() => setIsProgressModalOpen(false)}
+          />
+          <div className="fixed inset-0 z-[101] flex items-center justify-center p-4 overflow-y-auto">
+            <div className="bg-white rounded-3xl shadow-2xl max-w-5xl w-full my-8 modal-content">
+              {/* Animated Header */}
+              <div className="relative px-8 py-8 border-b border-slate-200 bg-gradient-to-r from-indigo-600 via-indigo-500 to-purple-600 overflow-hidden">
+                <div className="absolute inset-0 opacity-20">
+                  <div className="absolute top-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl animate-pulse" />
+                  <div className="absolute bottom-0 left-0 w-96 h-96 bg-purple-300 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+                </div>
+                  <div className="relative flex items-start justify-between">
+                  <div className="flex-1 animate-slide-left">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                        <span className="material-symbols-outlined text-white text-2xl">trending_up</span>
+                      </div>
+                      <StatusBadge status={progressRequest.reqStatus} />
+                    </div>
+                    <h2 className="text-3xl font-black text-white mb-2">{progressRequest.reqTitle}</h2>
+                    <p className="text-indigo-100 font-medium">Active Project Progress</p>
+                  </div>
+                  <button
+                    onClick={() => setIsProgressModalOpen(false)}
+                    className="p-2 hover:bg-white/20 rounded-xl transition-colors backdrop-blur-sm"
+                  >
+                    <span className="material-symbols-outlined text-white text-2xl">close</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Body with Animations */}
+              <div className="p-8 space-y-6">
+                {progressQuotesLoading ? (
+                  <div className="flex items-center justify-center py-20">
+                    <div className="w-12 h-12 rounded-full border-4 border-indigo-200 border-t-indigo-600 animate-spin" />
+                  </div>
+                ) : (
+                  <>
+                    {/* Company Request Info - Animated */}
+                    <div className="bg-gradient-to-br from-slate-50 to-white rounded-2xl border-2 border-slate-200 p-6 shadow-lg animate-slide-left" style={{ animationDelay: '0.1s' }}>
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center shadow-lg">
+                          <span className="material-symbols-outlined text-white">business</span>
+                        </div>
+                        <h3 className="text-lg font-black text-slate-900">Company Request Information</h3>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-3">
+                          <div>
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Organization</p>
+                            <p className="text-base font-bold text-slate-900">{buyerOrganization?.organizationName || 'N/A'}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Industry</p>
+                            <p className="text-base font-medium text-slate-700">{buyerOrganization?.organizationIndustry || 'N/A'}</p>
+                          </div>
+                        </div>
+                        <div className="space-y-3">
+                          <div>
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Category</p>
+                            <p className="text-base font-medium text-slate-700">{mapCategory(progressRequest.reqCategory)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Budget Range</p>
+                            <p className="text-base font-bold text-indigo-600">{progressRequest.reqBudgetRange || 'N/A'}</p>
+                          </div>
+                        </div>
+                      </div>
+                      {progressRequest.reqDescription && (
+                        <div className="mt-4 pt-4 border-t border-slate-200">
+                          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Description</p>
+                          <p className="text-sm text-slate-700 leading-relaxed">{progressRequest.reqDescription}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Quote Provider Info - Animated */}
+                    {acceptedQuote && (
+                      <div className="bg-gradient-to-br from-emerald-50 to-white rounded-2xl border-2 border-emerald-200 p-6 shadow-lg animate-slide-right" style={{ animationDelay: '0.2s' }}>
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-lg">
+                            <span className="material-symbols-outlined text-white">verified</span>
+                          </div>
+                          <h3 className="text-lg font-black text-slate-900">Accepted Quote Provider</h3>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-3">
+                            <div>
+                              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Provider Organization</p>
+                              <p className="text-base font-bold text-slate-900">{acceptedQuote.quoteProviderOrgData?.organizationName || 'N/A'}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Quote Amount</p>
+                              <p className="text-2xl font-black text-emerald-600">${acceptedQuote.quoteAmount?.toLocaleString() || '0'}</p>
+                            </div>
+                          </div>
+                          <div className="space-y-3">
+                            <div>
+                              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Status</p>
+                              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">
+                                <span className="material-symbols-outlined text-sm mr-1">check_circle</span>
+                                ACCEPTED
+                              </span>
+                            </div>
+                            <div>
+                              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Valid Until</p>
+                              <p className="text-base font-medium text-slate-700">
+                                {acceptedQuote.quoteValidUntil ? formatDate(acceptedQuote.quoteValidUntil) : 'N/A'}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                        {acceptedQuote.quoteMessage && (
+                          <div className="mt-4 pt-4 border-t border-emerald-200">
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Provider Message</p>
+                            <p className="text-sm text-slate-700 leading-relaxed bg-white p-3 rounded-lg border border-slate-200">{acceptedQuote.quoteMessage}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Project Timeline - Animated */}
+                    <div className="bg-white rounded-2xl border-2 border-slate-200 p-6 shadow-lg animate-slide-up" style={{ animationDelay: '0.3s' }}>
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center shadow-lg">
+                          <span className="material-symbols-outlined text-white">schedule</span>
+                        </div>
+                        <h3 className="text-lg font-black text-slate-900">Project Timeline</h3>
+                      </div>
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-4">
+                          <div className="flex-shrink-0 w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center">
+                            <span className="material-symbols-outlined text-indigo-600">event</span>
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Deadline</p>
+                            <p className="text-base font-bold text-slate-900">{progressRequest.reqDeadline ? formatDate(progressRequest.reqDeadline) : 'N/A'}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="flex-shrink-0 w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center">
+                            <span className="material-symbols-outlined text-amber-600">priority_high</span>
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Urgency</p>
+                            <p className="text-base font-bold text-slate-900 capitalize">{progressRequest.reqUrgency?.toLowerCase() || 'Normal'}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="px-8 py-6 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-3">
+                <button
+                  onClick={() => setIsProgressModalOpen(false)}
+                  className="px-6 py-3 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-white transition-all shadow-sm"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={() => {
+                    setIsProgressModalOpen(false);
+                    setSelectedRequest(progressRequest);
+                    setIsModalOpen(true);
+                  }}
+                  className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition-all shadow-lg flex items-center gap-2"
+                >
+                  <span className="material-symbols-outlined text-lg">visibility</span>
+                  View Full Details
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* ── Service Request Details Modal ── */}
       {isModalOpen && selectedRequest && (
@@ -841,14 +1258,16 @@ export default function ServiceRequestsPage() {
                 )}
 
                 {/* Quotes Info (if open) */}
-                {selectedRequest.reqStatus === 'OPEN' && (
+                {selectedRequest.reqStatus === 'OPEN' && ((selectedRequest.reqTotalQuotes != null && selectedRequest.reqTotalQuotes > 0) || (selectedRequest.reqNewQuotesCount != null && selectedRequest.reqNewQuotesCount > 0)) && (
                   <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-1">Quotes Received</p>
-                        <p className="text-2xl font-bold text-emerald-700">
-                          {selectedRequest.reqTotalQuotes || 0}
-                        </p>
+                        {selectedRequest.reqTotalQuotes != null && selectedRequest.reqTotalQuotes > 0 && (
+                          <p className="text-2xl font-bold text-emerald-700">
+                            {selectedRequest.reqTotalQuotes}
+                          </p>
+                        )}
                       </div>
                       {selectedRequest.reqNewQuotesCount && selectedRequest.reqNewQuotesCount > 0 && (
                         <div className="flex items-center gap-2">
@@ -1021,7 +1440,6 @@ function BuyerQuotesModal({ open, onClose, request, quotes, loading, onAcceptQuo
   };
 
   const handleReject = async (quoteId: string) => {
-    if (!confirm('Are you sure you want to reject this quote?')) return;
     setRejectingQuote(quoteId);
     try {
       await onRejectQuote(quoteId);

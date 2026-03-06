@@ -19,55 +19,40 @@ self.__BUILD_MANIFEST = {
       "static/chunks/main.js",
       "static/chunks/pages/_error.js"
     ],
-    "/help-support": [
+    "/admin": [
       "static/chunks/webpack.js",
       "static/chunks/main.js",
-      "static/chunks/pages/help-support.js"
+      "static/chunks/pages/admin.js"
     ],
-    "/marketplace": [
+    "/admin/articles": [
       "static/chunks/webpack.js",
       "static/chunks/main.js",
-      "static/chunks/pages/marketplace.js"
+      "static/chunks/pages/admin/articles.js"
     ],
-    "/notifications": [
+    "/admin/orders": [
       "static/chunks/webpack.js",
       "static/chunks/main.js",
-      "static/chunks/pages/notifications.js"
+      "static/chunks/pages/admin/orders.js"
     ],
-    "/orders": [
+    "/admin/organizations": [
       "static/chunks/webpack.js",
       "static/chunks/main.js",
-      "static/chunks/pages/orders.js"
+      "static/chunks/pages/admin/organizations.js"
     ],
-    "/organizations": [
+    "/admin/quotes": [
       "static/chunks/webpack.js",
       "static/chunks/main.js",
-      "static/chunks/pages/organizations.js"
+      "static/chunks/pages/admin/quotes.js"
     ],
-    "/provider/help-support": [
+    "/admin/service-requests": [
       "static/chunks/webpack.js",
       "static/chunks/main.js",
-      "static/chunks/pages/provider/help-support.js"
+      "static/chunks/pages/admin/service-requests.js"
     ],
-    "/provider/jobs": [
+    "/admin/settings": [
       "static/chunks/webpack.js",
       "static/chunks/main.js",
-      "static/chunks/pages/provider/jobs.js"
-    ],
-    "/results": [
-      "static/chunks/webpack.js",
-      "static/chunks/main.js",
-      "static/chunks/pages/results.js"
-    ],
-    "/results/[slug]": [
-      "static/chunks/webpack.js",
-      "static/chunks/main.js",
-      "static/chunks/pages/results/[slug].js"
-    ],
-    "/service-requests": [
-      "static/chunks/webpack.js",
-      "static/chunks/main.js",
-      "static/chunks/pages/service-requests.js"
+      "static/chunks/pages/admin/settings.js"
     ]
   },
   "ampFirstPages": []

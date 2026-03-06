@@ -1,13 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { useQuery, useMutation } from '@apollo/client';
-import { GET_NOTIFICATIONS, GET_UNREAD_NOTIFICATION_COUNT, MARK_NOTIFICATION_AS_READ, MARK_ALL_NOTIFICATIONS_AS_READ } from '../../../apollo/user/notification';
+import { GET_NOTIFICATIONS, GET_UNREAD_NOTIFICATION_COUNT, MARK_NOTIFICATION_AS_READ, MARK_ALL_NOTIFICATIONS_AS_READ, DELETE_NOTIFICATION } from '../../../apollo/user/notification';
 import { getHeaders } from '../../../apollo/utils';
 import { isLoggedIn, getJwtToken, decodeJWT } from '../../auth';
 
 interface Notification {
   _id: string;
-  type: 'QUOTE_SENT' | 'QUOTE_ACCEPTED';
+  type: 'QUOTE_SENT' | 'QUOTE_ACCEPTED' | 'QUOTE_REJECTED' | null;
   message: string;
   read: boolean;
   createdAt: string;
@@ -67,43 +67,82 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ userId, user
     errorPolicy: 'all',
   });
 
-  // Fetch recent notifications for dropdown (kept for potential future use),
-  // but primary UX is now redirecting to the full notifications page.
-  const { data, loading, refetch } = useQuery(GET_NOTIFICATIONS, {
-    skip: !isLoggedIn() || !validUserId || !isOpen,
+  // Fetch recent notifications for dropdown - always fetch ALL notifications (read: null) to show both unread and read
+  const { data, loading, error, refetch } = useQuery(GET_NOTIFICATIONS, {
+    skip: !isLoggedIn() || !validUserId,
     variables: {
       input: {
         page: 1,
-        limit: 5,
+        limit: 50, // Increased limit to show more notifications
         search: {
-          read: null,
+          read: null, // Fetch ALL notifications (both read and unread)
           type: null,
         },
       },
     },
-    fetchPolicy: 'network-only',
+    fetchPolicy: 'network-only', // Always fetch from network to ensure fresh data
+    pollInterval: 30000, // Poll every 30 seconds
     context: { headers: isLoggedIn() ? getHeaders() : {} },
-    errorPolicy: 'all',
+    errorPolicy: 'all', // Allow partial data even if some fields fail
+    notifyOnNetworkStatusChange: true,
   });
+
+  // Handle errors using useEffect instead of onError callback (Apollo best practice)
+  useEffect(() => {
+    if (error) {
+      console.warn('Notification query error (handled gracefully):', error);
+      // Don't throw - let errorPolicy: 'all' handle it
+    }
+  }, [error]);
 
   const [markAsRead] = useMutation(MARK_NOTIFICATION_AS_READ, {
     context: { headers: isLoggedIn() ? getHeaders() : {} },
     refetchQueries: [
-      { query: GET_NOTIFICATIONS, variables: { input: { page: 1, limit: 5, search: { read: null, type: null } } } },
+      { query: GET_NOTIFICATIONS, variables: { input: { page: 1, limit: 50, search: { read: null, type: null } } } },
       { query: GET_UNREAD_NOTIFICATION_COUNT, variables: { input: { page: 1, limit: 1, search: { read: false, type: null } } } },
     ],
+    awaitRefetchQueries: true,
   });
 
   const [markAllAsReadMutation] = useMutation(MARK_ALL_NOTIFICATIONS_AS_READ, {
     context: { headers: isLoggedIn() ? getHeaders() : {} },
     refetchQueries: [
-      { query: GET_NOTIFICATIONS, variables: { input: { page: 1, limit: 5, search: { read: null, type: null } } } },
+      { query: GET_NOTIFICATIONS, variables: { input: { page: 1, limit: 50, search: { read: null, type: null } } } },
       { query: GET_UNREAD_NOTIFICATION_COUNT, variables: { input: { page: 1, limit: 1, search: { read: false, type: null } } } },
     ],
+    awaitRefetchQueries: true,
   });
 
-  const notifications: Notification[] = data?.getMyNotifications?.list || [];
-  const unreadCount = countData?.getUnreadNotificationCount || notifications.filter(n => !n.read).length;
+  // Extract notifications from response - handle both possible response structures
+  // Also filter out any notifications with null type to prevent GraphQL errors
+  const notifications: Notification[] = useMemo(() => {
+    if (!data) return [];
+    let rawNotifications: any[] = [];
+    
+    // Try getMyNotifications.list first (standard structure)
+    if (data?.getMyNotifications?.list) {
+      rawNotifications = data.getMyNotifications.list;
+    } else if (Array.isArray(data)) {
+      rawNotifications = data;
+    }
+    
+    // Filter and map notifications, handling null types gracefully
+    return rawNotifications
+      .filter((n: any) => n && n._id) // Ensure notification has required fields
+      .map((n: any) => ({
+        ...n,
+        // Ensure type is never null - default to 'QUOTE_SENT' if null
+        type: n.type || 'QUOTE_SENT',
+        // Ensure other required fields have defaults
+        message: n.message || 'Notification',
+        read: n.read ?? false,
+        createdAt: n.createdAt || new Date().toISOString(),
+      }));
+  }, [data]);
+
+  // Use count from query if available, otherwise calculate from notifications list
+  const calculatedUnreadCount = notifications.filter(n => !n.read).length;
+  const unreadCount = countData?.getUnreadNotificationCount ?? calculatedUnreadCount;
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -136,13 +175,26 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ userId, user
 
     // Navigate based on notification type and related quote
     if (notification.relatedQuoteId) {
+      // Navigate with quoteId - the pages will handle fetching and opening the quote view modal
       if (userRole === 'BUYER' || userRole === 'buyer') {
         router.push(`/service-requests?quoteId=${notification.relatedQuoteId}`);
-      } else {
+      } else if (userRole === 'PROVIDER' || userRole === 'provider') {
         router.push(`/provider/jobs?quoteId=${notification.relatedQuoteId}`);
+      } else {
+        // Fallback for other roles
+        router.push(`/service-requests?quoteId=${notification.relatedQuoteId}`);
       }
     }
     setIsOpen(false);
+  };
+
+  const handleDeleteNotification = async (e: React.MouseEvent, notificationId: string) => {
+    e.stopPropagation(); // Prevent triggering the notification click
+    try {
+      await deleteNotificationMutation({ variables: { notificationId } });
+    } catch (error) {
+      console.error('Failed to delete notification:', error);
+    }
   };
 
   const markAllAsRead = async () => {
@@ -154,7 +206,9 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ userId, user
     }
   };
 
-  const recentNotifications = notifications.slice(0, 5);
+  // Show only unread notifications in the dropdown
+  const unreadNotifications = notifications.filter(n => !n.read);
+  const recentNotifications = unreadNotifications.slice(0, 5); // Only show unread, max 5
   const hasUnread = unreadCount > 0;
 
   return (
@@ -163,9 +217,8 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ userId, user
       <button
         ref={bellRef}
         onClick={() => {
-          // Directly navigate to the full notifications page so users
-          // always see the complete, up-to-date list and can mark all as read.
-          router.push('/notifications');
+          // Show popup with "Ghost Notification" message
+          setIsOpen(!isOpen);
         }}
         className="relative p-2.5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 transition-all duration-300 hover:bg-slate-100/80 dark:hover:bg-slate-800/80 rounded-xl active:scale-95"
       >
@@ -190,13 +243,8 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ userId, user
         )}
       </button>
 
-      {/* NOTE:
-          The dropdown UI is kept in code for potential future use,
-          but the primary interaction now routes to /notifications.
-          To avoid confusing states, we do not render the dropdown
-          based on isOpen anymore.
-      */}
-      {false && isOpen && (
+      {/* Notification Popup */}
+      {isOpen && (
         <>
           {/* Backdrop to prevent page interaction */}
           <div 
@@ -219,17 +267,21 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ userId, user
               </div>
               <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Notifications</h3>
               {unreadCount > 0 && (
-                <span className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 text-xs font-bold rounded-full">
+                <span className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 text-xs font-bold rounded-full">
                   {unreadCount}
                 </span>
               )}
             </div>
-            {hasUnread && (
+            {hasUnread && recentNotifications.length > 0 && (
               <button
-                onClick={markAllAsRead}
-                className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors px-2 py-1 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  markAllAsRead();
+                }}
+                className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors flex items-center gap-1.5"
               >
-                Mark all read
+                <span className="material-symbols-outlined text-sm">done_all</span>
+                Mark all as read
               </button>
             )}
           </div>
@@ -242,6 +294,19 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ userId, user
                   <span className="material-symbols-outlined text-slate-400 text-lg animate-spin">sync</span>
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400">Loading...</p>
+              </div>
+            ) : error ? (
+              <div className="px-5 py-8 text-center">
+                <div className="w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/20 mx-auto mb-3 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-red-500 text-lg">error</span>
+                </div>
+                <p className="text-xs text-red-500 dark:text-red-400 font-medium">Failed to load notifications</p>
+                <button
+                  onClick={() => refetch()}
+                  className="mt-2 text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+                >
+                  Retry
+                </button>
               </div>
             ) : recentNotifications.length === 0 ? (
               <div className="px-5 py-12 text-center">
@@ -262,64 +327,85 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ userId, user
             ) : (
               <div className="divide-y divide-slate-200/50 dark:divide-slate-700/50">
                 {recentNotifications.map((notification) => (
-                  <button
+                  <div
                     key={notification._id}
-                    onClick={() => handleNotificationClick(notification)}
-                    className="w-full px-6 py-4 text-left hover:bg-gradient-to-r hover:from-slate-50/80 hover:to-white dark:hover:from-slate-800/50 dark:hover:to-slate-900/50 transition-all group relative"
+                    className="group relative"
                   >
-                    {/* Modern Active Indicator */}
-                    {!notification.read && (
-                      <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-indigo-500 to-indigo-600 rounded-r-full"></div>
-                    )}
-                    
-                    <div className="flex items-start gap-4">
-                      {/* Modern Status Icon */}
-                      <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-transform group-hover:scale-110 ${
-                        notification.type === 'QUOTE_ACCEPTED'
-                          ? 'bg-gradient-to-br from-emerald-100 to-emerald-200 dark:from-emerald-900/40 dark:to-emerald-800/40'
-                          : 'bg-gradient-to-br from-amber-100 to-amber-200 dark:from-amber-900/40 dark:to-amber-800/40'
-                      }`}>
-                        <span className={`material-symbols-outlined text-base ${
-                          notification.type === 'QUOTE_ACCEPTED'
-                            ? 'text-emerald-600 dark:text-emerald-400'
-                            : 'text-amber-600 dark:text-amber-400'
-                        }`}>
-                          {notification.type === 'QUOTE_ACCEPTED' ? 'check_circle' : 'request_quote'}
-                        </span>
-                      </div>
-
-                      {/* Content */}
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-sm leading-relaxed mb-1 ${
-                          notification.read
-                            ? 'text-slate-600 dark:text-slate-400'
-                            : 'text-slate-900 dark:text-white font-semibold'
-                        }`}>
-                          {notification.message}
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <p className="text-xs text-slate-400 dark:text-slate-500">
-                            {new Date(notification.createdAt).toLocaleTimeString('en-US', {
-                              hour: 'numeric',
-                              minute: '2-digit',
-                            })}
-                          </p>
-                          <span className="text-slate-300 dark:text-slate-600">•</span>
-                          <p className="text-xs text-slate-400 dark:text-slate-500">
-                            {new Date(notification.createdAt).toLocaleDateString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                            })}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Modern Unread Indicator */}
+                    <button
+                      onClick={() => handleNotificationClick(notification)}
+                      className="w-full px-6 py-4 text-left hover:bg-gradient-to-r hover:from-slate-50/80 hover:to-white dark:hover:from-slate-800/50 dark:hover:to-slate-900/50 transition-all relative"
+                    >
+                      {/* Modern Active Indicator */}
                       {!notification.read && (
-                        <div className="flex-shrink-0 w-2.5 h-2.5 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-full mt-1.5 shadow-sm"></div>
+                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-indigo-500 to-indigo-600 rounded-r-full"></div>
                       )}
-                    </div>
-                  </button>
+                      
+                      <div className="flex items-start gap-4">
+                        {/* Modern Status Icon */}
+                        <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-transform group-hover:scale-110 ${
+                          notification.type === 'QUOTE_ACCEPTED'
+                            ? 'bg-gradient-to-br from-emerald-100 to-emerald-200 dark:from-emerald-900/40 dark:to-emerald-800/40'
+                            : notification.type === 'QUOTE_REJECTED'
+                            ? 'bg-gradient-to-br from-red-100 to-red-200 dark:from-red-900/40 dark:to-red-800/40'
+                            : notification.type === 'QUOTE_SENT'
+                            ? 'bg-gradient-to-br from-amber-100 to-amber-200 dark:from-amber-900/40 dark:to-amber-800/40'
+                            : 'bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-900/40 dark:to-slate-800/40'
+                        }`}>
+                          <span className={`material-symbols-outlined text-base ${
+                            notification.type === 'QUOTE_ACCEPTED'
+                              ? 'text-emerald-600 dark:text-emerald-400'
+                              : notification.type === 'QUOTE_REJECTED'
+                              ? 'text-red-600 dark:text-red-400'
+                              : notification.type === 'QUOTE_SENT'
+                              ? 'text-amber-600 dark:text-amber-400'
+                              : 'text-slate-600 dark:text-slate-400'
+                          }`}>
+                            {notification.type === 'QUOTE_ACCEPTED' ? 'check_circle' : notification.type === 'QUOTE_REJECTED' ? 'cancel' : notification.type === 'QUOTE_SENT' ? 'request_quote' : 'notifications'}
+                          </span>
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm leading-relaxed mb-1 ${
+                            notification.read
+                              ? 'text-slate-600 dark:text-slate-400'
+                              : 'text-slate-900 dark:text-white font-semibold'
+                          }`}>
+                            {notification.message}
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-xs text-slate-400 dark:text-slate-500">
+                              {new Date(notification.createdAt).toLocaleTimeString('en-US', {
+                                hour: 'numeric',
+                                minute: '2-digit',
+                              })}
+                            </p>
+                            <span className="text-slate-300 dark:text-slate-600">•</span>
+                            <p className="text-xs text-slate-400 dark:text-slate-500">
+                              {new Date(notification.createdAt).toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                              })}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Delete Button - Visible on Hover */}
+                        <button
+                          onClick={(e) => handleDeleteNotification(e, notification._id)}
+                          className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300"
+                          title="Delete notification"
+                        >
+                          <span className="material-symbols-outlined text-base">delete</span>
+                        </button>
+
+                        {/* Modern Unread Indicator */}
+                        {!notification.read && (
+                          <div className="flex-shrink-0 w-2.5 h-2.5 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-full mt-1.5 shadow-sm"></div>
+                        )}
+                      </div>
+                    </button>
+                  </div>
                 ))}
               </div>
             )}

@@ -1,13 +1,12 @@
 {
-  "/_app": "pages/_app.js",
   "/_error": "pages/_error.js",
+  "/_app": "pages/_app.js",
   "/_document": "pages/_document.js",
-  "/provider/jobs": "pages/provider/jobs.js",
-  "/service-requests": "pages/service-requests.js",
-  "/orders": "pages/orders.js",
-  "/provider/help-support": "pages/provider/help-support.js",
-  "/marketplace": "pages/marketplace.js",
-  "/results": "pages/results.js",
-  "/results/[slug]": "pages/results/[slug].js",
-  "/notifications": "pages/notifications.js"
+  "/admin/service-requests": "pages/admin/service-requests.js",
+  "/admin/orders": "pages/admin/orders.js",
+  "/admin/settings": "pages/admin/settings.js",
+  "/admin/quotes": "pages/admin/quotes.js",
+  "/admin": "pages/admin.js",
+  "/admin/organizations": "pages/admin/organizations.js",
+  "/admin/articles": "pages/admin/articles.js"
 }

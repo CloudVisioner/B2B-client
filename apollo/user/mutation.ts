@@ -331,7 +331,7 @@ export const UPDATE_SERVICE_REQUEST_STATUS = gql`
   mutation UpdateServiceRequestStatus($requestId: String!, $status: ServiceRequestStatus!) {
     updateServiceRequestStatus(requestId: $requestId, status: $status) {
       _id
-      status
+      reqStatus
       updatedAt
     }
   }

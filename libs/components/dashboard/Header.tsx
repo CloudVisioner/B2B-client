@@ -147,7 +147,7 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
 
         <NotificationBell userId={currentUser?._id} userRole={currentUser?.userRole} />
 
-        <button className="flex items-center gap-2 pl-2 py-1 pr-1 hover:bg-slate-50 rounded-full transition-colors border border-slate-100">
+        <button className="flex items-center gap-2 pl-2 py-1 pr-2 hover:bg-slate-50 rounded-full transition-colors border border-slate-100">
           {userImage ? (
             <img
               alt="Profile"
@@ -166,7 +166,6 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
               src={`https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=4F46E5&color=fff`}
             />
           )}
-          <span className="material-symbols-outlined text-slate-400">expand_more</span>
         </button>
       </div>
     </header>

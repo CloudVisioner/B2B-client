@@ -1487,11 +1487,17 @@ export default function SettingsPage() {
                 <span className="material-symbols-outlined text-lg">groups</span>
                 Browse Talent
               </button>
-              <button className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-md text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+              <button
+                onClick={() => router.push('/organizations')}
+                className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-md text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+              >
                 <span className="material-symbols-outlined text-lg">settings_suggest</span>
                 Manage Organizations
               </button>
-              <button className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-md text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+              <button
+                onClick={() => router.push('/help-support')}
+                className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-md text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+              >
                 <span className="material-symbols-outlined text-lg">help</span>
                 Help &amp; Support
               </button>

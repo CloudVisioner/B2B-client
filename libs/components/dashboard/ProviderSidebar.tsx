@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { icon: 'dashboard', label: 'Dashboard', href: '/provider/dashboard' },
   { icon: 'work', label: 'Find Jobs', href: '/provider/jobs' },
   { icon: 'request_quote', label: 'My Quotes', href: '/provider/my-quotes' },
+  { icon: 'notifications', label: 'Notifications', href: '/notifications' },
   { icon: 'corporate_fare', label: 'Organizations', href: '/provider/organizations' },
   { icon: 'group', label: 'Team Members', href: '/provider/team' },
   { icon: 'settings', label: 'Settings', href: '/provider/settings' },

@@ -37,7 +37,7 @@ export default function DashboardPage() {
   
   // Calculate counts
   const openCount = openRequests.length;
-  const quotesWaiting = openRequests.reduce((sum: number, req: any) => sum + (req.reqTotalQuotes || 0), 0);
+  const quotesWaiting = openRequests.reduce((sum: number, req: any) => sum + (req.reqTotalQuotes && req.reqTotalQuotes > 0 ? req.reqTotalQuotes : 0), 0);
   const activeCount = activeOrders.length;
   
   // Calculate overdue (requests past deadline with OPEN status)

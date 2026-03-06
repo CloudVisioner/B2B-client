@@ -471,6 +471,37 @@ export const GET_RECOMMENDED_PROVIDERS = gql`
 // ============================================
 
 /**
+ * Get Quote by ID (to get requestId from quoteId)
+ */
+export const GET_QUOTE_BY_ID = gql`
+  query GetQuoteById($quoteId: String!) {
+    getQuoteById(quoteId: $quoteId) {
+      _id
+      quoteServiceReqId
+      quoteMessage
+      quoteAmount
+      quoteStatus
+      quoteValidUntil
+      createdAt
+      quoteServiceReqData {
+        _id
+        reqTitle
+        reqStatus
+      }
+      quoteProviderOrgData {
+        _id
+        organizationName
+      }
+      quoteCreatedByUserData {
+        _id
+        userNick
+        userEmail
+      }
+    }
+  }
+`;
+
+/**
  * Get Quotes by Service Request (Buyer/Provider views)
  */
 export const GET_QUOTES_BY_REQUEST = gql`
