@@ -144,3 +144,67 @@ html.dark {
     scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
   }
 }
+
+/* Chatbase Widget Control - Hide default button, show when needed */
+div[id*="chatbase"]:not(iframe),
+button[id*="chatbase"] {
+  display: none !important;
+}
+
+/* Chatbase iframe - hidden by default, shown when AI chat is selected */
+iframe[src*="chatbase"] {
+  display: none !important;
+}
+
+iframe[src*="chatbase"].chatbase-active {
+  display: block !important;
+}
+
+/* Chat Widget Animations */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes bounce-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.8) translateY(10px);
+  }
+  50% {
+    transform: scale(1.05) translateY(-5px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.animate-bounce-in {
+  animation: bounce-in 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}

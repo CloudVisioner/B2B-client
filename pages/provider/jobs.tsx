@@ -512,100 +512,100 @@ export default function ProviderJobsPage() {
                         <div
                           key={job._id}
                           className="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden flex flex-col"
-                        >
+                          >
                           <div className="p-6 flex flex-col flex-1">
-                            {/* Tags Row */}
+                              {/* Tags Row */}
                             <div className="flex items-center gap-2 flex-wrap mb-4">
                               <span className="px-2.5 py-1 rounded-md text-xs font-bold text-slate-600 bg-slate-100">
-                                #{job._id.slice(-6)}
-                              </span>
-                              {job.reqUrgency && (
+                                  #{job._id.slice(-6)}
+                                </span>
+                                {job.reqUrgency && (
                                 <span className={`px-2.5 py-1 rounded-md text-xs font-bold ${
                                   getUrgencyLabel(job.reqUrgency) === 'VERY URGENT'
                                     ? 'bg-red-100 text-red-700 border border-red-200' 
                                     : getUrgencyLabel(job.reqUrgency) === 'URGENT'
                                     ? 'bg-amber-100 text-amber-700 border border-amber-200'
                                     : 'bg-blue-100 text-blue-700 border border-blue-200'
-                                }`}>
-                                  {getUrgencyLabel(job.reqUrgency)}
-                                </span>
-                              )}
+                                  }`}>
+                                    {getUrgencyLabel(job.reqUrgency)}
+                                  </span>
+                                )}
                               <span className="px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">
-                                OPEN
-                              </span>
-                            </div>
-                            
-                            {/* Title */}
+                                  OPEN
+                                </span>
+                              </div>
+                              
+                              {/* Title */}
                             <h3 className="text-xl font-bold text-slate-900 mb-3 leading-tight line-clamp-2">
-                              {job.reqTitle || 'Untitled Request'}
-                            </h3>
-                            
-                            {/* Description */}
-                            {job.reqDescription && (
+                                {job.reqTitle || 'Untitled Request'}
+                              </h3>
+                              
+                              {/* Description */}
+                              {job.reqDescription && (
                               <p className="text-sm text-slate-600 mb-4 leading-relaxed line-clamp-2 flex-1">
-                                {job.reqDescription}
-                              </p>
-                            )}
-                            
+                                  {job.reqDescription}
+                                </p>
+                              )}
+                              
                             {/* Details Section */}
                             <div className="space-y-2.5 mb-4">
-                              {job.reqBudgetRange && (
-                                <div className="flex items-center gap-2">
+                                {job.reqBudgetRange && (
+                                  <div className="flex items-center gap-2">
                                   <span className="material-symbols-outlined text-base text-slate-400">payments</span>
                                   <span className="text-sm font-bold text-slate-900">{job.reqBudgetRange}</span>
-                                </div>
-                              )}
-                              {job.reqTotalQuotes !== undefined && job.reqTotalQuotes > 0 && (
+                                  </div>
+                                )}
+                                {job.reqTotalQuotes !== undefined && job.reqTotalQuotes > 0 && (
                                 <div className="flex items-center gap-2">
                                   <span className="material-symbols-outlined text-base text-amber-500">people</span>
                                   <span className="text-sm font-semibold text-amber-600">{job.reqTotalQuotes} quotes</span>
-                                </div>
-                              )}
+                                  </div>
+                                )}
                               {job.reqBuyerOrgData?.organizationName && (
                                 <div className="flex items-center gap-2">
-                                  <span className="material-symbols-outlined text-base text-slate-400">business</span>
+                                    <span className="material-symbols-outlined text-base text-slate-400">business</span>
                                   <span className="text-sm font-semibold text-slate-700 truncate">
                                     {job.reqBuyerOrgData.organizationName}
-                                  </span>
-                                </div>
-                              )}
-                              {job.reqBuyerOrgData?.organizationLocation && (
+                                    </span>
+                                  </div>
+                                )}
+                                {job.reqBuyerOrgData?.organizationLocation && (
                                 <div className="flex items-center gap-2">
-                                  <span className="material-symbols-outlined text-base text-slate-400">location_on</span>
+                                    <span className="material-symbols-outlined text-base text-slate-400">location_on</span>
                                   <span className="text-xs text-slate-500">{job.reqBuyerOrgData.organizationLocation}</span>
-                                </div>
-                              )}
-                              {job.reqCategory && (
+                                  </div>
+                                )}
+                                {job.reqCategory && (
                                 <div className="pt-1">
                                   <span className="inline-block px-3 py-1 rounded-md text-xs font-bold bg-indigo-100 text-indigo-700 border border-indigo-200">
                                     {CATEGORY_MAP[job.reqCategory]?.label || job.reqCategory}
                                   </span>
                                 </div>
-                              )}
-                            </div>
-                            
+                                )}
+                              </div>
+                              
                             {/* Action Buttons */}
                             <div className="grid grid-cols-2 gap-3 mt-auto pt-4 border-t border-slate-100">
-                              <button 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setQuotesTarget(job);
-                                  setIsQuotesViewOpen(true);
-                                }}
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setQuotesTarget(job);
+                                    setIsQuotesViewOpen(true);
+                                  }}
                                 className="px-4 py-2.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-sm font-semibold transition-all"
-                              >
-                                View
-                              </button>
-                              <button 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setQuoteTarget(job);
-                                  setIsQuoteOpen(true);
-                                }}
+                                >
+                                  View
+                                </button>
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setQuoteTarget(job);
+                                    setIsQuoteOpen(true);
+                                  }}
                                 className="px-4 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition-all shadow-sm"
-                              >
-                                Propose
-                              </button>
+                                >
+                                  Propose
+                                </button>
                             </div>
                           </div>
                         </div>

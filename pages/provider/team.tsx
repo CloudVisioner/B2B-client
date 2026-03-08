@@ -129,7 +129,7 @@ export default function ProviderTeamPage() {
         </div>
       </div>
     );
-  }
+    }
 
   if (!isLoggedIn()) return null;
 
@@ -143,31 +143,31 @@ export default function ProviderTeamPage() {
             {/* Organization Info Section - Only show when organization exists */}
             {organization && (
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
-                <div className="flex items-center gap-6">
+            <div className="flex items-center gap-6">
                   {orgImageUrl ? (
                     <div className="w-24 h-24 rounded-2xl overflow-hidden ring-2 ring-slate-100 shadow-lg flex-shrink-0">
-                      <img 
+                  <img 
                         src={orgImageUrl} 
                         alt={organization?.organizationName || 'Organization'} 
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.style.display = 'none';
-                          const parent = target.parentElement;
-                          if (parent) {
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                      const parent = target.parentElement;
+                      if (parent) {
                             parent.innerHTML = `<div class="w-full h-full bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white text-3xl font-bold">${getInitials(organization?.organizationName || 'Organization')}</div>`;
-                          }
-                        }}
-                      />
-                    </div>
-                  ) : (
+                      }
+                    }}
+                  />
+                </div>
+              ) : (
                     <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white text-3xl font-bold shadow-lg ring-2 ring-slate-100 flex-shrink-0">
-                      {getInitials(organization?.organizationName || 'Organization')}
-                    </div>
-                  )}
-                  <div className="flex-1">
+                  {getInitials(organization?.organizationName || 'Organization')}
+                </div>
+              )}
+              <div className="flex-1">
                     <h1 className="text-3xl font-bold text-slate-900 mb-2">
-                      {organization?.organizationName || 'Organization'} Team
+                  {organization?.organizationName || 'Organization'} Team
                     </h1>
                     <div className="flex items-center gap-6 text-sm text-slate-600">
                       <span className="font-semibold">{TEAM_MEMBERS.length} Team Members</span>
@@ -203,8 +203,8 @@ export default function ProviderTeamPage() {
                     <span className="material-symbols-outlined">add_business</span>
                     Create Organization
                   </button>
-                </div>
-              </div>
+            </div>
+          </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {TEAM_MEMBERS.map((member) => {
@@ -212,8 +212,8 @@ export default function ProviderTeamPage() {
                   // Lower the first card's image (Sarah Chen - id: '1')
                   const imagePosition = member.id === '1' ? 'center 30%' : 'center 20%';
                   return (
-                    <div
-                      key={member.id}
+              <div
+                key={member.id}
                       className="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden group"
                     >
                       {/* Member Photo */}
@@ -253,8 +253,8 @@ export default function ProviderTeamPage() {
                           <div className="flex items-center gap-1">
                             <span className="text-lg font-bold text-slate-900">{member.rating}</span>
                             <span className="material-symbols-outlined text-amber-500 text-base" style={{ fontVariationSettings: "'FILL' 1" }}>
-                              star
-                            </span>
+                            star
+                          </span>
                           </div>
                         </div>
                         <div className="flex items-center justify-between">
@@ -270,37 +270,37 @@ export default function ProviderTeamPage() {
                   </div>
                 );
               })}
-              </div>
-            )}
+            </div>
+          )}
 
             {/* Footer */}
             <div className="flex flex-wrap items-center gap-4 pt-8 border-t border-slate-200">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mr-4">Management</p>
-              <button
-                onClick={() => router.push('/provider/jobs')}
-                className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-md text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
-              >
-                <span className="material-symbols-outlined text-lg">work</span>
-                Find Jobs
-              </button>
-              <button
-                onClick={() => router.push('/provider/organizations')}
-                className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-md text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
-              >
-                <span className="material-symbols-outlined text-lg">settings_suggest</span>
-                Manage Organizations
-              </button>
-              <button 
-                onClick={() => router.push('/provider/help-support')}
-                className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-md text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
-              >
-                <span className="material-symbols-outlined text-lg">help</span>
-                Help & Support
-              </button>
-            </div>
-            <div className="pb-8">
-              <p className="text-xs text-slate-400 font-medium">© 2026 SME Marketplace Provider v2.1</p>
-            </div>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mr-4">Management</p>
+            <button
+              onClick={() => router.push('/provider/jobs')}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-md text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+            >
+              <span className="material-symbols-outlined text-lg">work</span>
+              Find Jobs
+            </button>
+            <button
+              onClick={() => router.push('/provider/organizations')}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-md text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+            >
+              <span className="material-symbols-outlined text-lg">settings_suggest</span>
+              Manage Organizations
+            </button>
+            <button 
+              onClick={() => router.push('/provider/help-support')}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-md text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+            >
+              <span className="material-symbols-outlined text-lg">help</span>
+              Help & Support
+            </button>
+          </div>
+          <div className="pb-8">
+            <p className="text-xs text-slate-400 font-medium">© 2026 SME Marketplace Provider v2.1</p>
+          </div>
           </div>
         </main>
       </div>

@@ -2,7 +2,7 @@ import React from 'react';
 
 export type CategoryId = 'it-software' | 'business' | 'marketing-sales' | 'design-creative';
 
-export type PageId = 'home' | 'marketplace' | 'results' | 'provider-profile';
+export type PageId = 'home' | 'marketplace' | 'results' | 'provider-profile' | 'articles';
 
 export interface ServiceSubCategory {
   id: string;

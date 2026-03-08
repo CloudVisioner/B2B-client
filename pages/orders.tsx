@@ -454,15 +454,15 @@ export default function OrdersPage() {
 
             {/* Pagination — centered */}
             {totalPages > 1 && (
-              <div className="flex flex-col items-center gap-3 py-8">
-                <div className="flex items-center gap-2">
+            <div className="flex flex-col items-center gap-3 py-8">
+              <div className="flex items-center gap-2">
                   <button 
                     onClick={() => handlePageChange(currentPage - 1)}
                     disabled={currentPage === 1}
                     className="w-9 h-9 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:bg-white hover:text-[var(--primary)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <span className="material-symbols-outlined text-lg">chevron_left</span>
-                  </button>
+                  <span className="material-symbols-outlined text-lg">chevron_left</span>
+                </button>
                   {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
                     <button
                       key={page}
@@ -474,20 +474,20 @@ export default function OrdersPage() {
                       }`}
                     >
                       {page}
-                    </button>
+                </button>
                   ))}
                   <button 
                     onClick={() => handlePageChange(currentPage + 1)}
                     disabled={currentPage === totalPages}
                     className="w-9 h-9 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:bg-white hover:text-[var(--primary)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <span className="material-symbols-outlined text-lg">chevron_right</span>
-                  </button>
-                </div>
-                <p className="text-sm text-slate-400 font-medium">
-                  Showing {startIndex + 1}-{Math.min(endIndex, filteredOrders.length)} of {filteredOrders.length} total orders
-                </p>
+                  <span className="material-symbols-outlined text-lg">chevron_right</span>
+                </button>
               </div>
+              <p className="text-sm text-slate-400 font-medium">
+                  Showing {startIndex + 1}-{Math.min(endIndex, filteredOrders.length)} of {filteredOrders.length} total orders
+              </p>
+            </div>
             )}
 
             {/* Management Footer */}
@@ -518,7 +518,7 @@ export default function OrdersPage() {
             <div className="pb-8">
               <p className="text-xs text-slate-400 font-medium">© 2024 SME Connect. Enterprise Buyer Protocol v2.4.1</p>
             </div>
-            </div>
+          </div>
           </div>
         </main>
       </div>

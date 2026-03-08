@@ -332,63 +332,63 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ userId, user
                     className="group relative"
                   >
                     <button
-                      onClick={() => handleNotificationClick(notification)}
+                    onClick={() => handleNotificationClick(notification)}
                       className="w-full px-6 py-4 text-left hover:bg-gradient-to-r hover:from-slate-50/80 hover:to-white dark:hover:from-slate-800/50 dark:hover:to-slate-900/50 transition-all relative"
-                    >
-                      {/* Modern Active Indicator */}
-                      {!notification.read && (
-                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-indigo-500 to-indigo-600 rounded-r-full"></div>
-                      )}
-                      
-                      <div className="flex items-start gap-4">
-                        {/* Modern Status Icon */}
-                        <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-transform group-hover:scale-110 ${
-                          notification.type === 'QUOTE_ACCEPTED'
-                            ? 'bg-gradient-to-br from-emerald-100 to-emerald-200 dark:from-emerald-900/40 dark:to-emerald-800/40'
+                  >
+                    {/* Modern Active Indicator */}
+                    {!notification.read && (
+                      <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-indigo-500 to-indigo-600 rounded-r-full"></div>
+                    )}
+                    
+                    <div className="flex items-start gap-4">
+                      {/* Modern Status Icon */}
+                      <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-transform group-hover:scale-110 ${
+                        notification.type === 'QUOTE_ACCEPTED'
+                          ? 'bg-gradient-to-br from-emerald-100 to-emerald-200 dark:from-emerald-900/40 dark:to-emerald-800/40'
                             : notification.type === 'QUOTE_REJECTED'
                             ? 'bg-gradient-to-br from-red-100 to-red-200 dark:from-red-900/40 dark:to-red-800/40'
                             : notification.type === 'QUOTE_SENT'
                             ? 'bg-gradient-to-br from-amber-100 to-amber-200 dark:from-amber-900/40 dark:to-amber-800/40'
                             : 'bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-900/40 dark:to-slate-800/40'
-                        }`}>
-                          <span className={`material-symbols-outlined text-base ${
-                            notification.type === 'QUOTE_ACCEPTED'
-                              ? 'text-emerald-600 dark:text-emerald-400'
+                      }`}>
+                        <span className={`material-symbols-outlined text-base ${
+                          notification.type === 'QUOTE_ACCEPTED'
+                            ? 'text-emerald-600 dark:text-emerald-400'
                               : notification.type === 'QUOTE_REJECTED'
                               ? 'text-red-600 dark:text-red-400'
                               : notification.type === 'QUOTE_SENT'
                               ? 'text-amber-600 dark:text-amber-400'
                               : 'text-slate-600 dark:text-slate-400'
-                          }`}>
+                        }`}>
                             {notification.type === 'QUOTE_ACCEPTED' ? 'check_circle' : notification.type === 'QUOTE_REJECTED' ? 'cancel' : notification.type === 'QUOTE_SENT' ? 'request_quote' : 'notifications'}
-                          </span>
-                        </div>
+                        </span>
+                      </div>
 
-                        {/* Content */}
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-sm leading-relaxed mb-1 ${
-                            notification.read
-                              ? 'text-slate-600 dark:text-slate-400'
-                              : 'text-slate-900 dark:text-white font-semibold'
-                          }`}>
-                            {notification.message}
+                      {/* Content */}
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm leading-relaxed mb-1 ${
+                          notification.read
+                            ? 'text-slate-600 dark:text-slate-400'
+                            : 'text-slate-900 dark:text-white font-semibold'
+                        }`}>
+                          {notification.message}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs text-slate-400 dark:text-slate-500">
+                            {new Date(notification.createdAt).toLocaleTimeString('en-US', {
+                              hour: 'numeric',
+                              minute: '2-digit',
+                            })}
                           </p>
-                          <div className="flex items-center gap-2">
-                            <p className="text-xs text-slate-400 dark:text-slate-500">
-                              {new Date(notification.createdAt).toLocaleTimeString('en-US', {
-                                hour: 'numeric',
-                                minute: '2-digit',
-                              })}
-                            </p>
-                            <span className="text-slate-300 dark:text-slate-600">•</span>
-                            <p className="text-xs text-slate-400 dark:text-slate-500">
-                              {new Date(notification.createdAt).toLocaleDateString('en-US', {
-                                month: 'short',
-                                day: 'numeric',
-                              })}
-                            </p>
-                          </div>
+                          <span className="text-slate-300 dark:text-slate-600">•</span>
+                          <p className="text-xs text-slate-400 dark:text-slate-500">
+                            {new Date(notification.createdAt).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                            })}
+                          </p>
                         </div>
+                      </div>
 
                         {/* Delete Button - Visible on Hover */}
                         <button
@@ -399,12 +399,12 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ userId, user
                           <span className="material-symbols-outlined text-base">delete</span>
                         </button>
 
-                        {/* Modern Unread Indicator */}
-                        {!notification.read && (
-                          <div className="flex-shrink-0 w-2.5 h-2.5 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-full mt-1.5 shadow-sm"></div>
-                        )}
-                      </div>
-                    </button>
+                      {/* Modern Unread Indicator */}
+                      {!notification.read && (
+                        <div className="flex-shrink-0 w-2.5 h-2.5 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-full mt-1.5 shadow-sm"></div>
+                      )}
+                    </div>
+                  </button>
                   </div>
                 ))}
               </div>

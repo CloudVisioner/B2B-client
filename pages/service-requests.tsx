@@ -324,7 +324,7 @@ export default function ServiceRequestsPage() {
       }
     }
   }, [quoteIdFromUrl, quoteData, serviceRequests, router]);
-
+  
   // Fetch quotes for selected request
   const quotesRequestId = quotesForRequest?._id;
   const shouldFetchQuotes = isQuotesOpen && !!quotesRequestId && quotesRequestId.length > 0;
@@ -566,7 +566,7 @@ export default function ServiceRequestsPage() {
         <div className="flex flex-1 flex-col overflow-hidden">
           <div className="h-16 bg-white border-b" />
           <main className="flex-1 overflow-y-auto"         />
-      </div>
+        </div>
       
       {/* Notification Toast */}
       <NotificationToast
@@ -577,9 +577,9 @@ export default function ServiceRequestsPage() {
         message={notificationToast.message}
         duration={5000}
       />
-    </div>
-  );
-}
+      </div>
+    );
+  }
   if (!isLoggedIn()) return null;
 
   return (
@@ -615,15 +615,15 @@ export default function ServiceRequestsPage() {
 
               <button className="flex items-center gap-2 pl-2 py-1 pr-2 hover:bg-slate-50 rounded-full transition-colors border border-slate-100">
                 {userImage ? (
-                  <img
-                    alt="Profile"
-                    className="w-8 h-8 rounded-full object-cover"
+                <img
+                  alt="Profile"
+                  className="w-8 h-8 rounded-full object-cover"
                     src={userImage}
                     onError={(e) => {
                       const target = e.target as HTMLImageElement;
                       target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser?.userNick || 'U')}&background=4F46E5&color=fff`;
                     }}
-                  />
+                />
                 ) : (
                   <img
                     alt="Profile"
@@ -1264,9 +1264,9 @@ export default function ServiceRequestsPage() {
                       <div>
                         <p className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-1">Quotes Received</p>
                         {selectedRequest.reqTotalQuotes != null && selectedRequest.reqTotalQuotes > 0 && (
-                          <p className="text-2xl font-bold text-emerald-700">
+                        <p className="text-2xl font-bold text-emerald-700">
                             {selectedRequest.reqTotalQuotes}
-                          </p>
+                        </p>
                         )}
                       </div>
                       {selectedRequest.reqNewQuotesCount && selectedRequest.reqNewQuotesCount > 0 && (

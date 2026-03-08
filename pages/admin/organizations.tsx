@@ -1,49 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { useReactiveVar } from '@apollo/client';
+import { useReactiveVar, useQuery, useMutation } from '@apollo/client';
 import { userVar } from '../../apollo/store';
 import { isLoggedIn, normalizeRole } from '../../libs/auth';
 import { AdminSidebar } from '../../libs/components/admin/AdminSidebar';
 import { AdminHeader } from '../../libs/components/admin/AdminHeader';
-
-// Mock data
-const MOCK_ORGS = [
-  {
-    _id: '1',
-    organizationName: 'Acme Corporation',
-    organizationType: 'BUYER',
-    organizationCountry: 'United States',
-    organizationStatus: 'APPROVED',
-    organizationIndustry: 'Technology',
-    createdAt: '2024-01-10T10:30:00Z',
-    memberCount: 12,
-    requestCount: 5,
-  },
-  {
-    _id: '2',
-    organizationName: 'DevStudio Pro',
-    organizationType: 'PROVIDER',
-    organizationCountry: 'Canada',
-    organizationStatus: 'APPROVED',
-    organizationIndustry: 'IT & Software',
-    createdAt: '2024-01-15T14:20:00Z',
-    memberCount: 8,
-    quoteCount: 23,
-    orderCount: 15,
-  },
-  {
-    _id: '3',
-    organizationName: 'NewTech Solutions',
-    organizationType: 'PROVIDER',
-    organizationCountry: 'United Kingdom',
-    organizationStatus: 'PENDING_REVIEW',
-    organizationIndustry: 'Business Services',
-    createdAt: '2024-02-01T09:15:00Z',
-    memberCount: 3,
-    quoteCount: 0,
-    orderCount: 0,
-  },
-];
+import { GET_ALL_ORGANIZATIONS } from '../../apollo/admin/query';
+import { APPROVE_ORGANIZATION, REJECT_ORGANIZATION, SUSPEND_ORGANIZATION, UPDATE_ORGANIZATION } from '../../apollo/admin/mutation';
 
 export default function AdminOrganizationsPage() {
   const router = useRouter();
@@ -52,7 +15,33 @@ export default function AdminOrganizationsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [flaggedFilter, setFlaggedFilter] = useState<string>('all');
   const [selectedOrg, setSelectedOrg] = useState<any>(null);
+  const [page, setPage] = useState(1);
+  const [limit] = useState(20);
+  const [rejectReason, setRejectReason] = useState('');
+
+  const { data: orgsData, loading: orgsLoading, error: orgsError, refetch: refetchOrgs } = useQuery(GET_ALL_ORGANIZATIONS, {
+    skip: !mounted || !isLoggedIn(),
+    variables: {
+      input: {
+        page,
+        limit,
+        search: {
+          ...(typeFilter !== 'all' && { organizationType: typeFilter }),
+          ...(statusFilter !== 'all' && { organizationStatus: statusFilter }),
+          ...(flaggedFilter === 'flagged' && { isFlagged: true }),
+          ...(searchTerm && { organizationName: searchTerm }),
+        },
+      },
+    },
+    fetchPolicy: 'network-only',
+  });
+
+  const [approveOrg] = useMutation(APPROVE_ORGANIZATION);
+  const [rejectOrg] = useMutation(REJECT_ORGANIZATION);
+  const [suspendOrg] = useMutation(SUSPEND_ORGANIZATION);
+  const [updateOrg] = useMutation(UPDATE_ORGANIZATION);
 
   useEffect(() => {
     setMounted(true);
@@ -67,12 +56,49 @@ export default function AdminOrganizationsPage() {
     }
   }, [router, currentUser]);
 
-  const filteredOrgs = MOCK_ORGS.filter((org) => {
-    const matchesSearch = org.organizationName.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesType = typeFilter === 'all' || org.organizationType === typeFilter;
-    const matchesStatus = statusFilter === 'all' || org.organizationStatus === statusFilter;
-    return matchesSearch && matchesType && matchesStatus;
-  });
+  const organizations = orgsData?.getAllOrganizations?.list || [];
+  const totalOrgs = orgsData?.getAllOrganizations?.metaCounter?.[0]?.total || 0;
+
+  const handleApproveOrg = async (orgId: string) => {
+    if (!confirm('Are you sure you want to approve this organization?')) return;
+    try {
+      await approveOrg({ variables: { organizationId: orgId } });
+      await refetchOrgs();
+      alert('Organization approved successfully');
+      setSelectedOrg(null);
+    } catch (error: any) {
+      alert(`Error: ${error.message || 'Failed to approve organization'}`);
+    }
+  };
+
+  const handleRejectOrg = async (orgId: string) => {
+    if (!rejectReason.trim()) {
+      alert('Please provide a reason for rejection');
+      return;
+    }
+    if (!confirm('Are you sure you want to reject this organization?')) return;
+    try {
+      await rejectOrg({ variables: { input: { organizationId: orgId, reason: rejectReason } } });
+      await refetchOrgs();
+      alert('Organization rejected successfully');
+      setSelectedOrg(null);
+      setRejectReason('');
+    } catch (error: any) {
+      alert(`Error: ${error.message || 'Failed to reject organization'}`);
+    }
+  };
+
+  const handleSuspendOrg = async (orgId: string) => {
+    if (!confirm('Are you sure you want to suspend this organization?')) return;
+    try {
+      await suspendOrg({ variables: { organizationId: orgId } });
+      await refetchOrgs();
+      alert('Organization suspended successfully');
+      setSelectedOrg(null);
+    } catch (error: any) {
+      alert(`Error: ${error.message || 'Failed to suspend organization'}`);
+    }
+  };
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -164,6 +190,7 @@ export default function AdminOrganizationsPage() {
                       setSearchTerm('');
                       setTypeFilter('all');
                       setStatusFilter('all');
+                      setFlaggedFilter('all');
                     }}
                     className="w-full px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg transition-colors"
                   >
@@ -189,7 +216,26 @@ export default function AdminOrganizationsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
-                    {filteredOrgs.map((org) => (
+                    {orgsLoading ? (
+                      <tr>
+                        <td colSpan={7} className="px-6 py-8 text-center text-slate-500">
+                          Loading organizations...
+                        </td>
+                      </tr>
+                    ) : orgsError ? (
+                      <tr>
+                        <td colSpan={7} className="px-6 py-8 text-center text-red-500">
+                          Error loading organizations: {orgsError.message}
+                        </td>
+                      </tr>
+                    ) : organizations.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="px-6 py-8 text-center text-slate-500">
+                          No organizations found
+                        </td>
+                      </tr>
+                    ) : (
+                      organizations.map((org: any) => (
                       <tr key={org._id} className="hover:bg-slate-50 transition-colors">
                         <td className="px-6 py-4">
                           <div>
@@ -209,14 +255,22 @@ export default function AdminOrganizationsPage() {
                           <span className="text-sm text-slate-600">{org.organizationCountry}</span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                            org.organizationStatus === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' :
-                            org.organizationStatus === 'PENDING_REVIEW' ? 'bg-amber-100 text-amber-700' :
-                            org.organizationStatus === 'REJECTED' ? 'bg-red-100 text-red-700' :
-                            'bg-slate-100 text-slate-700'
-                          }`}>
-                            {org.organizationStatus.replace('_', ' ')}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                              org.organizationStatus === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' :
+                              org.organizationStatus === 'PENDING_REVIEW' ? 'bg-amber-100 text-amber-700' :
+                              org.organizationStatus === 'REJECTED' ? 'bg-red-100 text-red-700' :
+                              'bg-slate-100 text-slate-700'
+                            }`}>
+                              {org.organizationStatus.replace('_', ' ')}
+                            </span>
+                            {org.isFlagged && (
+                              <span className="px-2 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700 border border-red-300 flex items-center gap-1">
+                                <span className="material-symbols-outlined text-xs">flag</span>
+                                FLAGGED
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-slate-600">
@@ -242,12 +296,14 @@ export default function AdminOrganizationsPage() {
                             {org.organizationStatus === 'PENDING_REVIEW' && (
                               <>
                                 <button
+                                  onClick={() => handleApproveOrg(org._id)}
                                   className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
                                   title="Approve"
                                 >
                                   <span className="material-symbols-outlined text-lg">check_circle</span>
                                 </button>
                                 <button
+                                  onClick={() => setSelectedOrg(org)}
                                   className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                                   title="Reject"
                                 >
@@ -257,6 +313,7 @@ export default function AdminOrganizationsPage() {
                             )}
                             {org.organizationStatus === 'APPROVED' && (
                               <button
+                                onClick={() => handleSuspendOrg(org._id)}
                                 className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
                                 title="Suspend"
                               >
@@ -266,7 +323,8 @@ export default function AdminOrganizationsPage() {
                           </div>
                         </td>
                       </tr>
-                    ))}
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -344,15 +402,56 @@ export default function AdminOrganizationsPage() {
                     </button>
                     {selectedOrg.organizationStatus === 'PENDING_REVIEW' && (
                       <>
-                        <button className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors">
+                        <div className="w-full mb-4">
+                          <label className="block text-sm font-semibold text-slate-700 mb-2">Rejection Reason (required)</label>
+                          <textarea
+                            value={rejectReason}
+                            onChange={(e) => setRejectReason(e.target.value)}
+                            rows={3}
+                            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                            placeholder="Enter reason for rejection..."
+                          />
+                        </div>
+                        <button
+                          onClick={() => handleRejectOrg(selectedOrg._id)}
+                          className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors"
+                        >
                           Reject
                         </button>
-                        <button className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-semibold transition-colors">
+                        <button
+                          onClick={() => handleApproveOrg(selectedOrg._id)}
+                          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-semibold transition-colors"
+                        >
                           Approve
                         </button>
                       </>
                     )}
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Pagination */}
+            {totalOrgs > limit && (
+              <div className="mt-6 flex items-center justify-between">
+                <p className="text-sm text-slate-600">
+                  Showing {((page - 1) * limit) + 1} to {Math.min(page * limit, totalOrgs)} of {totalOrgs} organizations
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                    className="px-4 py-2 border border-slate-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    onClick={() => setPage(p => p + 1)}
+                    disabled={page * limit >= totalOrgs}
+                    className="px-4 py-2 border border-slate-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50"
+                  >
+                    Next
+                  </button>
                 </div>
               </div>
             )}

@@ -1,38 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { useReactiveVar } from '@apollo/client';
+import { useReactiveVar, useQuery, useMutation } from '@apollo/client';
 import { userVar } from '../../apollo/store';
 import { isLoggedIn, normalizeRole } from '../../libs/auth';
 import { AdminSidebar } from '../../libs/components/admin/AdminSidebar';
 import { AdminHeader } from '../../libs/components/admin/AdminHeader';
-
-// Mock data - Replace with actual API calls
-const MOCK_USERS = [
-  {
-    _id: '1',
-    userNick: 'john_doe',
-    userEmail: 'john@example.com',
-    userRole: 'BUYER',
-    userStatus: 'ACTIVE',
-    createdAt: '2024-01-15T10:30:00Z',
-  },
-  {
-    _id: '2',
-    userNick: 'jane_smith',
-    userEmail: 'jane@example.com',
-    userRole: 'PROVIDER',
-    userStatus: 'ACTIVE',
-    createdAt: '2024-01-20T14:20:00Z',
-  },
-  {
-    _id: '3',
-    userNick: 'bob_wilson',
-    userEmail: 'bob@example.com',
-    userRole: 'BUYER',
-    userStatus: 'SUSPENDED',
-    createdAt: '2024-02-01T09:15:00Z',
-  },
-];
+import { GET_ALL_USERS, GET_USER_BY_ID } from '../../apollo/admin/query';
+import { SUSPEND_USER, ACTIVATE_USER, RESET_USER_PASSWORD } from '../../apollo/admin/mutation';
 
 export default function AdminUsersPage() {
   const router = useRouter();
@@ -41,7 +15,44 @@ export default function AdminUsersPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [dateRangeFilter, setDateRangeFilter] = useState<string>('all');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
   const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [page, setPage] = useState(1);
+  const [limit] = useState(20);
+
+  const { data: usersData, loading: usersLoading, error: usersError, refetch: refetchUsers } = useQuery(GET_ALL_USERS, {
+    skip: !mounted || !isLoggedIn(),
+    variables: {
+      input: {
+        page,
+        limit,
+        search: {
+          ...(roleFilter !== 'all' && { userRole: roleFilter }),
+          ...(statusFilter !== 'all' && { userStatus: statusFilter }),
+          ...(searchTerm && { userNick: searchTerm, userEmail: searchTerm }),
+          ...(dateRangeFilter === 'custom' && startDate && { createdAtFrom: new Date(startDate).toISOString() }),
+          ...(dateRangeFilter === 'custom' && endDate && { createdAtTo: new Date(endDate + 'T23:59:59').toISOString() }),
+          ...(dateRangeFilter === 'today' && {
+            createdAtFrom: new Date().setHours(0, 0, 0, 0).toString(),
+            createdAtTo: new Date().setHours(23, 59, 59, 999).toString(),
+          }),
+          ...(dateRangeFilter === 'week' && {
+            createdAtFrom: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+          }),
+          ...(dateRangeFilter === 'month' && {
+            createdAtFrom: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+          }),
+        },
+      },
+    },
+    fetchPolicy: 'network-only',
+  });
+
+  const [suspendUser] = useMutation(SUSPEND_USER);
+  const [activateUser] = useMutation(ACTIVATE_USER);
+  const [resetPassword] = useMutation(RESET_USER_PASSWORD);
 
   useEffect(() => {
     setMounted(true);
@@ -56,14 +67,40 @@ export default function AdminUsersPage() {
     }
   }, [router, currentUser]);
 
-  const filteredUsers = MOCK_USERS.filter((user) => {
-    const matchesSearch = 
-      user.userNick.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.userEmail.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesRole = roleFilter === 'all' || user.userRole === roleFilter;
-    const matchesStatus = statusFilter === 'all' || user.userStatus === statusFilter;
-    return matchesSearch && matchesRole && matchesStatus;
-  });
+  const users = usersData?.getAllUsers?.list || [];
+  const totalUsers = usersData?.getAllUsers?.metaCounter?.[0]?.total || 0;
+
+  const handleSuspendUser = async (userId: string) => {
+    if (!confirm('Are you sure you want to suspend this user?')) return;
+    try {
+      await suspendUser({ variables: { userId } });
+      await refetchUsers();
+      alert('User suspended successfully');
+    } catch (error: any) {
+      alert(`Error: ${error.message || 'Failed to suspend user'}`);
+    }
+  };
+
+  const handleActivateUser = async (userId: string) => {
+    if (!confirm('Are you sure you want to activate this user?')) return;
+    try {
+      await activateUser({ variables: { userId } });
+      await refetchUsers();
+      alert('User activated successfully');
+    } catch (error: any) {
+      alert(`Error: ${error.message || 'Failed to activate user'}`);
+    }
+  };
+
+  const handleResetPassword = async (userId: string) => {
+    if (!confirm('Are you sure you want to reset this user\'s password?')) return;
+    try {
+      await resetPassword({ variables: { userId } });
+      alert('Password reset link sent successfully');
+    } catch (error: any) {
+      alert(`Error: ${error.message || 'Failed to reset password'}`);
+    }
+  };
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -107,57 +144,103 @@ export default function AdminUsersPage() {
           <div className="max-w-7xl mx-auto px-8 py-10">
             {/* Filters */}
             <div className="bg-white border border-slate-200 rounded-lg p-6 mb-6">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">Search</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400 text-lg">
-                      search
-                    </span>
-                    <input
-                      type="text"
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      placeholder="Search users..."
-                      className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    />
+              <div className="space-y-4">
+                {/* First Row: Search, Role, Status, Date Range */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Search</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400 text-lg">
+                        search
+                      </span>
+                      <input
+                        type="text"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        placeholder="Search users..."
+                        className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Role</label>
+                    <select
+                      value={roleFilter}
+                      onChange={(e) => setRoleFilter(e.target.value)}
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    >
+                      <option value="all">All Roles</option>
+                      <option value="BUYER">Buyer</option>
+                      <option value="PROVIDER">Provider</option>
+                      <option value="ADMIN">Admin</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Status</label>
+                    <select
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    >
+                      <option value="all">All Status</option>
+                      <option value="ACTIVE">Active</option>
+                      <option value="SUSPENDED">Suspended</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Date Range</label>
+                    <select
+                      value={dateRangeFilter}
+                      onChange={(e) => setDateRangeFilter(e.target.value)}
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    >
+                      <option value="all">All Time</option>
+                      <option value="today">Today</option>
+                      <option value="week">Last 7 Days</option>
+                      <option value="month">Last 30 Days</option>
+                      <option value="custom">Custom Range</option>
+                    </select>
                   </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">Role</label>
-                  <select
-                    value={roleFilter}
-                    onChange={(e) => setRoleFilter(e.target.value)}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  >
-                    <option value="all">All Roles</option>
-                    <option value="BUYER">Buyer</option>
-                    <option value="PROVIDER">Provider</option>
-                    <option value="ADMIN">Admin</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">Status</label>
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  >
-                    <option value="all">All Status</option>
-                    <option value="ACTIVE">Active</option>
-                    <option value="SUSPENDED">Suspended</option>
-                  </select>
-                </div>
-                <div className="flex items-end">
+
+                {/* Second Row: Custom Date Range (shown when custom is selected) */}
+                {dateRangeFilter === 'custom' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-200">
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2">Start Date</label>
+                      <input
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2">End Date</label>
+                      <input
+                        type="date"
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Reset Button */}
+                <div className="pt-2 border-t border-slate-200">
                   <button
                     onClick={() => {
                       setSearchTerm('');
                       setRoleFilter('all');
                       setStatusFilter('all');
+                      setDateRangeFilter('all');
+                      setStartDate('');
+                      setEndDate('');
                     }}
-                    className="w-full px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg transition-colors"
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg transition-colors"
                   >
-                    Reset Filters
+                    Reset All Filters
                   </button>
                 </div>
               </div>
@@ -179,58 +262,79 @@ export default function AdminUsersPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
-                    {filteredUsers.map((user) => (
-                      <tr key={user._id} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-sm font-mono text-slate-600">{user._id.slice(-8)}</span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-sm font-semibold text-slate-900">{user.userNick}</span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-sm text-slate-600">{user.userEmail}</span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                            user.userRole === 'BUYER' ? 'bg-blue-100 text-blue-700' :
-                            user.userRole === 'PROVIDER' ? 'bg-emerald-100 text-emerald-700' :
-                            'bg-purple-100 text-purple-700'
-                          }`}>
-                            {user.userRole}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                            user.userStatus === 'ACTIVE' ? 'bg-emerald-100 text-emerald-700' :
-                            'bg-red-100 text-red-700'
-                          }`}>
-                            {user.userStatus}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-sm text-slate-500">{formatDate(user.createdAt)}</span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => setSelectedUser(user)}
-                              className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                              title="View Details"
-                            >
-                              <span className="material-symbols-outlined text-lg">visibility</span>
-                            </button>
-                            <button
-                              className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
-                              title={user.userStatus === 'ACTIVE' ? 'Suspend' : 'Unsuspend'}
-                            >
-                              <span className="material-symbols-outlined text-lg">
-                                {user.userStatus === 'ACTIVE' ? 'block' : 'check_circle'}
-                              </span>
-                            </button>
-                          </div>
+                    {usersLoading ? (
+                      <tr>
+                        <td colSpan={7} className="px-6 py-8 text-center text-slate-500">
+                          Loading users...
                         </td>
                       </tr>
-                    ))}
+                    ) : usersError ? (
+                      <tr>
+                        <td colSpan={7} className="px-6 py-8 text-center text-red-500">
+                          Error loading users: {usersError.message}
+                        </td>
+                      </tr>
+                    ) : users.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="px-6 py-8 text-center text-slate-500">
+                          No users found
+                        </td>
+                      </tr>
+                    ) : (
+                      users.map((user: any) => (
+                        <tr key={user._id} className="hover:bg-slate-50 transition-colors">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className="text-sm font-mono text-slate-600">{user._id.slice(-8)}</span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className="text-sm font-semibold text-slate-900">{user.userNick}</span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className="text-sm text-slate-600">{user.userEmail}</span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                              user.userRole === 'BUYER' ? 'bg-blue-100 text-blue-700' :
+                              user.userRole === 'PROVIDER' ? 'bg-emerald-100 text-emerald-700' :
+                              'bg-purple-100 text-purple-700'
+                            }`}>
+                              {user.userRole}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                              user.userStatus === 'ACTIVE' ? 'bg-emerald-100 text-emerald-700' :
+                              'bg-red-100 text-red-700'
+                            }`}>
+                              {user.userStatus}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className="text-sm text-slate-500">{formatDate(user.createdAt)}</span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => setSelectedUser(user)}
+                                className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                title="View Details"
+                              >
+                                <span className="material-symbols-outlined text-lg">visibility</span>
+                              </button>
+                              <button
+                                onClick={() => user.userStatus === 'ACTIVE' ? handleSuspendUser(user._id) : handleActivateUser(user._id)}
+                                className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                                title={user.userStatus === 'ACTIVE' ? 'Suspend' : 'Activate'}
+                              >
+                                <span className="material-symbols-outlined text-lg">
+                                  {user.userStatus === 'ACTIVE' ? 'block' : 'check_circle'}
+                                </span>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -293,7 +397,10 @@ export default function AdminUsersPage() {
                     >
                       Close
                     </button>
-                    <button className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold transition-colors">
+                    <button
+                      onClick={() => handleResetPassword(selectedUser._id)}
+                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold transition-colors"
+                    >
                       Reset Password
                     </button>
                   </div>

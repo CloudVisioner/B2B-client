@@ -43,6 +43,7 @@ const Navbar: React.FC<NavbarProps> = ({ currentPage }) => {
     if (router.pathname === '/') return 'home';
     if (router.pathname === '/marketplace') return 'marketplace';
     if (router.pathname === '/results' || router.pathname.startsWith('/results/')) return 'results';
+    if (router.pathname === '/articles' || router.pathname.startsWith('/articles/')) return 'articles';
     if (router.pathname.startsWith('/provider/')) return 'provider-profile';
     return 'home';
   };
@@ -63,6 +64,7 @@ const Navbar: React.FC<NavbarProps> = ({ currentPage }) => {
     { href: '/', label: 'Home', page: 'home' as PageId },
     { href: '/marketplace', label: 'Marketplace', page: 'marketplace' as PageId },
     { href: '/results', label: 'Results', page: 'results' as PageId },
+    { href: '/articles', label: 'Articles', page: 'articles' as PageId },
   ];
 
   // ========== CONDITIONAL RENDERING ==========

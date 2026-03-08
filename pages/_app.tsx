@@ -2,6 +2,7 @@ import type { AppProps } from 'next/app';
 import { ApolloProvider } from '@apollo/client';
 import { useApollo } from '../apollo/client';
 import { ThemeProvider } from '../libs/contexts/ThemeContext';
+import { ChatWidgets } from '../libs/components/ChatWidgets';
 import '../styles/globals.css';
 import '../scss/app.scss';
 import { CssBaseline } from '@mui/material';
@@ -14,6 +15,8 @@ export default function App({ Component, pageProps }: AppProps) {
       <ThemeProvider>
         <CssBaseline />
         <Component {...pageProps} />
+        {/* Global Chat Widgets - Available on all pages */}
+        <ChatWidgets />
       </ThemeProvider>
     </ApolloProvider>
   );

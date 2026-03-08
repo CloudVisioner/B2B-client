@@ -13,5 +13,9 @@ module.exports = {
       },
     },
   },
-  plugins: [],
+  plugins: [
+    // @tailwindcss/typography - Install with: npm install @tailwindcss/typography --save-dev
+    // Uncomment after installation:
+    // require('@tailwindcss/typography'),
+  ],
 }

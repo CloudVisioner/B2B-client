@@ -1,12 +1,9 @@
 {
-  "/_error": "pages/_error.js",
   "/_app": "pages/_app.js",
+  "/_error": "pages/_error.js",
   "/_document": "pages/_document.js",
-  "/admin/service-requests": "pages/admin/service-requests.js",
-  "/admin/orders": "pages/admin/orders.js",
-  "/admin/settings": "pages/admin/settings.js",
-  "/admin/quotes": "pages/admin/quotes.js",
-  "/admin": "pages/admin.js",
-  "/admin/organizations": "pages/admin/organizations.js",
-  "/admin/articles": "pages/admin/articles.js"
+  "/articles/[slug]": "pages/articles/[slug].js",
+  "/articles": "pages/articles.js",
+  "/results": "pages/results.js",
+  "/": "pages/index.js"
 }

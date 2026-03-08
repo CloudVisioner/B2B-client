@@ -16,9 +16,9 @@ export default function BuyerHelpSupportPage() {
                 <div className="absolute inset-0 opacity-30 bg-[radial-gradient(circle_at_top,_#ffffff40,_transparent_55%),radial-gradient(circle_at_bottom,_#0f172a80,_transparent_55%)]" />
                 <div className="relative text-center px-8">
                   <h1 className="text-5xl font-black text-white mb-4">Help &amp; Support Center</h1>
-                  <p className="text-xl font-semibold text-white/95 max-w-2xl mx-auto">
-                    Find answers to frequently asked questions and get the help you need
-                  </p>
+                    <p className="text-xl font-semibold text-white/95 max-w-2xl mx-auto">
+                      Find answers to frequently asked questions and get the help you need
+                    </p>
                 </div>
               </div>
             </div>
