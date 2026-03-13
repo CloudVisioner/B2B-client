@@ -602,8 +602,27 @@ const Marketplace: React.FC<MarketplaceProps> = ({
       return categoryMatches && subCategoryMatches;
     });
 
+    // Apply budget filter client-side (if maxBudget is set and not default)
+    if (maxBudget && maxBudget > 0 && maxBudget !== 5000) {
+      mappedProviders = mappedProviders.filter(provider => {
+        // Check organizationHourlyRate (preferred field)
+        if (provider.startingRate && provider.startingRate > 0) {
+          return provider.startingRate <= maxBudget;
+        }
+        // Fallback to budgetRange if startingRate is not available
+        if (provider.budgetRange) {
+          const budgetValue = typeof provider.budgetRange === 'string' 
+            ? parseFloat(provider.budgetRange.replace(/[^0-9.]/g, ''))
+            : Number(provider.budgetRange);
+          return !isNaN(budgetValue) && budgetValue > 0 && budgetValue <= maxBudget;
+        }
+        // If no budget info, include the provider (don't filter out)
+        return true;
+      });
+    }
+
     return mappedProviders;
-  }, [data, useSortedQuery, activeSubCats, selectedCatId]);
+  }, [data, useSortedQuery, activeSubCats, selectedCatId, maxBudget]);
   
   const totalCount = useMemo(() => {
     return providers.length;

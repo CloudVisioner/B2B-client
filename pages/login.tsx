@@ -219,6 +219,17 @@ export default function LoginPage() {
             </Link>
           </p>
         </div>
+
+        {/* Back to Home */}
+        <div className="mt-6 text-center">
+          <Link
+            href="/"
+            className="text-slate-400 hover:text-slate-600 dark:text-slate-300 dark:hover:text-white text-sm transition-colors inline-flex items-center gap-2"
+          >
+            <span className="material-symbols-outlined text-base">arrow_back</span>
+            <span>Back to Home</span>
+          </Link>
+        </div>
       </div>
     </div>
   );

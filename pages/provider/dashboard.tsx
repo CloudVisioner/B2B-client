@@ -253,7 +253,7 @@ export default function ProviderDashboardPage() {
                 {/* Featured Image Section */}
                 <div className="relative h-80 overflow-hidden">
                   <Image
-                    src="/images/request.webp"
+                    src="/images/service_reqs.webp"
                     alt="Available Requests"
                     fill
                     className="object-cover group-hover:scale-105 transition-transform duration-500"

@@ -68,29 +68,29 @@ export default function AdminLoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/30 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo/Brand */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-600 shadow-lg shadow-indigo-500/50 mb-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-600 shadow-lg shadow-indigo-500/20 mb-4">
             <span className="material-symbols-outlined text-white text-3xl">admin_panel_settings</span>
           </div>
-          <h1 className="text-3xl font-bold text-white mb-2">Admin Portal</h1>
-          <p className="text-slate-300">Sign in to access the admin dashboard</p>
+          <h1 className="text-3xl font-bold text-slate-900 mb-2">Admin Portal</h1>
+          <p className="text-slate-600">Sign in to access the admin dashboard</p>
         </div>
 
         {/* Login Card */}
-        <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 shadow-2xl p-8">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-xl p-8">
           <form onSubmit={handleSubmit} className="space-y-6">
             {error && (
-              <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-4 flex items-center gap-3">
-                <span className="material-symbols-outlined text-red-400">error</span>
-                <p className="text-red-200 text-sm">{error}</p>
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
+                <span className="material-symbols-outlined text-red-500">error</span>
+                <p className="text-red-700 text-sm font-medium">{error}</p>
               </div>
             )}
 
             <div>
-              <label htmlFor="userNick" className="block text-sm font-semibold text-slate-200 mb-2">
+              <label htmlFor="userNick" className="block text-sm font-semibold text-slate-700 mb-2">
                 Username or Email
               </label>
               <div className="relative">
@@ -103,7 +103,7 @@ export default function AdminLoginPage() {
                   type="text"
                   value={formData.userNick}
                   onChange={handleInputChange}
-                  className="w-full pl-12 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-medium"
                   placeholder="Enter your username or email"
                   required
                 />
@@ -111,7 +111,7 @@ export default function AdminLoginPage() {
             </div>
 
             <div>
-              <label htmlFor="userPassword" className="block text-sm font-semibold text-slate-200 mb-2">
+              <label htmlFor="userPassword" className="block text-sm font-semibold text-slate-700 mb-2">
                 Password
               </label>
               <div className="relative">
@@ -124,7 +124,7 @@ export default function AdminLoginPage() {
                   type="password"
                   value={formData.userPassword}
                   onChange={handleInputChange}
-                  className="w-full pl-12 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-medium"
                   placeholder="Enter your password"
                   required
                 />
@@ -150,8 +150,8 @@ export default function AdminLoginPage() {
             </button>
           </form>
 
-          <div className="mt-6 pt-6 border-t border-white/10">
-            <p className="text-xs text-slate-400 text-center">
+          <div className="mt-6 pt-6 border-t border-slate-200">
+            <p className="text-xs text-slate-500 text-center font-medium">
               Secure admin access only. Unauthorized access is prohibited.
             </p>
           </div>
@@ -161,7 +161,7 @@ export default function AdminLoginPage() {
         <div className="mt-6 text-center">
           <a
             href="/"
-            className="text-slate-300 hover:text-white text-sm transition-colors inline-flex items-center gap-2"
+            className="text-slate-600 hover:text-slate-900 text-sm transition-colors inline-flex items-center gap-2 font-medium"
           >
             <span className="material-symbols-outlined text-base">arrow_back</span>
             <span>Back to Home</span>

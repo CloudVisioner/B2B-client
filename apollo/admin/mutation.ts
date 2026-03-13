@@ -155,6 +155,8 @@ export const CREATE_ARTICLE = gql`
       _id
       title
       slug
+      thumbnail
+      articleCoverImage
       status
       createdAt
     }
@@ -167,6 +169,8 @@ export const UPDATE_ARTICLE = gql`
       _id
       title
       slug
+      thumbnail
+      articleCoverImage
       status
       updatedAt
     }
@@ -196,6 +200,84 @@ export const DELETE_ARTICLE = gql`
   mutation DeleteArticle($articleId: String!) {
     deleteArticle(articleId: $articleId) {
       success
+    }
+  }
+`;
+
+// ============================================
+// CUSTOMER SUPPORT CENTER MANAGEMENT MUTATIONS
+// ============================================
+
+export const UPDATE_CS_CENTER_CONTENT = gql`
+  mutation UpdateCSCenterContent($input: UpdateCSCenterContentInput!) {
+    updateCSCenterContent(input: $input) {
+      _id
+      heroTitle
+      heroDescription
+      heroImage
+      quickAccessCards {
+        title
+        description
+        icon
+        link
+        color
+      }
+      contactMethods {
+        type
+        label
+        value
+        availability
+        icon
+      }
+      faqs {
+        _id
+        question
+        answer
+        category
+        order
+      }
+      knowledgeBaseArticles {
+        title
+        slug
+        category
+        order
+      }
+      updatedAt
+      updatedBy
+    }
+  }
+`;
+
+export const CREATE_CS_FAQ = gql`
+  mutation CreateCSFAQ($input: CreateCSFAQInput!) {
+    createCSFAQ(input: $input) {
+      _id
+      question
+      answer
+      category
+      order
+      createdAt
+    }
+  }
+`;
+
+export const UPDATE_CS_FAQ = gql`
+  mutation UpdateCSFAQ($input: UpdateCSFAQInput!) {
+    updateCSFAQ(input: $input) {
+      _id
+      question
+      answer
+      category
+      order
+      updatedAt
+    }
+  }
+`;
+
+export const DELETE_CS_FAQ = gql`
+  mutation DeleteCSFAQ($faqId: String!) {
+    deleteCSFAQ(faqId: $faqId) {
+      _id
     }
   }
 `;

@@ -25,13 +25,48 @@
 
 html.dark {
   --primary: #818cf8;
-  --border: #334155;
-  --bg-subtle: #1e293b;
-  --text-default: #f1f5f9;
-  --text-muted: #94a3b8;
-  --text-light: #64748b;
-  --bg-default: #1e293b;
+  --border: #475569;
+  --bg-subtle: #0f172a;
+  --text-default: #f8fafc;
+  --text-muted: #cbd5e1;
+  --text-light: #94a3b8;
+  --bg-default: #0f172a;
   --bg-card: #1e293b;
+}
+
+/* Improve dark mode contrast and clarity */
+.dark {
+  color-scheme: dark;
+}
+
+.dark body {
+  background-color: #0f172a;
+  color: #f8fafc;
+}
+
+.dark .bg-white {
+  background-color: #1e293b !important;
+}
+
+.dark .text-slate-500,
+.dark .text-slate-400 {
+  color: #cbd5e1 !important;
+}
+
+.dark .text-slate-600 {
+  color: #e2e8f0 !important;
+}
+
+.dark .border-slate-200 {
+  border-color: #475569 !important;
+}
+
+.dark .bg-slate-50 {
+  background-color: #1e293b !important;
+}
+
+.dark .bg-slate-100 {
+  background-color: #334155 !important;
 }
 
 /* Fix for text descenders (g, j, p, q, y) being cut off */
@@ -145,19 +180,12 @@ html.dark {
   }
 }
 
-/* Chatbase Widget Control - Hide default button, show when needed */
-div[id*="chatbase"]:not(iframe),
-button[id*="chatbase"] {
-  display: none !important;
-}
+/* (Chatbase iframe rules removed – using custom AI chat UI now) */
 
-/* Chatbase iframe - hidden by default, shown when AI chat is selected */
-iframe[src*="chatbase"] {
+/* Hide Chatbase's default floating launcher bubble (we open it ourselves) */
+[data-chatbase-toggle],
+.chatbase-launcher {
   display: none !important;
-}
-
-iframe[src*="chatbase"].chatbase-active {
-  display: block !important;
 }
 
 /* Chat Widget Animations */

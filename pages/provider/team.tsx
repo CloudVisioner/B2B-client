@@ -232,14 +232,14 @@ export default function ProviderTeamPage() {
                             }
                           }}
                         />
-                      {/* Department Badge */}
-                      <div className={`absolute top-4 right-4 px-3 py-1.5 rounded-lg ${dept.bg} ${dept.border} border backdrop-blur-sm`}>
-                        <div className="flex items-center gap-1.5">
-                          <span className={`material-symbols-outlined text-sm ${dept.text}`}>{dept.icon}</span>
-                          <span className={`text-xs font-bold ${dept.text}`}>{member.department}</span>
+                        {/* Department Badge */}
+                        <div className={`absolute top-4 right-4 px-3 py-1.5 rounded-lg ${dept.bg} ${dept.border} border backdrop-blur-sm`}>
+                          <div className="flex items-center gap-1.5">
+                            <span className={`material-symbols-outlined text-sm ${dept.text}`}>{dept.icon}</span>
+                            <span className={`text-xs font-bold ${dept.text}`}>{member.department}</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
 
                     {/* Member Info */}
                     <div className="p-6">

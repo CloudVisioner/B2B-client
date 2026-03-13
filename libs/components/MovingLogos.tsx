@@ -152,6 +152,13 @@ const MovingLogos: React.FC = () => {
               width: auto;
               height: auto;
               object-fit: contain;
+              filter: brightness(0) invert(0);
+            }
+            
+            /* All logos should be black/white */
+            .dark .logo-item-static svg,
+            .dark .logo-item-static img {
+              filter: brightness(0) invert(1);
             }
             
             .logo-item-static img[alt="OpenAI"] {
@@ -233,6 +240,13 @@ const MovingLogos: React.FC = () => {
             width: auto;
             height: auto;
             object-fit: contain;
+            filter: brightness(0) invert(0);
+          }
+          
+          /* All logos should be black/white */
+          .dark .logo-item svg,
+          .dark .logo-item img {
+            filter: brightness(0) invert(1);
           }
           
           .logo-item img[alt="OpenAI"] {

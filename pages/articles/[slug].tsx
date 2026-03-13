@@ -227,13 +227,14 @@ function renderArticle(article: any) {
             </div>
           </header>
 
-          {/* Thumbnail */}
-          <div className="mb-8 rounded-xl overflow-hidden bg-slate-200 dark:bg-slate-700 min-h-[400px]">
-            {article.thumbnail ? (
+          {/* Cover Image */}
+          <div className="mb-8 rounded-xl overflow-hidden bg-slate-200 dark:bg-slate-700 min-h-[400px] max-h-[500px]">
+            {article.articleCoverImage || article.thumbnail ? (
               <img
-                src={getImageUrl(article.thumbnail)}
+                src={getImageUrl(article.articleCoverImage || article.thumbnail)}
                 alt={article.title}
-                className="w-full h-auto object-cover"
+                className="w-full h-full object-cover"
+                style={{ maxHeight: '500px', objectFit: 'cover' }}
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
                   const parent = target.parentElement;

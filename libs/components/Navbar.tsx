@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { Sun, Moon, Menu, X } from 'lucide-react';
+import { Sun, Moon, Menu, X, MessageCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useReactiveVar } from '@apollo/client';
 import { userVar } from '../../apollo/store';
 import { isLoggedIn } from '../auth';
 import { useTheme } from '../contexts/ThemeContext';
 import { PageId } from '../types/index';
+
+interface NavbarProps {
+  currentPage?: PageId;
+}
 
 interface NavbarProps {
   currentPage?: PageId;
@@ -63,8 +67,9 @@ const Navbar: React.FC<NavbarProps> = ({ currentPage }) => {
   const navLinks = [
     { href: '/', label: 'Home', page: 'home' as PageId },
     { href: '/marketplace', label: 'Marketplace', page: 'marketplace' as PageId },
-    { href: '/results', label: 'Results', page: 'results' as PageId },
+    { href: '/results', label: 'About Us', page: 'results' as PageId },
     { href: '/articles', label: 'Articles', page: 'articles' as PageId },
+    { href: '/customer-support', label: 'Support', page: 'home' as PageId },
   ];
 
   // ========== CONDITIONAL RENDERING ==========
@@ -148,6 +153,21 @@ const Navbar: React.FC<NavbarProps> = ({ currentPage }) => {
 
             {/* Right Actions */}
             <div className="flex items-center gap-4 flex-shrink-0">
+              {/* Chat Trigger (Desktop) */}
+              <motion.button
+                onClick={() => {
+                  if (typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent('smeconnect-open-chat'));
+                  }
+                }}
+                className="hidden md:flex p-2.5 rounded-lg bg-slate-900 text-white dark:bg-white dark:text-slate-900 hover:shadow-md hover:-translate-y-0.5 transition-all items-center justify-center"
+                aria-label="Open chat"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.96 }}
+              >
+                <MessageCircle className="w-5 h-5" />
+              </motion.button>
+
               {/* Theme Toggle */}
               <motion.button
                 onClick={toggleTheme}

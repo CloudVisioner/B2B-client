@@ -18,6 +18,7 @@ interface OrderItem {
     icon?: string; // fallback material icon
     email?: string;
     phone?: string;
+    companyLogo?: string; // High quality company logo
   };
   totalValue: string;
   timeline: string;
@@ -38,7 +39,7 @@ const ALL_MOCK_ORDERS: OrderItem[] = [
     id: 'ORD-1024',
     title: 'Enterprise CRM Integration & Custom Dashboard',
     status: 'ACTIVE',
-    provider: { name: 'TechFlow Systems', rating: 4.9, email: 'contact@techflow.com', phone: '+1 (555) 123-4567' },
+    provider: { name: 'TechFlow Systems', rating: 4.9, email: 'contact@techflow.com', phone: '+1 (555) 123-4567', companyLogo: '/logos/microsoft.svg' },
     totalValue: '$18,500.00',
     timeline: 'Oct 12, 2023 – Jan 15, 2024',
     progress: 75,
@@ -60,7 +61,7 @@ const ALL_MOCK_ORDERS: OrderItem[] = [
     id: 'ORD-0988',
     title: 'Quarterly Financial Compliance Audit',
     status: 'COMPLETED',
-    provider: { name: 'Global Partners LLP', rating: 5.0, icon: 'business_center', email: 'audit@globalpartners.com', phone: '+1 (555) 234-5678' },
+    provider: { name: 'Global Partners LLP', rating: 5.0, icon: 'business_center', email: 'audit@globalpartners.com', phone: '+1 (555) 234-5678', companyLogo: '/logos/google.svg' },
     totalValue: '$4,200.00',
     timeline: 'Sep 01, 2023 – Oct 30, 2023',
     progress: 100,
@@ -82,7 +83,7 @@ const ALL_MOCK_ORDERS: OrderItem[] = [
     id: 'ORD-1031',
     title: 'Annual Brand Refresher & Assets',
     status: 'ACTIVE',
-    provider: { name: 'Creative Studio X', rating: 4.8, email: 'hello@creativestudio.com', phone: '+1 (555) 345-6789' },
+    provider: { name: 'Creative Studio X', rating: 4.8, email: 'hello@creativestudio.com', phone: '+1 (555) 345-6789', companyLogo: '/logos/apple.svg' },
     totalValue: '$2,500.00',
     timeline: 'Nov 15, 2023 – Dec 22, 2023',
     progress: 20,
@@ -104,7 +105,7 @@ const ALL_MOCK_ORDERS: OrderItem[] = [
     id: 'ORD-1045',
     title: 'Digital Marketing Campaign - Q4 Launch',
     status: 'ACTIVE',
-    provider: { name: 'Marketing Pro Agency', rating: 4.7, email: 'info@marketingpro.com', phone: '+1 (555) 456-7890' },
+    provider: { name: 'Marketing Pro Agency', rating: 4.7, email: 'info@marketingpro.com', phone: '+1 (555) 456-7890', companyLogo: '/logos/Samsung_idrZcaRCpR_0.webp' },
     totalValue: '$12,000.00',
     timeline: 'Nov 01, 2023 – Feb 29, 2024',
     progress: 45,
@@ -126,7 +127,7 @@ const ALL_MOCK_ORDERS: OrderItem[] = [
     id: 'ORD-1052',
     title: 'Mobile App Development - iOS & Android',
     status: 'ACTIVE',
-    provider: { name: 'AppDev Solutions', rating: 4.9, email: 'dev@appdev.com', phone: '+1 (555) 567-8901' },
+    provider: { name: 'AppDev Solutions', rating: 4.9, email: 'dev@appdev.com', phone: '+1 (555) 567-8901', companyLogo: '/logos/nvidia.webp' },
     totalValue: '$35,000.00',
     timeline: 'Oct 01, 2023 – Mar 31, 2024',
     progress: 60,
@@ -148,7 +149,7 @@ const ALL_MOCK_ORDERS: OrderItem[] = [
     id: 'ORD-0995',
     title: 'Website Redesign & E-commerce Setup',
     status: 'COMPLETED',
-    provider: { name: 'WebCraft Design', rating: 4.6, email: 'contact@webcraft.com', phone: '+1 (555) 678-9012' },
+    provider: { name: 'WebCraft Design', rating: 4.6, email: 'contact@webcraft.com', phone: '+1 (555) 678-9012', companyLogo: '/logos/OpenAI_Logo_0.webp' },
     totalValue: '$8,500.00',
     timeline: 'Aug 15, 2023 – Oct 10, 2023',
     progress: 100,
@@ -170,7 +171,7 @@ const ALL_MOCK_ORDERS: OrderItem[] = [
     id: 'ORD-1067',
     title: 'HR Policy Documentation & Handbook',
     status: 'CANCELLED',
-    provider: { name: 'HR Consultants Inc', rating: 4.5, email: 'hr@hrconsultants.com', phone: '+1 (555) 789-0123' },
+    provider: { name: 'HR Consultants Inc', rating: 4.5, email: 'hr@hrconsultants.com', phone: '+1 (555) 789-0123', companyLogo: '/logos/idS5TK0MYh_1771924134111.webp' },
     totalValue: '$3,500.00',
     timeline: 'Dec 01, 2023 – Jan 15, 2024',
     progress: 0,
@@ -187,7 +188,7 @@ const ALL_MOCK_ORDERS: OrderItem[] = [
     id: 'ORD-1078',
     title: 'Data Analytics Platform Setup',
     status: 'ACTIVE',
-    provider: { name: 'DataInsight Analytics', rating: 4.8, email: 'info@datainsight.com', phone: '+1 (555) 890-1234' },
+    provider: { name: 'DataInsight Analytics', rating: 4.8, email: 'info@datainsight.com', phone: '+1 (555) 890-1234', companyLogo: '/logos/Symbol.webp' },
     totalValue: '$22,000.00',
     timeline: 'Nov 20, 2023 – Apr 15, 2024',
     progress: 30,
@@ -390,15 +391,32 @@ export default function OrdersPage() {
                     {/* Provider */}
                     <div className="col-span-3">
                       <div className="flex items-center gap-3">
-                        {order.provider.icon ? (
-                          <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center border border-slate-100">
-                            <span className="material-symbols-outlined text-slate-400 text-sm">{order.provider.icon}</span>
+                        {order.provider.companyLogo ? (
+                          <div className="w-12 h-12 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-1 flex items-center justify-center overflow-hidden">
+                            <img
+                              alt={order.provider.name}
+                              className="max-w-full max-h-full w-auto h-auto object-contain"
+                              src={order.provider.companyLogo}
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                const parent = target.parentElement;
+                                if (parent && order.provider.icon) {
+                                  parent.innerHTML = `<div class="w-12 h-12 rounded-lg bg-slate-50 dark:bg-slate-800 flex items-center justify-center border border-slate-100 dark:border-slate-700"><span class="material-symbols-outlined text-slate-400 dark:text-slate-300 text-lg">${order.provider.icon}</span></div>`;
+                                } else if (parent) {
+                                  target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(order.provider.name)}&background=E8E5FF&color=4F46E5&size=48`;
+                                }
+                              }}
+                            />
+                          </div>
+                        ) : order.provider.icon ? (
+                          <div className="w-12 h-12 rounded-lg bg-slate-50 dark:bg-slate-800 flex items-center justify-center border border-slate-100 dark:border-slate-700">
+                            <span className="material-symbols-outlined text-slate-400 dark:text-slate-300 text-lg">{order.provider.icon}</span>
                           </div>
                         ) : (
                           <img
                             alt={order.provider.name}
-                            className="w-8 h-8 rounded-full border border-slate-200 object-cover"
-                            src={`https://ui-avatars.com/api/?name=${encodeURIComponent(order.provider.name)}&background=E8E5FF&color=4F46E5&size=32`}
+                            className="w-12 h-12 rounded-lg border border-slate-200 dark:border-slate-700 object-cover"
+                            src={`https://ui-avatars.com/api/?name=${encodeURIComponent(order.provider.name)}&background=E8E5FF&color=4F46E5&size=48`}
                           />
                         )}
                         <div>

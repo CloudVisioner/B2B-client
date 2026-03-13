@@ -61,7 +61,14 @@ export const ProviderSidebar: React.FC = () => {
     <aside className="w-64 flex-shrink-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col h-full">
       {/* Brand */}
       <div className="h-16 flex items-center px-6 border-b border-slate-100 dark:border-slate-800 flex-shrink-0">
-        <Link href="/" className="text-xl font-bold tracking-tight">
+        <Link 
+          href="/" 
+          onClick={(e) => {
+            e.preventDefault();
+            router.push('/');
+          }}
+          className="text-xl font-bold tracking-tight hover:opacity-80 transition-opacity cursor-pointer"
+        >
           <span className="text-[var(--primary)]">SME</span>
           <span className="text-slate-900 dark:text-white">Connect</span>
         </Link>

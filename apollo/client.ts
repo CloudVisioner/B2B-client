@@ -5,8 +5,59 @@ import { createClient } from 'graphql-ws';
 import { onError } from '@apollo/client/link/error';
 import { createUploadLink } from 'apollo-upload-client';
 import { getHeaders } from './utils';
+import { socketVar } from './store';
+import { getJwtToken } from '../libs/auth';
 
 let apolloClient: ApolloClient<any>;
+
+/**
+ * Custom WebSocket class for public chat (non-GraphQL WebSocket)
+ * Stores socket instance in Apollo reactive variable for global access
+ */
+class LoggingWebSocket {
+  private socket: WebSocket;
+
+  constructor(url: string) {
+    const token = getJwtToken();
+    const wsUrl = token ? `${url}?token=${encodeURIComponent(token)}` : url;
+    
+    this.socket = new WebSocket(wsUrl);
+    socketVar(this.socket);
+
+    this.socket.onopen = () => {
+      console.log('🔌 WebSocket connection opened');
+    };
+
+    this.socket.onmessage = (msg) => {
+      console.log('📨 WebSocket message:', msg.data);
+    };
+
+    this.socket.onerror = (error) => {
+      console.error('❌ WebSocket error:', error);
+    };
+
+    this.socket.onclose = () => {
+      console.log('🔌 WebSocket connection closed');
+      socketVar(undefined);
+    };
+  }
+
+  send(data: string | ArrayBuffer | SharedArrayBuffer | Blob | ArrayBufferView) {
+    if (this.socket.readyState === WebSocket.OPEN) {
+      this.socket.send(data);
+    } else {
+      console.warn('⚠️ WebSocket is not open. ReadyState:', this.socket.readyState);
+    }
+  }
+
+  close() {
+    this.socket.close();
+  }
+
+  get readyState() {
+    return this.socket.readyState;
+  }
+}
 
 // Suppress canonizeResults deprecation warning from Apollo Client 3.14.0
 // This is an internal Apollo Client issue that will be fixed in future versions

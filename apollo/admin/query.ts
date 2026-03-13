@@ -293,6 +293,49 @@ export const GET_ORDER_BY_ID = gql`
 `;
 
 // ============================================
+// CUSTOMER SUPPORT CENTER MANAGEMENT
+// ============================================
+
+export const GET_CS_CENTER_CONTENT = gql`
+  query GetCSCenterContent {
+    getCSCenterContent {
+      _id
+      heroTitle
+      heroDescription
+      heroImage
+      quickAccessCards {
+        title
+        description
+        icon
+        link
+        color
+      }
+      contactMethods {
+        type
+        label
+        value
+        availability
+        icon
+      }
+      faqs {
+        question
+        answer
+        category
+        order
+      }
+      knowledgeBaseArticles {
+        title
+        slug
+        category
+        order
+      }
+      updatedAt
+      updatedBy
+    }
+  }
+`;
+
+// ============================================
 // ARTICLE MANAGEMENT
 // ============================================
 
@@ -306,6 +349,7 @@ export const GET_ALL_ARTICLES = gql`
         shortDescription
         body
         thumbnail
+        articleCoverImage
         tags
         status
         publishedAt
@@ -313,6 +357,30 @@ export const GET_ALL_ARTICLES = gql`
         updatedAt
         createdBy
         updatedBy
+      }
+      metaCounter {
+        total
+      }
+    }
+  }
+`;
+
+export const GET_PUBLISHED_ARTICLES = gql`
+  query GetPublishedArticles($input: GetAllArticlesInput!) {
+    getPublishedArticles(input: $input) {
+      list {
+        _id
+        title
+        slug
+        shortDescription
+        body
+        thumbnail
+        articleCoverImage
+        tags
+        status
+        publishedAt
+        createdAt
+        updatedAt
       }
       metaCounter {
         total
@@ -330,6 +398,7 @@ export const GET_ARTICLE_BY_ID = gql`
       shortDescription
       body
       thumbnail
+      articleCoverImage
       tags
       status
       publishedAt
@@ -350,6 +419,7 @@ export const GET_ARTICLE_BY_SLUG = gql`
       shortDescription
       body
       thumbnail
+      articleCoverImage
       tags
       status
       publishedAt

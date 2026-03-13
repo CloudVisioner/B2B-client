@@ -8,6 +8,7 @@ import { AdminHeader } from '../../libs/components/admin/AdminHeader';
 import { ArticleEditor } from '../../libs/components/admin/ArticleEditor';
 import { GET_ALL_ARTICLES } from '../../apollo/admin/query';
 import { CREATE_ARTICLE, UPDATE_ARTICLE, PUBLISH_ARTICLE, UNPUBLISH_ARTICLE, DELETE_ARTICLE } from '../../apollo/admin/mutation';
+import { UPLOAD_PROFILE_IMAGE } from '../../apollo/user/mutation';
 import { getImageUrl } from '../../libs/utils';
 
 export default function AdminArticlesPage() {
@@ -23,6 +24,9 @@ export default function AdminArticlesPage() {
   const [articleSlug, setArticleSlug] = useState<string>('');
   const [articleDescription, setArticleDescription] = useState<string>('');
   const [articleThumbnail, setArticleThumbnail] = useState<string>('');
+  const [articleCoverImage, setArticleCoverImage] = useState<string>('');
+  const [articleCoverImageFile, setArticleCoverImageFile] = useState<File | null>(null);
+  const [isUploadingCoverImage, setIsUploadingCoverImage] = useState(false);
   const [articleStatus, setArticleStatus] = useState<string>('DRAFT');
   const [articleTags, setArticleTags] = useState<string>('');
   const [tagInput, setTagInput] = useState<string>('');
@@ -50,6 +54,7 @@ export default function AdminArticlesPage() {
   const [publishArticle] = useMutation(PUBLISH_ARTICLE);
   const [unpublishArticle] = useMutation(UNPUBLISH_ARTICLE);
   const [deleteArticle] = useMutation(DELETE_ARTICLE);
+  const [uploadImage] = useMutation(UPLOAD_PROFILE_IMAGE);
 
   useEffect(() => {
     setMounted(true);
@@ -70,12 +75,48 @@ export default function AdminArticlesPage() {
       const tags = editingArticle.tags || [];
       setTagsList(tags);
       setArticleTags(tags.join(', '));
+      setArticleCoverImage(editingArticle.articleCoverImage || '');
+      setArticleCoverImageFile(null);
     } else if (isCreating && !editingArticle) {
       setTagsList([]);
       setArticleTags('');
       setTagInput('');
+      setArticleCoverImage('');
+      setArticleCoverImageFile(null);
     }
   }, [editingArticle, isCreating]);
+
+  const handleCoverImageUpload = async (file: File) => {
+    if (!file) return;
+    
+    setIsUploadingCoverImage(true);
+    try {
+      const result = await uploadImage({
+        variables: {
+          file,
+          target: 'articles',
+        },
+      });
+      
+      if (result.data?.imageUploader) {
+        setArticleCoverImage(result.data.imageUploader);
+        setArticleCoverImageFile(null);
+        alert('Cover image uploaded successfully');
+      }
+    } catch (error: any) {
+      alert(`Error uploading image: ${error.message || 'Failed to upload'}`);
+    } finally {
+      setIsUploadingCoverImage(false);
+    }
+  };
+
+  const handleCoverImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setArticleCoverImageFile(file);
+      handleCoverImageUpload(file);
+    }
+  };
 
   const handleAddTag = () => {
     const trimmedTag = tagInput.trim();
@@ -123,6 +164,7 @@ export default function AdminArticlesPage() {
         shortDescription: articleDescription,
         body: articleContent,
         thumbnail: articleThumbnail || undefined,
+        articleCoverImage: articleCoverImage || undefined,
         tags: tagsList,
         status: isDraft ? 'DRAFT' : 'PUBLISHED',
         ...(isDraft ? {} : { publishedAt: isoDate }),
@@ -155,6 +197,8 @@ export default function AdminArticlesPage() {
       setArticleSlug('');
       setArticleDescription('');
       setArticleThumbnail('');
+      setArticleCoverImage('');
+      setArticleCoverImageFile(null);
       setArticleStatus('DRAFT');
       setArticleTags('');
       setTagsList([]);
@@ -302,9 +346,9 @@ export default function AdminArticlesPage() {
                       <tr key={article._id} className="hover:bg-slate-50">
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
-                            {article.thumbnail && (
+                            {(article.articleCoverImage || article.thumbnail) && (
                               <img
-                                src={getImageUrl(article.thumbnail)}
+                                src={getImageUrl(article.articleCoverImage || article.thumbnail)}
                                 alt={article.title}
                                 className="w-12 h-12 object-cover rounded-lg"
                                 onError={(e) => {
@@ -335,6 +379,8 @@ export default function AdminArticlesPage() {
                                 setArticleDescription(article.shortDescription || '');
                                 setArticleContent(article.body || '');
                                 setArticleThumbnail(article.thumbnail || '');
+                                setArticleCoverImage(article.articleCoverImage || '');
+                                setArticleCoverImageFile(null);
                                 setArticleStatus(article.status);
                                 setTagsList(article.tags || []);
                                 setArticleTags((article.tags || []).join(', '));
@@ -396,6 +442,8 @@ export default function AdminArticlesPage() {
                         setArticleSlug('');
                         setArticleDescription('');
                         setArticleThumbnail('');
+                        setArticleCoverImage('');
+                        setArticleCoverImageFile(null);
                         setArticleStatus('DRAFT');
                         setArticleTags('');
                         setTagsList([]);
@@ -468,6 +516,67 @@ export default function AdminArticlesPage() {
                       </div>
                     </div>
                     <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2">Article Cover Image</label>
+                      <div className="space-y-3">
+                        {articleCoverImage && (
+                          <div className="relative w-full h-48 rounded-lg overflow-hidden border border-slate-300 bg-slate-100">
+                            <img
+                              src={getImageUrl(articleCoverImage)}
+                              alt="Cover preview"
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = 'none';
+                              }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setArticleCoverImage('');
+                                setArticleCoverImageFile(null);
+                              }}
+                              className="absolute top-2 right-2 p-2 bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg"
+                              title="Remove cover image"
+                            >
+                              <span className="material-symbols-outlined text-sm">close</span>
+                            </button>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-3">
+                          <label className="flex-1 cursor-pointer">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={handleCoverImageFileChange}
+                              disabled={isUploadingCoverImage}
+                              className="hidden"
+                            />
+                            <div className="px-4 py-2 border-2 border-dashed border-slate-300 rounded-lg hover:border-indigo-500 hover:bg-indigo-50 transition-colors text-center">
+                              {isUploadingCoverImage ? (
+                                <span className="text-slate-500">Uploading...</span>
+                              ) : (
+                                <span className="text-slate-700 font-medium">
+                                  {articleCoverImage ? 'Change Cover Image' : 'Upload Cover Image'}
+                                </span>
+                              )}
+                            </div>
+                          </label>
+                          {articleCoverImage && (
+                            <input
+                              type="text"
+                              value={articleCoverImage}
+                              onChange={(e) => setArticleCoverImage(e.target.value)}
+                              className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                              placeholder="Or paste image URL"
+                            />
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-500">
+                          Upload a cover image that will appear on article cards. Recommended size: 1200x630px
+                        </p>
+                      </div>
+                    </div>
+                    <div>
                       <label className="block text-sm font-semibold text-slate-700 mb-2">Tags</label>
                       <div className="space-y-3">
                         {/* Tag Input */}
@@ -528,6 +637,8 @@ export default function AdminArticlesPage() {
                         setArticleSlug('');
                         setArticleDescription('');
                         setArticleThumbnail('');
+                        setArticleCoverImage('');
+                        setArticleCoverImageFile(null);
                         setArticleStatus('DRAFT');
                         setArticleTags('');
                         setTagsList([]);

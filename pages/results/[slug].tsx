@@ -31,6 +31,40 @@ interface CaseStudyDetail {
 }
 
 const CASE_STUDY_DETAILS: Record<string, CaseStudyDetail> = {
+  'global-access-worldwide-services': {
+    slug: 'global-access-worldwide-services',
+    tag: 'Global Marketplace',
+    headline: 'Global Access',
+    subtitle:
+      'Connect with talented service providers and access premium services from anywhere in the world. Break down geographic barriers and enable seamless collaboration across borders.',
+    client: 'Worldwide',
+    provider: 'SMEConnect Network',
+    timeline: '24/7',
+    totalSaved: 'Unlimited',
+    intro:
+      'In today\'s interconnected world, businesses need access to the best talent regardless of location. SMEConnect breaks down geographic barriers, connecting businesses with verified service providers across continents, enabling seamless collaboration and unlocking opportunities that were once limited by borders.',
+    challengeTitle: 'The Challenge',
+    challenge:
+      'Traditional business models often limit companies to local talent pools or expensive international agencies. Time zones, language barriers, and complex payment systems create friction that prevents businesses from accessing the specialized expertise they need, regardless of where it exists in the world.',
+    advantageTitle: 'The SME Connect Advantage',
+    advantage:
+      'SMEConnect\'s global marketplace connects businesses with verified providers from over 50 countries. Our intelligent matching system considers time zones, language preferences, and cultural fit, ensuring seamless collaboration. With escrow-backed payments, multi-currency support, and transparent project tracking, working globally feels as simple as working locally.',
+    implementationTitle: 'How It Works',
+    implementation:
+      'Whether you\'re a startup in San Francisco needing a design team in Berlin, or a European company seeking backend expertise from Asia, SMEConnect makes it effortless. Browse our global network, filter by location, time zone, or expertise, and connect instantly. All projects are managed through our unified dashboard with milestone-based payments, ensuring security and transparency across borders.',
+    quote:
+      '"We\'ve worked with providers from five different countries this year alone. SMEConnect made it feel like they were all in the same office. The quality and speed exceeded our expectations every time."',
+    quoteAuthor: '— David Kim, CEO at GlobalTech Solutions',
+    resultsTitle: 'Global Impact',
+    resultsIntro:
+      'Our worldwide network enables businesses to:',
+    results: [
+      'Access specialized talent from anywhere in the world, 24/7.',
+      'Work across time zones seamlessly with our smart scheduling tools.',
+      'Save up to 60% compared to local agencies while accessing global expertise.',
+      'Scale teams instantly without geographic limitations.',
+    ],
+  },
   'acme-studio-cost-savings': {
     slug: 'acme-studio-cost-savings',
     tag: 'Efficiency Case Study',

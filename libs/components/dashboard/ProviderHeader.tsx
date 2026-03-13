@@ -216,24 +216,25 @@ export const ProviderHeader: React.FC<ProviderHeaderProps> = ({ title }) => {
               className="focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded-xl transition-all"
             >
               {userImage ? (
-                <div className="w-9 h-9 rounded-xl overflow-hidden ring-2 ring-indigo-500/20 shadow-lg hover:ring-indigo-500/40 transition-all">
+                <div className="w-12 h-12 rounded-xl overflow-hidden ring-2 ring-indigo-500/20 shadow-lg hover:ring-indigo-500/40 transition-all">
                   <img 
                     src={userImage} 
                     alt={userName} 
                     className="w-full h-full object-cover"
+                    style={{ display: 'block' }}
                     onError={(e) => {
                       // Fallback to initials if image fails
                       const target = e.target as HTMLImageElement;
                       target.style.display = 'none';
                       const parent = target.parentElement?.parentElement;
                       if (parent) {
-                        parent.innerHTML = `<div class="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center text-white font-black text-xs shadow-lg">${getInitials(userName)}</div>`;
+                        parent.innerHTML = `<div class="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center text-white font-black text-sm shadow-lg" style="display: flex">${getInitials(userName)}</div>`;
                       }
                     }}
                   />
                 </div>
               ) : (
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center text-white font-black text-xs shadow-lg hover:from-indigo-600 hover:to-indigo-700 transition-all">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center text-white font-black text-sm shadow-lg hover:from-indigo-600 hover:to-indigo-700 transition-all" style={{ display: 'flex' }}>
                   {getInitials(userName)}
                 </div>
               )}

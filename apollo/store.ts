@@ -51,3 +51,4 @@ export interface User {
 
 export const userVar = makeVar<User>({});
 export const themeModeVar = makeVar<'light' | 'dark'>('light');
+export const socketVar = makeVar<WebSocket | undefined>(undefined);

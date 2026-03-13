@@ -1,26 +1,37 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@apollo/client';
 import Navbar from '../../libs/components/Navbar';
 import Footer from '../../libs/components/Footer';
-import { GET_ALL_ARTICLES } from '../../apollo/admin/query';
+import { GET_PUBLISHED_ARTICLES } from '../../apollo/admin/query';
 import { getImageUrl } from '../../libs/utils';
 
 export default function ArticlesPage() {
-  const { data: articlesData, loading: articlesLoading, error: articlesError } = useQuery(GET_ALL_ARTICLES, {
+  const { data: articlesData, loading: articlesLoading, error: articlesError } = useQuery(GET_PUBLISHED_ARTICLES, {
     variables: {
       input: {
         page: 1,
         limit: 50,
-        search: {
-          status: 'PUBLISHED',
-        },
       },
     },
     fetchPolicy: 'network-only',
+    errorPolicy: 'all',
   });
 
-  const articles = articlesData?.getAllArticles?.list || [];
+  // Debug logging
+  useEffect(() => {
+    if (articlesError) {
+      console.error('Articles query error:', articlesError);
+    }
+    console.log('Articles page state:', {
+      loading: articlesLoading,
+      error: articlesError,
+      data: articlesData,
+      articlesCount: articlesData?.getPublishedArticles?.list?.length || 0,
+    });
+  }, [articlesLoading, articlesError, articlesData]);
+
+  const articles = articlesData?.getPublishedArticles?.list || [];
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -60,7 +71,7 @@ export default function ArticlesPage() {
                 <span className="material-symbols-outlined text-4xl text-red-500">error</span>
               </div>
               <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Error Loading Articles</h3>
-              <p className="text-slate-600 dark:text-slate-400">{articlesError.message}</p>
+              <p className="text-slate-600 dark:text-slate-400">Something went wrong while loading articles.</p>
             </div>
           ) : articles.length === 0 ? (
             <div className="text-center py-20">
@@ -78,13 +89,14 @@ export default function ArticlesPage() {
                   href={`/articles/${article.slug}`}
                   className="group bg-white dark:bg-slate-800 rounded-xl shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden"
                 >
-                  {/* Thumbnail */}
+                  {/* Cover Image */}
                   <div className="relative h-48 overflow-hidden bg-slate-200 dark:bg-slate-700">
-                    {article.thumbnail ? (
+                    {article.articleCoverImage || article.thumbnail ? (
                       <img
-                        src={getImageUrl(article.thumbnail)}
+                        src={getImageUrl(article.articleCoverImage || article.thumbnail)}
                         alt={article.title}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        style={{ maxWidth: '100%', maxHeight: '100%' }}
                         onError={(e) => {
                           const target = e.target as HTMLImageElement;
                           const parent = target.parentElement;
@@ -123,7 +135,7 @@ export default function ArticlesPage() {
                     )}
 
                     {/* Title */}
-                    <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors line-clamp-2">
+                    <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2 group-hover:text-indigo-600 dark:group-hover:text-white transition-colors line-clamp-2">
                       {article.title}
                     </h2>
 

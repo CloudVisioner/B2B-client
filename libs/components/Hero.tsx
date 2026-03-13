@@ -94,7 +94,7 @@ const Hero: React.FC<HeroProps> = ({ onGetStarted, onWantToHire, onWantToWork })
             animate: { opacity: 1, y: 0 },
             transition: { duration: 0.6, delay: 0.2 }
           } : {})}
-          className="text-lg md:text-xl text-slate-500 dark:text-slate-400 max-w-2xl mx-auto mb-10 leading-relaxed"
+          className="text-lg md:text-xl text-slate-700 dark:text-slate-200 font-medium max-w-2xl mx-auto mb-10 leading-relaxed"
         >
           Connect with verified service providers or find your next big project in our secure SME marketplace. Scalable solutions for businesses of all sizes.
         </MotionP>
@@ -141,7 +141,7 @@ const Hero: React.FC<HeroProps> = ({ onGetStarted, onWantToHire, onWantToWork })
           } : {})}
           className="mt-16"
         >
-          <p className="text-xs text-slate-400 dark:text-slate-500 font-semibold uppercase tracking-widest mb-8">
+          <p className="text-sm text-slate-600 dark:text-slate-300 font-semibold uppercase tracking-widest mb-8">
             Trusted by leading companies
           </p>
           <MovingLogos />
