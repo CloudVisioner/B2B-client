@@ -65,10 +65,13 @@ export function useWebSocket({
 
     const token = getJwtToken();
     // Get WebSocket URL - check for dedicated WS URL first, then derive from GraphQL URL
-    let wsHost = process.env.NEXT_PUBLIC_WS_URL;
+    let wsHost = process.env.NEXT_PUBLIC_WS_URL || process.env.NEXT_PUBLIC_API_WS;
     
     if (!wsHost) {
-      const graphqlUrl = process.env.NEXT_PUBLIC_API_GRAPHQL_URL || 'http://localhost:3010/graphql';
+      const graphqlUrl =
+        process.env.NEXT_PUBLIC_API_URL ||
+        process.env.NEXT_PUBLIC_API_GRAPHQL_URL ||
+        'http://localhost:4001/graphql';
       // Remove /graphql and convert http to ws, https to wss
       wsHost = graphqlUrl
         .replace('/graphql', '')
@@ -78,7 +81,7 @@ export function useWebSocket({
     
     // Default fallback
     if (!wsHost) {
-      wsHost = window.location.protocol === 'https:' ? 'wss://localhost:3010' : 'ws://localhost:3010';
+      wsHost = window.location.protocol === 'https:' ? 'wss://localhost:4001' : 'ws://localhost:4001';
     }
     
     const wsUrl = token 

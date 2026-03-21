@@ -318,16 +318,13 @@ export const GET_CS_CENTER_CONTENT = gql`
         icon
       }
       faqs {
+        _id
         question
         answer
         category
         order
-      }
-      knowledgeBaseArticles {
-        title
-        slug
-        category
-        order
+        createdAt
+        updatedAt
       }
       updatedAt
       updatedBy

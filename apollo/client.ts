@@ -115,14 +115,22 @@ const authLink = new ApolloLink((operation, forward) => {
 });
 
 const httpLink = createUploadLink({
-  uri: process.env.NEXT_PUBLIC_API_GRAPHQL_URL || process.env.REACT_APP_API_GRAPHQL_URL || 'http://localhost:3010/graphql',
+  uri:
+    process.env.NEXT_PUBLIC_API_URL ||
+    process.env.NEXT_PUBLIC_API_GRAPHQL_URL ||
+    process.env.REACT_APP_API_GRAPHQL_URL ||
+    'http://localhost:4001/graphql',
   credentials: 'include',
 });
 
 const wsLink = typeof window !== 'undefined'
   ? new GraphQLWsLink(
       createClient({
-        url: process.env.NEXT_PUBLIC_API_WS || process.env.REACT_APP_API_WS || 'ws://localhost:3010/graphql',
+        url:
+          process.env.NEXT_PUBLIC_API_WS ||
+          process.env.NEXT_PUBLIC_WS_URL ||
+          process.env.REACT_APP_API_WS ||
+          'ws://localhost:4001/graphql',
         connectionParams: () => ({
           ...getHeaders(),
         }),

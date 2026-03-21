@@ -1,10 +1,1 @@
-{
-  "/_app": "pages/_app.js",
-  "/_document": "pages/_document.js",
-  "/_error": "pages/_error.js",
-  "/results": "pages/results.js",
-  "/customer-support": "pages/customer-support.js",
-  "/articles": "pages/articles.js",
-  "/login": "pages/login.js",
-  "/admin/login": "pages/admin/login.js"
-}
+{"/_error":"pages/_error.js","/admin/customer-support":"pages/admin/customer-support.html","/admin/articles":"pages/admin/articles.html","/_app":"pages/_app.js","/_document":"pages/_document.js","/admin":"pages/admin.html","/admin/login":"pages/admin/login.html","/admin/service-requests":"pages/admin/service-requests.html","/admin/orders":"pages/admin/orders.html","/admin/organizations":"pages/admin/organizations.html","/admin/quotes":"pages/admin/quotes.html","/articles/[slug]":"pages/articles/[slug].html","/admin/users":"pages/admin/users.html","/admin/signup":"pages/admin/signup.html","/admin/settings":"pages/admin/settings.html","/help-support":"pages/help-support.html","/dashboard":"pages/dashboard.html","/articles":"pages/articles.html","/customer-support":"pages/customer-support.html","/marketplace":"pages/marketplace.html","/login":"pages/login.html","/":"pages/index.html","/notifications":"pages/notifications.html","/orders":"pages/orders.html","/organizations":"pages/organizations.html","/post-job":"pages/post-job.html","/provider/dashboard":"pages/provider/dashboard.html","/provider/[id]":"pages/provider/[id].html","/provider/jobs":"pages/provider/jobs.html","/provider/billing":"pages/provider/billing.html","/provider/my-quotes":"pages/provider/my-quotes.html","/provider/organizations":"pages/provider/organizations.html","/provider/help-support":"pages/provider/help-support.html","/provider/projects":"pages/provider/projects.html","/provider/settings":"pages/provider/settings.html","/provider/team":"pages/provider/team.html","/results/[slug]":"pages/results/[slug].html","/settings":"pages/settings.html","/service-requests":"pages/service-requests.html","/signup":"pages/signup.html","/results":"pages/results.html","/404":"pages/404.html"}

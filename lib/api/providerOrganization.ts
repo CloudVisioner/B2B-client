@@ -5,7 +5,11 @@
 
 import { getJwtToken } from '../../libs/auth';
 
-const API_URL = process.env.NEXT_PUBLIC_API_GRAPHQL_URL || process.env.REACT_APP_API_GRAPHQL_URL || 'http://localhost:3010/graphql';
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  process.env.NEXT_PUBLIC_API_GRAPHQL_URL ||
+  process.env.REACT_APP_API_GRAPHQL_URL ||
+  'http://localhost:4001/graphql';
 
 /* ═══════════════════════════════════════════════════════════
    Types

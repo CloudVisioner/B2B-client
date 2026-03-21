@@ -235,12 +235,8 @@ export const UPDATE_CS_CENTER_CONTENT = gql`
         answer
         category
         order
-      }
-      knowledgeBaseArticles {
-        title
-        slug
-        category
-        order
+        createdAt
+        updatedAt
       }
       updatedAt
       updatedBy

@@ -1,0 +1,22 @@
+
+services:
+  smeconnect-landing-page:
+    container_name: smeconnect-ui
+    restart: always
+    image: node:25.4.0
+    ports:
+      - "4000:3001" # Mac 4000 -> Container 3001
+    environment:
+      - PORT=3001   # This forces Next.js to use 3001 for both 'dev' and 'start'
+    volumes:
+      - ./:/usr/src/smeconnect-landing-page
+      - /usr/src/smeconnect-landing-page/node_modules
+    working_dir: /usr/src/smeconnect-landing-page
+    networks:
+      - monorepo-network
+    command: bash -c "npm install && npm run build && npm run start"
+
+networks:
+  monorepo-network:
+    name: b2bsme_monorepo-network 
+    external: true

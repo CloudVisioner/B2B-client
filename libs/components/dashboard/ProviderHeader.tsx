@@ -97,7 +97,7 @@ export const ProviderHeader: React.FC<ProviderHeaderProps> = ({ title }) => {
       return imagePath;
     }
     // If it's a relative path, prepend the base URL
-    const apiUrl = process.env.NEXT_PUBLIC_API_GRAPHQL_URL || process.env.REACT_APP_API_GRAPHQL_URL || 'http://localhost:3010/graphql';
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_GRAPHQL_URL || process.env.REACT_APP_API_GRAPHQL_URL || 'http://localhost:4001/graphql';
     const baseUrl = apiUrl.replace('/graphql', '');
     // Remove leading slash from imagePath if present to avoid double slashes
     const cleanPath = imagePath.startsWith('/') ? imagePath.slice(1) : imagePath;

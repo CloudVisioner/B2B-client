@@ -265,7 +265,11 @@ export default function ServiceRequestsPage() {
     if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
       return imagePath;
     }
-    const apiUrl = process.env.NEXT_PUBLIC_API_GRAPHQL_URL || process.env.REACT_APP_API_GRAPHQL_URL || 'http://localhost:3010/graphql';
+    const apiUrl =
+      process.env.NEXT_PUBLIC_API_URL ||
+      process.env.NEXT_PUBLIC_API_GRAPHQL_URL ||
+      process.env.REACT_APP_API_GRAPHQL_URL ||
+      'http://localhost:4001/graphql';
     const baseUrl = apiUrl.replace('/graphql', '');
     const cleanPath = imagePath.startsWith('/') ? imagePath.slice(1) : imagePath;
     return `${baseUrl}/${cleanPath}`;
@@ -368,26 +372,30 @@ export default function ServiceRequestsPage() {
   // Accept/Reject Quote mutations
   const [acceptQuote, { loading: isAcceptingQuote }] = useMutation(ACCEPT_QUOTE, {
     context: { headers: isLoggedIn() ? getHeaders() : {} },
-    refetchQueries: [
-      {
-        query: GET_BUYER_SERVICE_REQUESTS,
-        variables: {
-          input: {
-            status: statusFilter !== 'all' ? statusFilter.toUpperCase() : undefined,
-            search: debouncedSearch || undefined,
-            sortBy: sortBy === 'newest' ? 'createdAt' : sortBy === 'deadline' ? 'reqDeadline' : 'reqBudgetRange',
-            sortOrder: 'desc',
-            page: 1,
-            limit: 50,
+    refetchQueries: () => {
+      const queries: any[] = [
+        {
+          query: GET_BUYER_SERVICE_REQUESTS,
+          variables: {
+            input: {
+              status: statusFilter !== 'all' ? statusFilter.toUpperCase() : undefined,
+              search: debouncedSearch || undefined,
+              sortBy: sortBy === 'newest' ? 'createdAt' : sortBy === 'deadline' ? 'reqDeadline' : 'reqBudgetRange',
+              sortOrder: 'desc',
+              page: 1,
+              limit: 50,
+            },
           },
         },
-      },
-      {
-        query: GET_QUOTES_BY_REQUEST,
-        variables: { requestId: quotesForRequest?._id || '' },
-        skip: !isQuotesOpen || !quotesForRequest?._id,
-      },
-    ],
+      ];
+      if (isQuotesOpen && quotesForRequest?._id) {
+        queries.push({
+          query: GET_QUOTES_BY_REQUEST,
+          variables: { requestId: quotesForRequest._id },
+        });
+      }
+      return queries;
+    },
     awaitRefetchQueries: true,
     onCompleted: () => {
       // Success message could go here
@@ -399,30 +407,31 @@ export default function ServiceRequestsPage() {
 
   const [rejectQuote, { loading: isRejectingQuote }] = useMutation(REJECT_QUOTE, {
     context: { headers: isLoggedIn() ? getHeaders() : {} },
-    refetchQueries: [
-      {
-        query: GET_BUYER_SERVICE_REQUESTS,
-        variables: {
-          input: {
-            status: statusFilter !== 'all' ? statusFilter.toUpperCase() : undefined,
-            search: debouncedSearch || undefined,
-            sortBy: sortBy === 'newest' ? 'createdAt' : sortBy === 'deadline' ? 'reqDeadline' : 'reqBudgetRange',
-            sortOrder: 'desc',
-            page: 1,
-            limit: 50,
+    refetchQueries: () => {
+      const queries: any[] = [
+        {
+          query: GET_BUYER_SERVICE_REQUESTS,
+          variables: {
+            input: {
+              status: statusFilter !== 'all' ? statusFilter.toUpperCase() : undefined,
+              search: debouncedSearch || undefined,
+              sortBy: sortBy === 'newest' ? 'createdAt' : sortBy === 'deadline' ? 'reqDeadline' : 'reqBudgetRange',
+              sortOrder: 'desc',
+              page: 1,
+              limit: 50,
+            },
           },
         },
-      },
-      {
-        query: GET_QUOTES_BY_REQUEST,
-        variables: { requestId: quotesForRequest?._id || '' },
-        skip: !isQuotesOpen || !quotesForRequest?._id,
-      },
-    ],
-    awaitRefetchQueries: true,
-    onCompleted: () => {
-      // Success message could go here
+      ];
+      if (isQuotesOpen && quotesForRequest?._id) {
+        queries.push({
+          query: GET_QUOTES_BY_REQUEST,
+          variables: { requestId: quotesForRequest._id },
+        });
+      }
+      return queries;
     },
+    awaitRefetchQueries: true,
     onError: (error) => {
       setNotificationToast({
         isOpen: true,

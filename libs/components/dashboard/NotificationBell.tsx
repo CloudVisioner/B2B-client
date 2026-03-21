@@ -113,6 +113,15 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ userId, user
     awaitRefetchQueries: true,
   });
 
+  const [deleteNotificationMutation] = useMutation(DELETE_NOTIFICATION, {
+    context: { headers: isLoggedIn() ? getHeaders() : {} },
+    refetchQueries: [
+      { query: GET_NOTIFICATIONS, variables: { input: { page: 1, limit: 50, search: { read: null, type: null } } } },
+      { query: GET_UNREAD_NOTIFICATION_COUNT, variables: { input: { page: 1, limit: 1, search: { read: false, type: null } } } },
+    ],
+    awaitRefetchQueries: true,
+  });
+
   // Extract notifications from response - handle both possible response structures
   // Also filter out any notifications with null type to prevent GraphQL errors
   const notifications: Notification[] = useMemo(() => {

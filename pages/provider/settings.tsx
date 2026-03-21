@@ -309,7 +309,7 @@ function OrganizationTab() {
     if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
       return imagePath;
     }
-    const apiUrl = process.env.NEXT_PUBLIC_API_GRAPHQL_URL || process.env.REACT_APP_API_GRAPHQL_URL || 'http://localhost:3010/graphql';
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_GRAPHQL_URL || process.env.REACT_APP_API_GRAPHQL_URL || 'http://localhost:4001/graphql';
     const baseUrl = apiUrl.replace('/graphql', '');
     const cleanPath = imagePath.startsWith('/') ? imagePath.slice(1) : imagePath;
     return `${baseUrl}/${cleanPath}`;
@@ -318,7 +318,7 @@ function OrganizationTab() {
   const uploadImageToBackend = async (file: File): Promise<string> => {
     const formDataObj = new FormData();
     const token = getJwtToken();
-    const apiUrl = process.env.NEXT_PUBLIC_API_GRAPHQL_URL || process.env.REACT_APP_API_GRAPHQL_URL || 'http://localhost:3010/graphql';
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_GRAPHQL_URL || process.env.REACT_APP_API_GRAPHQL_URL || 'http://localhost:4001/graphql';
     formDataObj.append('operations', JSON.stringify({
       query: `mutation UploadOrganizationImage($file: Upload!, $target: String!) {
         imageUploader(file: $file, target: $target)
@@ -807,6 +807,7 @@ function ProfileTab() {
     }
     // If it's a relative path, prepend the base URL (same logic as ProviderHeader)
     const apiUrl =
+      process.env.NEXT_PUBLIC_API_URL ||
       process.env.NEXT_PUBLIC_API_GRAPHQL_URL ||
       process.env.REACT_APP_API_GRAPHQL_URL ||
       'http://localhost:3010/graphql';
@@ -967,7 +968,7 @@ function ProfileTab() {
   const uploadImageToBackend = async (file: File): Promise<string> => {
     const formData = new FormData();
     const token = getJwtToken();
-    const apiUrl = process.env.NEXT_PUBLIC_API_GRAPHQL_URL || process.env.REACT_APP_API_GRAPHQL_URL || 'http://localhost:3010/graphql';
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_GRAPHQL_URL || process.env.REACT_APP_API_GRAPHQL_URL || 'http://localhost:4001/graphql';
     formData.append('operations', JSON.stringify({
       query: `mutation UploadProfileImage($file: Upload!, $target: String!) {
         imageUploader(file: $file, target: $target)

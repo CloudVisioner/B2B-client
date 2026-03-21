@@ -1,5 +1,5 @@
  'use client';
- 
+
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { getJwtToken, getCurrentUser } from '../auth';
@@ -13,7 +13,7 @@ interface Message {
 
 /**
  * UnifiedChatWidget Component
- *
+ * 
  * Floating chatbot button that opens:
  * - Ask AI → Chatbase iframe widget
  * - Online Message → Real-time WebSocket public chat
@@ -96,10 +96,14 @@ export const UnifiedChatWidget: React.FC = () => {
     if (typeof window === 'undefined') return;
 
     // Get WebSocket URL
-    let wsHost = process.env.NEXT_PUBLIC_WS_URL || process.env.REACT_APP_API_WS;
+    let wsHost = process.env.NEXT_PUBLIC_WS_URL || process.env.NEXT_PUBLIC_API_WS || process.env.REACT_APP_API_WS;
     
     if (!wsHost) {
-      const graphqlUrl = process.env.NEXT_PUBLIC_API_GRAPHQL_URL || process.env.REACT_APP_API_GRAPHQL_URL || 'http://localhost:3010/graphql';
+      const graphqlUrl =
+        process.env.NEXT_PUBLIC_API_URL ||
+        process.env.NEXT_PUBLIC_API_GRAPHQL_URL ||
+        process.env.REACT_APP_API_GRAPHQL_URL ||
+        'http://localhost:4001/graphql';
       wsHost = graphqlUrl
         .replace('/graphql', '')
         .replace('http://', 'ws://')
@@ -303,91 +307,91 @@ export const UnifiedChatWidget: React.FC = () => {
                 <span className="text-xs text-slate-600 dark:text-slate-400 font-medium">
                   {isConnected ? 'Online' : 'Offline'}
                 </span>
-              </div>
-              <button
-                onClick={handleToggleChat}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
-                aria-label="Close chat"
-              >
-                <span className="material-symbols-outlined text-xl">close</span>
-              </button>
             </div>
+            <button
+              onClick={handleToggleChat}
+              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+              aria-label="Close chat"
+            >
+              <span className="material-symbols-outlined text-xl">close</span>
+            </button>
+          </div>
           </div>
 
           {/* Public Chat Content */}
           <div className="flex-1 relative overflow-hidden bg-[#f6f6f8] dark:bg-slate-900">
-            <div className="h-full flex flex-col">
-              {/* Messages Area */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
-                {publicMessages.length === 0 ? (
-                  <div className="flex items-center justify-center h-full text-center">
-                    <div className="animate-fade-in">
-                      <div className="w-16 h-16 bg-indigo-100 dark:bg-indigo-900/30 rounded-full flex items-center justify-center mx-auto mb-3">
-                        <span className="material-symbols-outlined text-3xl text-indigo-600 dark:text-indigo-400">
-                          chat_bubble_outline
-                        </span>
+              <div className="h-full flex flex-col">
+                {/* Messages Area */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                  {publicMessages.length === 0 ? (
+                    <div className="flex items-center justify-center h-full text-center">
+                      <div className="animate-fade-in">
+                        <div className="w-16 h-16 bg-indigo-100 dark:bg-indigo-900/30 rounded-full flex items-center justify-center mx-auto mb-3">
+                          <span className="material-symbols-outlined text-3xl text-indigo-600 dark:text-indigo-400">
+                            chat_bubble_outline
+                          </span>
+                        </div>
+                        <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">
+                          {isConnected ? 'Start a conversation!' : 'Connecting...'}
+                        </p>
                       </div>
-                      <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">
-                        {isConnected ? 'Start a conversation!' : 'Connecting...'}
-                      </p>
                     </div>
-                  </div>
-                ) : (
-                  publicMessages.map((message) => (
-                    <div
-                      key={message.id}
-                      className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}
-                    >
+                  ) : (
+                    publicMessages.map((message) => (
                       <div
-                        className={`max-w-[80%] rounded-2xl px-4 py-2.5 transition-all duration-200 ${
-                          message.sender === 'user'
-                            ? 'bg-gradient-to-br from-indigo-600 to-purple-600 text-white shadow-md'
-                            : message.sender === 'system'
-                            ? 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs italic'
-                            : 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm border border-slate-200 dark:border-slate-700'
-                        }`}
+                        key={message.id}
+                        className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}
                       >
-                        <p className="text-sm leading-relaxed break-words">{message.text}</p>
-                        {message.sender !== 'system' && (
-                          <p
-                            className={`text-xs mt-1 ${
+                        <div
+                          className={`max-w-[80%] rounded-2xl px-4 py-2.5 transition-all duration-200 ${
+                            message.sender === 'user'
+                              ? 'bg-gradient-to-br from-indigo-600 to-purple-600 text-white shadow-md'
+                              : message.sender === 'system'
+                              ? 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs italic'
+                              : 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm border border-slate-200 dark:border-slate-700'
+                          }`}
+                        >
+                          <p className="text-sm leading-relaxed break-words">{message.text}</p>
+                          {message.sender !== 'system' && (
+                            <p
+                              className={`text-xs mt-1 ${
                               message.sender === 'user' ? 'text-white/70' : 'text-slate-500 dark:text-slate-400'
-                            }`}
-                          >
-                            {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </p>
-                        )}
+                              }`}
+                            >
+                              {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))
-                )}
-                <div ref={publicMessagesEndRef} />
-              </div>
+                    ))
+                  )}
+                  <div ref={publicMessagesEndRef} />
+                </div>
 
-              {/* Input Area */}
-              <div className="p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700">
-                <div className="flex items-center gap-2">
-                  <input
-                    ref={publicInputRef}
-                    type="text"
-                    value={publicInputValue}
-                    onChange={(e) => setPublicInputValue(e.target.value)}
-                    onKeyDown={handlePublicKeyPress}
+                {/* Input Area */}
+                <div className="p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700">
+                  <div className="flex items-center gap-2">
+                    <input
+                      ref={publicInputRef}
+                      type="text"
+                      value={publicInputValue}
+                      onChange={(e) => setPublicInputValue(e.target.value)}
+                      onKeyDown={handlePublicKeyPress}
                     placeholder={isConnected ? 'Type a message...' : 'You can type while we connect...'}
-                    className="flex-1 px-4 py-2.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 text-sm transition-all duration-200"
-                    autoFocus
-                  />
-                  <button
-                    onClick={handleSendPublicMessage}
-                    disabled={!isConnected || !publicInputValue.trim()}
-                    className="w-10 h-10 bg-gradient-to-br from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:from-slate-400 disabled:to-slate-500 text-white rounded-xl transition-all duration-200 flex items-center justify-center shadow-md hover:shadow-lg hover:scale-105 active:scale-95 disabled:cursor-not-allowed"
-                    aria-label="Send message"
-                  >
-                    <span className="material-symbols-outlined text-lg">send</span>
-                  </button>
+                      className="flex-1 px-4 py-2.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 text-sm transition-all duration-200"
+                      autoFocus
+                    />
+                    <button
+                      onClick={handleSendPublicMessage}
+                      disabled={!isConnected || !publicInputValue.trim()}
+                      className="w-10 h-10 bg-gradient-to-br from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:from-slate-400 disabled:to-slate-500 text-white rounded-xl transition-all duration-200 flex items-center justify-center shadow-md hover:shadow-lg hover:scale-105 active:scale-95 disabled:cursor-not-allowed"
+                      aria-label="Send message"
+                    >
+                      <span className="material-symbols-outlined text-lg">send</span>
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
           </div>
         </motion.div>
       )}
