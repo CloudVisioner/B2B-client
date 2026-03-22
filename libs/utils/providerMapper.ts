@@ -47,7 +47,7 @@ export function mapBackendProviderToList(backend: BackendProviderListItem): Prov
     responseTime: backend.orgResponseTimeAvg || '',
     startingRate: (() => {
       const raw = backend.organizationHourlyRate ?? backend.startingRate;
-      if (raw == null || raw === '') return 0;
+      if (raw == null || String(raw) === '') return 0;
       const n = typeof raw === 'number' ? raw : parseFloat(String(raw).replace(/[^0-9.-]/g, ''));
       return Number.isFinite(n) ? n : 0;
     })(),
