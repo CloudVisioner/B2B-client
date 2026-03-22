@@ -246,12 +246,12 @@ const ProvidersPage: React.FC<ProvidersPageProps> = ({ onSelectProvider }) => {
                     onClick={() => onSelectProvider(p.id)}
                   >
                     {/* Top 60% Image Area */}
-                    <div className="h-[60%] w-full relative overflow-hidden bg-slate-100 dark:bg-slate-800">
+                    <div className="relative h-[60%] w-full overflow-hidden bg-slate-100 dark:bg-slate-800">
                       {hasImage ? (
                         <img 
                           src={imageUrl} 
                           alt={p.name}
-                          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                          className="block h-full w-full min-h-0 object-cover object-center transition-transform duration-700 group-hover:scale-105"
                         />
                       ) : (
                         <div className={`w-full h-full ${p.color || 'bg-indigo-50 text-indigo-600'} flex items-center justify-center`}>
@@ -273,7 +273,7 @@ const ProvidersPage: React.FC<ProvidersPageProps> = ({ onSelectProvider }) => {
                     <div className="h-[40%] p-5 flex flex-col justify-between bg-white dark:bg-slate-900/95 backdrop-blur-sm border-t border-slate-100 dark:border-white/5 relative z-10">
                       <div className="space-y-2">
                         {/* Organization Name */}
-                        <h3 className="font-sans font-bold text-lg text-slate-900 dark:text-white line-clamp-2 leading-tight tracking-tight">
+                        <h3 className="line-clamp-2 break-words font-sans text-lg font-bold leading-snug tracking-normal text-slate-900 dark:text-white">
                           {p.name}
                         </h3>
                         

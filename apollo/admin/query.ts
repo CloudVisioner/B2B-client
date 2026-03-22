@@ -1,7 +1,7 @@
 import { gql } from '@apollo/client';
 
 // ============================================
-// AUTHENTICATION
+// AUTHENTICATION (unauthenticated entry points — Nestar AdminLoginInput / AdminSignupInput)
 // ============================================
 
 export const ADMIN_LOGIN = gql`

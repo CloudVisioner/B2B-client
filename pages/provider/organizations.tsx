@@ -546,11 +546,11 @@ export default function ProviderOrganizationsPage() {
               <div className="flex flex-col items-center gap-3">
                 <div className="relative">
                   {(imagePreview || formData.organizationImage) ? (
-                    <div className="w-24 h-24 rounded-2xl overflow-hidden border-2 border-slate-200 dark:border-slate-700 shadow-lg">
+                    <div className="relative h-24 w-24 overflow-hidden rounded-2xl border-2 border-slate-200 bg-slate-100 shadow-lg dark:border-slate-700 dark:bg-slate-800">
                       <img 
                         src={imagePreview || getImageUrl(formData.organizationImage)} 
                         alt="Organization Logo" 
-                        className="w-full h-full object-cover"
+                        className="block h-full w-full min-h-0 object-cover object-center"
                         onError={(e) => {
                           console.error('Image failed to load:', imagePreview || formData.organizationImage);
                           // Fallback to initials if image fails to load

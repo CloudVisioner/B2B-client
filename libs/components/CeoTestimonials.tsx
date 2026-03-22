@@ -1,6 +1,5 @@
 import React from 'react';
 import Image from 'next/image';
-import { Quote } from 'lucide-react';
 
 interface CeoTestimonial {
   id: string;
@@ -48,50 +47,55 @@ const ceos: CeoTestimonial[] = [
 
 const CeoTestimonials: React.FC = () => {
   return (
-    <section className="py-24 bg-slate-50 dark:bg-slate-950/60">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col items-center justify-center text-center gap-4 mb-12">
-          <h2 className="text-4xl md:text-5xl font-black text-slate-900 dark:text-white tracking-tight">
-            Global Tech Leaders Choose Us
-          </h2>
-          <p className="mt-1 text-slate-600 dark:text-slate-400 text-base md:text-lg max-w-2xl">
-            Short, honest quotes from executives who use SME Connect to find and manage external partners.
-          </p>
-        </div>
+    <section className="relative overflow-hidden bg-white py-24 dark:bg-slate-950 md:py-32">
+      <div className="relative">
+        <div className="mx-auto w-full max-w-[1400px] px-4 sm:px-6 lg:px-8">
+          <div className="mb-12 flex flex-col items-center gap-4 text-center md:mb-16">
+            <h2 className="font-sans text-3xl font-bold tracking-tight text-slate-900 dark:text-white md:text-4xl lg:text-[2.5rem]">
+              Global Tech Leaders Choose Us
+            </h2>
+            <p className="max-w-2xl text-base font-normal leading-relaxed text-slate-600 dark:text-slate-400 md:text-lg">
+              Real feedback from leaders who use SME Connect to <span className="font-medium text-slate-800 dark:text-slate-200">find vetted providers</span>, compare options, and{' '}
+              <span className="font-medium text-slate-800 dark:text-slate-200">run external projects</span> with less friction. Below: name, title, company, then their quote.
+            </p>
+          </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-10 max-w-5xl mx-auto">
-          {ceos.map((ceo) => (
-            <article
-              key={ceo.id}
-              className="group relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-10 shadow-md hover:shadow-2xl hover:-translate-y-1 transition-all duration-300"
-            >
-              <div className="absolute -top-4 -right-4 w-10 h-10 rounded-2xl bg-indigo-500/10 dark:bg-indigo-500/20 flex items-center justify-center text-indigo-500 dark:text-indigo-300">
-                <Quote className="w-4 h-4" />
-              </div>
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 sm:gap-8 xl:grid-cols-4 xl:gap-8">
+            {ceos.map((ceo) => (
+              <article
+                key={ceo.id}
+                className="group relative flex min-h-0 w-full flex-col overflow-hidden rounded-3xl border border-slate-200/80 bg-white p-8 text-center shadow-[0_2px_8px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)] transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-2 hover:border-slate-300 hover:shadow-[0_20px_50px_rgba(0,0,0,0.1),0_8px_24px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-slate-900 dark:shadow-[0_2px_8px_rgba(0,0,0,0.25)] dark:hover:border-white/40 dark:hover:shadow-[0_20px_50px_rgba(0,0,0,0.45),0_12px_32px_rgba(0,0,0,0.35)] md:p-10"
+              >
+                <div
+                  className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-br from-white/60 via-transparent to-transparent opacity-0 transition-opacity duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:opacity-100 dark:from-white/[0.12] dark:via-transparent"
+                  aria-hidden
+                />
 
-              <div className="flex flex-col items-center gap-4 mb-6 text-center">
-                <div className="relative w-24 h-24 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700">
-                  <Image
-                    src={ceo.avatar}
-                    alt={ceo.name}
-                    fill
-                    className="object-cover"
-                    sizes="96px"
-                  />
-                </div>
-                <div>
-                  <p className="text-lg md:text-xl font-bold text-slate-900 dark:text-white">{ceo.name}</p>
-                  <p className="text-xs md:text-sm font-semibold text-slate-500 dark:text-slate-400">
-                    {ceo.role} · {ceo.company}
+                <div className="relative z-10 flex flex-col items-center text-center">
+                  <div className="relative mx-auto mb-6 h-28 w-28 shrink-0 overflow-hidden rounded-full ring-1 ring-slate-200/90 ring-offset-2 ring-offset-white dark:ring-slate-600 dark:ring-offset-slate-900 md:h-32 md:w-32">
+                    <Image
+                      src={ceo.avatar}
+                      alt={ceo.name}
+                      fill
+                      className="object-cover"
+                      sizes="(max-width: 1280px) 128px, 160px"
+                    />
+                  </div>
+
+                  <p className="font-sans text-lg font-bold tracking-tight text-slate-900 dark:text-white md:text-xl">{ceo.name}</p>
+                  <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-400" title={`${ceo.role} at ${ceo.company}`}>
+                    <span className="font-medium text-slate-600 dark:text-slate-300">{ceo.role}</span>
+                    <span className="text-slate-300 dark:text-slate-600"> · </span>
+                    <span>{ceo.company}</span>
+                  </p>
+
+                  <p className="mt-8 text-center text-[15px] font-normal leading-relaxed text-slate-700 dark:text-slate-300 md:text-base">
+                    &ldquo;{ceo.quote}&rdquo;
                   </p>
                 </div>
-              </div>
-
-              <p className="text-base md:text-lg text-slate-700 dark:text-slate-300 leading-relaxed text-center">
-                “{ceo.quote}”
-              </p>
-            </article>
-          ))}
+              </article>
+            ))}
+          </div>
         </div>
       </div>
     </section>
@@ -99,4 +103,3 @@ const CeoTestimonials: React.FC = () => {
 };
 
 export default CeoTestimonials;
-

@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useReactiveVar } from '@apollo/client';
 import { userVar } from '../../apollo/store';
-import { logInWithEmail, normalizeRole, isLoggedIn } from '../../libs/auth';
+import { adminLogInWithEmail, isLoggedIn, isAdminPortalRole } from '../../libs/auth';
 
 export default function AdminLoginPage() {
   const router = useRouter();
   const currentUser = useReactiveVar(userVar);
   const [formData, setFormData] = useState({
-    userNick: '',
-    userPassword: '',
+    userEmail: '',
+    password: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -17,8 +18,7 @@ export default function AdminLoginPage() {
   useEffect(() => {
     // Redirect if already logged in as admin
     if (isLoggedIn() && currentUser) {
-      const role = normalizeRole(currentUser?.userRole);
-      if (role === 'ADMIN') {
+      if (isAdminPortalRole(currentUser?.userRole)) {
         router.push('/admin');
       }
     }
@@ -38,26 +38,25 @@ export default function AdminLoginPage() {
     setError('');
     setLoading(true);
 
-    if (!formData.userNick || !formData.userPassword) {
+    if (!formData.userEmail || !formData.password) {
       setError('Please fill in all fields');
       setLoading(false);
       return;
     }
 
     try {
-      await logInWithEmail(formData.userNick, formData.userPassword);
+      await adminLogInWithEmail(formData.userEmail, formData.password);
 
       await new Promise(resolve => setTimeout(resolve, 200));
 
-      const actualUser = userVar();
-      const tokenRole = normalizeRole(actualUser?.userRole);
-
-      if (tokenRole !== 'ADMIN') {
+      const tokenRole = userVar()?.userRole;
+      if (!isAdminPortalRole(tokenRole)) {
         setError('Access denied. This account is not an administrator.');
         setLoading(false);
         return;
       }
 
+      setLoading(false);
       router.push('/admin');
     } catch (err: any) {
       const errorMessage = err?.message || 'Login failed. Please check your credentials.';
@@ -90,28 +89,29 @@ export default function AdminLoginPage() {
             )}
 
             <div>
-              <label htmlFor="userNick" className="block text-sm font-semibold text-slate-700 mb-2">
-                Username or Email
+              <label htmlFor="userEmail" className="block text-sm font-semibold text-slate-700 mb-2">
+                Email
               </label>
               <div className="relative">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400">
-                  person
+                  mail
                 </span>
                 <input
-                  id="userNick"
-                  name="userNick"
-                  type="text"
-                  value={formData.userNick}
+                  id="userEmail"
+                  name="userEmail"
+                  type="email"
+                  autoComplete="email"
+                  value={formData.userEmail}
                   onChange={handleInputChange}
                   className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-medium"
-                  placeholder="Enter your username or email"
+                  placeholder="admin@example.com"
                   required
                 />
               </div>
             </div>
 
             <div>
-              <label htmlFor="userPassword" className="block text-sm font-semibold text-slate-700 mb-2">
+              <label htmlFor="password" className="block text-sm font-semibold text-slate-700 mb-2">
                 Password
               </label>
               <div className="relative">
@@ -119,10 +119,11 @@ export default function AdminLoginPage() {
                   lock
                 </span>
                 <input
-                  id="userPassword"
-                  name="userPassword"
+                  id="password"
+                  name="password"
                   type="password"
-                  value={formData.userPassword}
+                  autoComplete="current-password"
+                  value={formData.password}
                   onChange={handleInputChange}
                   className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-medium"
                   placeholder="Enter your password"
@@ -150,22 +151,27 @@ export default function AdminLoginPage() {
             </button>
           </form>
 
-          <div className="mt-6 pt-6 border-t border-slate-200">
-            <p className="text-xs text-slate-500 text-center font-medium">
+          <div className="mt-6 space-y-4 border-t border-slate-200 pt-6">
+            <p className="text-center text-xs font-medium text-slate-500">
               Secure admin access only. Unauthorized access is prohibited.
+            </p>
+            <p className="text-center text-sm text-slate-600">
+              First-time setup?{' '}
+              <Link href="/admin/signup" className="font-semibold text-indigo-600 hover:text-indigo-700">
+                Create admin account
+              </Link>
             </p>
           </div>
         </div>
 
-        {/* Back to Home */}
         <div className="mt-6 text-center">
-          <a
+          <Link
             href="/"
-            className="text-slate-600 hover:text-slate-900 text-sm transition-colors inline-flex items-center gap-2 font-medium"
+            className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 transition-colors hover:text-slate-900"
           >
             <span className="material-symbols-outlined text-base">arrow_back</span>
-            <span>Back to Home</span>
-          </a>
+            Back to Home
+          </Link>
         </div>
       </div>
     </div>

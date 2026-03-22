@@ -119,6 +119,8 @@ export interface Provider {
   linkedIn?: string;
   twitter?: string;
   github?: string;
+  /** ISO date from API — used for marketplace “Newest” sort */
+  createdAt?: string;
 }
 
 export interface ServiceCategory {

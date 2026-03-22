@@ -1,8 +1,45 @@
  'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { getJwtToken, getCurrentUser } from '../auth';
+import { getJwtToken } from '../auth';
+
+/** Raw JSON public chat must not use the GraphQL subscription URL (`/graphql` = graphql-ws protocol). */
+function deriveWsBaseFromHttp(graphqlOrApiUrl: string): string {
+  return graphqlOrApiUrl
+    .replace(/\/graphql\/?$/i, '')
+    .replace(/\/$/, '')
+    .replace(/^http:\/\//, 'ws://')
+    .replace(/^https:\/\//, 'wss://');
+}
+
+function getPublicChatWebSocketUrl(): string {
+  const fromEnv =
+    process.env.NEXT_PUBLIC_PUBLIC_CHAT_WS_URL ||
+    process.env.NEXT_PUBLIC_WS_URL ||
+    process.env.NEXT_PUBLIC_API_WS ||
+    process.env.REACT_APP_API_WS;
+
+  let wsHost = (fromEnv || '').trim();
+
+  if (wsHost) {
+    wsHost = wsHost.replace(/\/graphql\/?$/i, '').replace(/\/$/, '');
+  } else {
+    const graphqlUrl =
+      process.env.NEXT_PUBLIC_API_URL ||
+      process.env.NEXT_PUBLIC_API_GRAPHQL_URL ||
+      process.env.REACT_APP_API_GRAPHQL_URL ||
+      'http://localhost:4001/graphql';
+    wsHost = deriveWsBaseFromHttp(graphqlUrl);
+  }
+
+  if (!wsHost && typeof window !== 'undefined') {
+    wsHost = window.location.protocol === 'https:' ? 'wss://localhost:3010' : 'ws://localhost:3010';
+  }
+
+  const token = getJwtToken();
+  return token ? `${wsHost}?token=${encodeURIComponent(token)}` : wsHost;
+}
 
 interface Message {
   id: string;
@@ -32,8 +69,7 @@ export const UnifiedChatWidget: React.FC = () => {
   const socketRef = useRef<WebSocket | undefined>(undefined);
   const sentMessages = useRef<Map<string, string>>(new Map()); // Track sent messages in this session
   const sentMessageTextsRef = useRef<Set<string>>(new Set()); // Persisted texts used to restore alignment after reload
-  const currentUser = getCurrentUser();
-  const isLoggedIn = !!getJwtToken();
+  const hasConnectedOnceRef = useRef(false);
 
   // Restore previously sent message texts from localStorage (for alignment after reload)
   useEffect(() => {
@@ -91,109 +127,155 @@ export const UnifiedChatWidget: React.FC = () => {
     }
   }, []);
 
-  // Initialize WebSocket connection for public chat
+  const attachSocketHandlers = useCallback((ws: WebSocket) => {
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+
+        if (data.event === 'message') {
+          const messageText = data.text || data.data || JSON.stringify(data);
+          const messageId = data.id || `msg-${Date.now()}-${Math.random()}`;
+
+          const isOwnMessage = Array.from(sentMessages.current.values()).some(
+            (sentText) => sentText.trim() === messageText.trim(),
+          );
+
+          if (!isOwnMessage) {
+            const newMessage: Message = {
+              id: messageId,
+              text: messageText,
+              timestamp: new Date(),
+              sender: 'other',
+            };
+            setPublicMessages((prev) => [...prev, newMessage]);
+          }
+        } else if (data.event === 'getMessages' && data.list) {
+          data.list.forEach((msg: { text?: string; data?: string }) => {
+            const msgText = msg.text || msg.data || JSON.stringify(msg);
+            const isMine = sentMessageTextsRef.current.has(msgText.trim());
+            const historyMessage: Message = {
+              id: `history-${Date.now()}-${Math.random()}`,
+              text: msgText,
+              timestamp: new Date(),
+              sender: isMine ? 'user' : 'other',
+            };
+            setPublicMessages((prev) => [...prev, historyMessage]);
+          });
+        }
+      } catch (error) {
+        console.error('Failed to parse WebSocket message:', error);
+      }
+    };
+  }, []);
+
+  // Initialize WebSocket for public chat (non-GraphQL); reconnect with backoff if the server drops.
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    // Get WebSocket URL
-    let wsHost = process.env.NEXT_PUBLIC_WS_URL || process.env.NEXT_PUBLIC_API_WS || process.env.REACT_APP_API_WS;
-    
-    if (!wsHost) {
-      const graphqlUrl =
-        process.env.NEXT_PUBLIC_API_URL ||
-        process.env.NEXT_PUBLIC_API_GRAPHQL_URL ||
-        process.env.REACT_APP_API_GRAPHQL_URL ||
-        'http://localhost:4001/graphql';
-      wsHost = graphqlUrl
-        .replace('/graphql', '')
-        .replace('http://', 'ws://')
-        .replace('https://', 'wss://');
-    }
-    
-    if (!wsHost) {
-      wsHost = window.location.protocol === 'https:' ? 'wss://localhost:3010' : 'ws://localhost:3010';
-    }
-    
-    const token = getJwtToken();
-    const url = token ? `${wsHost}?token=${encodeURIComponent(token)}` : wsHost;
+    let ws: WebSocket | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
+    let attempt = 0;
+    const maxAttempts = 20;
 
-    try {
-      const ws = new WebSocket(url);
-      
+    const clearReconnect = () => {
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
+    };
+
+    const scheduleReconnect = () => {
+      if (cancelled) return;
+      attempt += 1;
+      if (attempt > maxAttempts) {
+        console.warn('Public chat WebSocket: max reconnect attempts reached');
+        return;
+      }
+      const delay = Math.min(1000 * 2 ** Math.min(attempt - 1, 8), 30000);
+      reconnectTimer = setTimeout(connect, delay);
+    };
+
+    const connect = () => {
+      if (cancelled) return;
+      clearReconnect();
+
+      const url = getPublicChatWebSocketUrl();
+      if (!url) {
+        scheduleReconnect();
+        return;
+      }
+
+      try {
+        ws = new WebSocket(url);
+      } catch (e) {
+        console.error('Failed to create WebSocket:', e);
+        setIsConnected(false);
+        scheduleReconnect();
+        return;
+      }
+
+      attachSocketHandlers(ws);
+
       ws.onopen = () => {
-        console.log('✅ WebSocket connected');
+        if (cancelled) return;
+        console.log('✅ Public chat WebSocket connected', url.split('?')[0]);
+        attempt = 0;
         setIsConnected(true);
-        socketRef.current = ws;
-        
+        socketRef.current = ws!;
+
         const welcomeMessage: Message = {
           id: 'welcome',
           text: 'Connected to public chat! Say hello 👋',
           timestamp: new Date(),
           sender: 'system',
         };
-        setPublicMessages((prev) => [...prev, welcomeMessage]);
-      };
+        const reconnectNotice: Message = {
+          id: `reconnect-${Date.now()}`,
+          text: 'Reconnected to public chat.',
+          timestamp: new Date(),
+          sender: 'system',
+        };
 
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          
-          if (data.event === 'message') {
-            const messageText = data.text || data.data || JSON.stringify(data);
-            const messageId = data.id || `msg-${Date.now()}-${Math.random()}`;
-            
-            // Check if this is a message we just sent (prevent echo)
-            const isOwnMessage = Array.from(sentMessages.current.values()).some(
-              sentText => sentText.trim() === messageText.trim()
-            );
-            
-            // Only add if it's NOT our own message in this session
-            if (!isOwnMessage) {
-              const newMessage: Message = {
-                id: messageId,
-                text: messageText,
-                timestamp: new Date(),
-                sender: 'other', // All incoming messages are from others
-              };
-              setPublicMessages((prev) => [...prev, newMessage]);
-            }
-          } else if (data.event === 'getMessages' && data.list) {
-            data.list.forEach((msg: any) => {
-              const msgText = msg.text || msg.data || JSON.stringify(msg);
-              const isMine = sentMessageTextsRef.current.has(msgText.trim());
-              const historyMessage: Message = {
-                id: `history-${Date.now()}-${Math.random()}`,
-                text: msgText,
-                timestamp: new Date(),
-                sender: isMine ? 'user' : 'other',
-              };
-              setPublicMessages((prev) => [...prev, historyMessage]);
-            });
+        setPublicMessages((prev) => {
+          if (!hasConnectedOnceRef.current) {
+            hasConnectedOnceRef.current = true;
+            return [...prev, welcomeMessage];
           }
-        } catch (error) {
-          console.error('Failed to parse WebSocket message:', error);
-        }
+          if (prev.length > 0) {
+            return [...prev, reconnectNotice];
+          }
+          return [...prev, welcomeMessage];
+        });
       };
 
-      ws.onerror = (error) => {
-        console.error('❌ WebSocket error:', error);
+      ws.onerror = () => {
         setIsConnected(false);
       };
 
       ws.onclose = () => {
-        console.log('🔌 WebSocket disconnected');
+        console.log('🔌 Public chat WebSocket closed');
         setIsConnected(false);
         socketRef.current = undefined;
+        if (!cancelled) {
+          scheduleReconnect();
+        }
       };
+    };
 
-      return () => {
+    connect();
+
+    return () => {
+      cancelled = true;
+      clearReconnect();
+      if (ws) {
+        ws.onclose = null;
         ws.close();
-        socketRef.current = undefined;
-      };
-    } catch (error) {
-      console.error('Failed to create WebSocket:', error);
-    }
-  }, []);
+      }
+      socketRef.current = undefined;
+      setIsConnected(false);
+    };
+  }, [attachSocketHandlers]);
 
   // Scroll to bottom when messages change (only when public chat is visible)
   useEffect(() => {

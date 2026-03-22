@@ -62,7 +62,7 @@ export default function ProviderMyQuotesPage() {
 
   if (!mounted) {
     return (
-      <div className="flex h-screen w-full bg-slate-50 dark:bg-slate-900 overflow-hidden">
+      <div className="flex h-screen w-full bg-dashboard-canvas overflow-hidden">
         <div className="w-64 flex-shrink-0 h-full border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900" />
         <div className="flex flex-1 flex-col overflow-hidden">
           <div className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800" />
@@ -75,7 +75,7 @@ export default function ProviderMyQuotesPage() {
   if (!isLoggedIn()) return null;
 
   return (
-    <div className="flex h-screen w-full bg-slate-50 dark:bg-slate-900 overflow-hidden antialiased">
+    <div className="flex h-screen w-full bg-dashboard-canvas overflow-hidden antialiased">
       <ProviderSidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
         <ProviderHeader title="My Quotes" />

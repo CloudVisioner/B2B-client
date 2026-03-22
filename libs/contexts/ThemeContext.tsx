@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
+import { shouldShowMarketingNavbar } from '../utils/shouldShowMarketingNavbar';
 
 type Theme = 'light' | 'dark';
 
@@ -9,13 +11,27 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
+/**
+ * Only public marketing pages (same routes that show the global Navbar) may use
+ * document-level dark mode (`html.dark` + globals.css). All app/dashboard routes
+ * stay light so buyer/provider tools are never forced to the black theme.
+ */
+function allowsDocumentDarkMode(pathname: string): boolean {
+  return shouldShowMarketingNavbar(pathname);
+}
+
+/** Buyer/provider login & signup — always light UI */
+export function isAuthPageAlwaysLight(pathname: string): boolean {
+  return pathname === '/login' || pathname === '/signup';
+}
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const [theme, setTheme] = useState<Theme>('light');
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    // Check localStorage for saved theme preference
     const savedTheme = localStorage.getItem('theme') as Theme;
     if (savedTheme) {
       setTheme(savedTheme);
@@ -24,98 +40,54 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  /** Sync `html.dark` with route + theme; strip dark as soon as navigation leaves public pages. */
   useEffect(() => {
-    if (mounted && typeof window !== 'undefined') {
-      // Check if current page is a dashboard (admin, provider, or buyer)
-      const pathname = window.location.pathname;
-      const isDashboardPage = (
-        pathname.startsWith('/admin') ||
-        pathname.startsWith('/provider') ||
-        pathname.startsWith('/dashboard') ||
-        pathname.startsWith('/settings') ||
-        pathname.startsWith('/orders') ||
-        pathname.startsWith('/service-requests') ||
-        pathname.startsWith('/organizations') ||
-        pathname.startsWith('/notifications')
-      );
+    if (!mounted || typeof window === 'undefined') return;
 
-      // Force light mode for dashboard pages
-      if (isDashboardPage) {
+    const pathnameOnly = (url: string) => url.split('?')[0].split('#')[0];
+
+    const applyHtmlClass = () => {
+      const pathname = window.location.pathname;
+      if (isAuthPageAlwaysLight(pathname)) {
         document.documentElement.classList.remove('dark');
         return;
       }
-
-      // Apply theme for public pages
-      localStorage.setItem('theme', theme);
+      if (!allowsDocumentDarkMode(pathname)) {
+        document.documentElement.classList.remove('dark');
+        return;
+      }
       if (theme === 'dark') {
         document.documentElement.classList.add('dark');
       } else {
         document.documentElement.classList.remove('dark');
       }
-    }
-  }, [theme, mounted]);
+      localStorage.setItem('theme', theme);
+    };
 
-  // Listen for route changes
-  useEffect(() => {
-    if (!mounted || typeof window === 'undefined') return;
-
-    const handleRouteChange = () => {
-      const pathname = window.location.pathname;
-      const isDashboardPage = (
-        pathname.startsWith('/admin') ||
-        pathname.startsWith('/provider') ||
-        pathname.startsWith('/dashboard') ||
-        pathname.startsWith('/settings') ||
-        pathname.startsWith('/orders') ||
-        pathname.startsWith('/service-requests') ||
-        pathname.startsWith('/organizations') ||
-        pathname.startsWith('/notifications')
-      );
-
-      if (isDashboardPage) {
+    const onRouteStart = (url: string) => {
+      const path = pathnameOnly(url);
+      if (isAuthPageAlwaysLight(path) || !allowsDocumentDarkMode(path)) {
         document.documentElement.classList.remove('dark');
-      } else {
-        // Apply saved theme for public pages
-        const savedTheme = localStorage.getItem('theme') as Theme;
-        if (savedTheme === 'dark') {
-          document.documentElement.classList.add('dark');
-        } else {
-          document.documentElement.classList.remove('dark');
-        }
       }
     };
 
-    // Check on mount
-    handleRouteChange();
+    applyHtmlClass();
 
-    // Listen for popstate (back/forward navigation)
-    window.addEventListener('popstate', handleRouteChange);
-
+    router.events.on('routeChangeStart', onRouteStart);
+    router.events.on('routeChangeComplete', applyHtmlClass);
     return () => {
-      window.removeEventListener('popstate', handleRouteChange);
+      router.events.off('routeChangeStart', onRouteStart);
+      router.events.off('routeChangeComplete', applyHtmlClass);
     };
-  }, [mounted]);
+  }, [mounted, theme, router.asPath, router.events]);
 
   const toggleTheme = () => {
     if (typeof window === 'undefined') return;
-    
     const pathname = window.location.pathname;
-    const isDashboardPage = (
-      pathname.startsWith('/admin') ||
-      pathname.startsWith('/provider') ||
-      pathname.startsWith('/dashboard') ||
-      pathname.startsWith('/settings') ||
-      pathname.startsWith('/orders') ||
-      pathname.startsWith('/service-requests') ||
-      pathname.startsWith('/organizations') ||
-      pathname.startsWith('/notifications')
-    );
-
-    // Don't allow theme toggle on dashboard pages
-    if (isDashboardPage) {
+    if (isAuthPageAlwaysLight(pathname) || !allowsDocumentDarkMode(pathname)) {
       return;
     }
-    setTheme(prev => prev === 'light' ? 'dark' : 'light');
+    setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
   };
 
   return (

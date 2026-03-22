@@ -147,25 +147,29 @@ export const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
 
         <NotificationBell userId={currentUser?._id} userRole={currentUser?.userRole} />
 
-        <button className="flex items-center gap-2 pl-2 py-1 pr-2 hover:bg-slate-50 rounded-full transition-colors border border-slate-100">
-          {userImage ? (
-            <img
-              alt="Profile"
-              className="w-8 h-8 rounded-full object-cover"
-              src={userImage}
-              onError={(e) => {
-                // Fallback to initials if image fails
-                const target = e.target as HTMLImageElement;
-                target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=4F46E5&color=fff`;
-              }}
-            />
-          ) : (
-            <img
-              alt="Profile"
-              className="w-8 h-8 rounded-full object-cover"
-              src={`https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=4F46E5&color=fff`}
-            />
-          )}
+        <button
+          type="button"
+          className="flex items-center gap-2 rounded-full border border-slate-200/80 py-1 pl-1 pr-2 leading-none transition-colors hover:bg-slate-50"
+        >
+          <span className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full bg-slate-100 ring-1 ring-slate-200/80">
+            {userImage ? (
+              <img
+                alt="Profile"
+                className="block h-full w-full min-h-0 object-cover object-center"
+                src={userImage}
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=4F46E5&color=fff`;
+                }}
+              />
+            ) : (
+              <img
+                alt="Profile"
+                className="block h-full w-full min-h-0 object-cover object-center"
+                src={`https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=4F46E5&color=fff`}
+              />
+            )}
+          </span>
         </button>
       </div>
     </header>

@@ -6,9 +6,16 @@ import { isLoggedIn, getJwtToken, updateUserInfo, decodeJWT } from '../../libs/a
 import { ProviderSidebar } from '../../libs/components/dashboard/ProviderSidebar';
 import { ProviderHeader } from '../../libs/components/dashboard/ProviderHeader';
 import { CREATE_PROVIDER_ORG_PROF, UPDATE_PROVIDER_ORG_PROF, UPDATE_PROVIDER_PROFILE, UPDATE_MY_PROFILE, CHANGE_MY_PASSWORD } from '../../apollo/user/mutation';
-import { GET_PROVIDER_ORGANIZATION, GET_MY_PROFILE } from '../../apollo/user/query';
+import { GET_PROVIDER_ORGANIZATION, GET_MY_PROFILE_SELF } from '../../apollo/user/query';
 import { getHeaders } from '../../apollo/utils';
 import { mapCategoryToBackend, mapSubCategoryToBackend } from '../../libs/utils/providerMapper';
+import {
+  clampUserDescription,
+  clampUserNick,
+  getUserNickValidationError,
+  PROFILE_USER_DESCRIPTION_MAX,
+  PROFILE_USER_NICK_MAX,
+} from '../../libs/utils';
 
 /* ═══════════════════════════════════════════════════════════
    Tab definitions
@@ -168,8 +175,22 @@ function OrganizationTab() {
   useEffect(() => {
     if (orgData?.getProviderOrganization) {
       const org = orgData.getProviderOrganization;
-      const categories = Array.isArray(org.categoryId) ? org.categoryId : org.categoryId ? [org.categoryId] : [];
-      const subCategories = Array.isArray(org.subCategory) ? org.subCategory : org.subCategory ? [org.subCategory] : [];
+      const categories =
+        Array.isArray(org.organizationCategories) && org.organizationCategories.length > 0
+          ? [...org.organizationCategories]
+          : Array.isArray(org.categoryId)
+            ? org.categoryId
+            : org.categoryId
+              ? [org.categoryId]
+              : [];
+      const subCategories =
+        Array.isArray(org.organizationSubCategories) && org.organizationSubCategories.length > 0
+          ? [...org.organizationSubCategories]
+          : Array.isArray(org.subCategory)
+            ? org.subCategory
+            : org.subCategory
+              ? [org.subCategory]
+              : [];
       
       // Always set image preview if organization has an image (unless user has selected a new file)
       if (org.organizationImage && !imageFile) {
@@ -527,11 +548,11 @@ function OrganizationTab() {
           <div className="flex flex-col items-center gap-3">
             <div className="relative">
               {(imagePreview || formData.organizationImage) ? (
-                <div className="w-24 h-24 rounded-2xl overflow-hidden border-2 border-slate-200 dark:border-slate-700 shadow-lg">
+                <div className="relative h-24 w-24 overflow-hidden rounded-2xl border-2 border-slate-200 bg-slate-100 shadow-lg dark:border-slate-700 dark:bg-slate-800">
                   <img 
                     src={imagePreview || (formData.organizationImage ? getImageUrl(formData.organizationImage) : '')} 
                     alt="Organization Logo" 
-                    className="w-full h-full object-cover"
+                    className="block h-full w-full min-h-0 object-cover object-center"
                     onError={(e) => {
                       console.error('Image failed to load:', imagePreview || formData.organizationImage);
                       // Fallback to initials if image fails to load
@@ -797,7 +818,7 @@ function ProfileTab() {
   const userIdFromVar = currentUser?._id && currentUser._id.trim() && currentUser._id.length === 24 ? currentUser._id : null;
   const userIdFromToken = getUserIdFromToken();
   const validUserId = userIdFromVar || (userIdFromToken && userIdFromToken.trim() && userIdFromToken.length === 24 ? userIdFromToken : null);
-  
+
   // Helper function to convert relative image paths to full URLs
   const getImageUrl = (imagePath: string | null | undefined): string => {
     if (!imagePath) return '';
@@ -817,9 +838,8 @@ function ProfileTab() {
   };
   
   // ========== APOLLO REQUESTS ==========
-  const { data: profileData, loading: profileLoading, refetch: refetchProfile } = useQuery(GET_MY_PROFILE, {
-    skip: !isLoggedIn() || !validUserId,
-    variables: { userId: validUserId || '' },
+  const { data: profileData, loading: profileLoading, refetch: refetchProfile } = useQuery(GET_MY_PROFILE_SELF, {
+    skip: !isLoggedIn(),
     fetchPolicy: 'cache-and-network',
     errorPolicy: 'all',
     context: {
@@ -827,17 +847,16 @@ function ProfileTab() {
     },
     notifyOnNetworkStatusChange: false,
     onCompleted: (data) => {
-      if (data?.getUser && !isEditMode && !imageFile) {
-        const user = data.getUser;
+      if (data?.getMyProfile && !isEditMode && !imageFile) {
+        const user = data.getMyProfile;
         setFormData({
-          providerFullName: user.userDescription || '',
-          providerDisplayName: user.userNick || '',
+          providerFullName: clampUserDescription(user.userDescription || ''),
+          providerDisplayName: clampUserNick(user.userNick || ''),
           providerEmail: user.userEmail || '',
           providerPhone: user.userPhone || '',
           userImage: user.userImage || '',
         });
         if (user.userImage) {
-          // Revoke old blob URL if one exists
           if (imageBlobUrlRef.current) {
             URL.revokeObjectURL(imageBlobUrlRef.current);
             imageBlobUrlRef.current = null;
@@ -850,52 +869,31 @@ function ProfileTab() {
     },
   });
 
-  const [updateProfile, { loading: isUpdatingProfile }] = useMutation(UPDATE_MY_PROFILE, {
+  const [updateProviderProfileMutation, { loading: isUpdatingProfile }] = useMutation(UPDATE_PROVIDER_PROFILE, {
     context: {
       headers: isLoggedIn() ? getHeaders() : {},
     },
-    refetchQueries: [
-      {
-        query: GET_MY_PROFILE,
-        variables: { userId: validUserId || '' },
-      },
-    ],
+    refetchQueries: [{ query: GET_MY_PROFILE_SELF }],
     awaitRefetchQueries: true,
-    onCompleted: async (data) => {
-      setShowSuccessMessage(true);
-      setIsEditMode(false);
-      setImageFile(null);
-      
-      if (data?.updateUser) {
-        const updatedUser = data.updateUser;
-        const currentUserData = userVar();
-        
-        userVar({
-          ...currentUserData,
-          userNick: updatedUser.userNick || currentUserData.userNick,
-          userEmail: updatedUser.userEmail || currentUserData.userEmail,
-          userPhone: updatedUser.userPhone || currentUserData.userPhone,
-          userImage: updatedUser.userImage || currentUserData.userImage,
-          userDescription: updatedUser.userDescription || currentUserData.userDescription,
-          accessToken: updatedUser.accessToken || currentUserData.accessToken,
-        });
-        
-        if (updatedUser.accessToken) {
-          updateUserInfo(updatedUser.accessToken);
-        }
-      }
-      
-      // Refetch profile to ensure data is up to date
-      await refetchProfile();
-
-      if (passwordTimeoutRef.current) clearTimeout(passwordTimeoutRef.current);
-      passwordTimeoutRef.current = setTimeout(() => {
-        setShowSuccessMessage(false);
-      }, 3000);
+    onError: (error: any) => {
+      console.error('Error updating provider profile:', error);
+      const errorMessage =
+        error?.graphQLErrors?.[0]?.message || error?.message || 'Failed to update profile. Please try again.';
+      alert(errorMessage);
     },
-    onError: (error) => {
-      console.error('Error updating profile:', error);
-      const errorMessage = error?.graphQLErrors?.[0]?.message || error?.message || 'Failed to update profile. Please try again.';
+  });
+
+  /** Avatar URL only — UpdateProviderProfileInput does not include image in this schema. */
+  const [updateUserMutation] = useMutation(UPDATE_MY_PROFILE, {
+    context: {
+      headers: isLoggedIn() ? getHeaders() : {},
+    },
+    refetchQueries: [{ query: GET_MY_PROFILE_SELF }],
+    awaitRefetchQueries: true,
+    onError: (error: any) => {
+      console.error('Error updating profile image:', error);
+      const errorMessage =
+        error?.graphQLErrors?.[0]?.message || error?.message || 'Failed to update profile photo.';
       alert(errorMessage);
     },
   });
@@ -933,7 +931,10 @@ function ProfileTab() {
   // ========== HANDLERS ==========
   const handleInputChange = (field: string, value: string) => {
     if (!isEditMode) return;
-    setFormData((prev) => ({ ...prev, [field]: value }));
+    let next = value;
+    if (field === 'providerDisplayName') next = value.slice(0, PROFILE_USER_NICK_MAX);
+    if (field === 'providerFullName') next = value.slice(0, PROFILE_USER_DESCRIPTION_MAX);
+    setFormData((prev) => ({ ...prev, [field]: next }));
   };
 
   const handlePasswordChange = (field: string, value: string) => {
@@ -1015,6 +1016,12 @@ function ProfileTab() {
       return;
     }
 
+    const nickErr = getUserNickValidationError(formData.providerDisplayName);
+    if (nickErr) {
+      alert(nickErr);
+      return;
+    }
+
     try {
       let imageUrl = formData.userImage;
       if (imageFile) {
@@ -1031,50 +1038,86 @@ function ProfileTab() {
         }
       }
 
-      // Get user ID from multiple sources as fallback
-      const getUserIdFromToken = (): string | null => {
-        const token = getJwtToken();
-        if (token) {
-          try {
-            const claims = decodeJWT(token);
-            return claims?._id || claims?.userId || null;
-          } catch (e) {
-            return null;
-          }
-        }
-        return null;
-      };
+      const userIdToSave =
+        profileData?.getMyProfile?._id || currentUser?._id || validUserId || getUserIdFromToken();
 
-      const userIdToSave = profileData?.getUser?._id || 
-                           currentUser?._id || 
-                           getUserIdFromToken();
-      
       if (!userIdToSave) {
         alert('User ID not found. Please refresh the page and try again.');
         return;
       }
 
-      const updateInput: any = {
-        _id: userIdToSave,
-        userNick: formData.providerDisplayName.trim(),
-        userEmail: formData.providerEmail.trim(),
+      const nick = clampUserNick(formData.providerDisplayName);
+      const bio = clampUserDescription(formData.providerFullName);
+
+      const providerInput: {
+        providerDisplayName: string;
+        providerEmail: string;
+        providerFullName?: string;
+        providerPhone?: string;
+      } = {
+        providerDisplayName: nick,
+        providerEmail: formData.providerEmail.trim(),
       };
-
-      if (formData.providerFullName.trim()) {
-        updateInput.userDescription = formData.providerFullName.trim();
+      if (bio.length > 0) {
+        providerInput.providerFullName = bio;
       }
-      if (formData.providerPhone.trim()) {
-        updateInput.userPhone = formData.providerPhone.trim();
-      }
-      if (imageUrl) {
-        updateInput.userImage = imageUrl;
+      const phone = formData.providerPhone.trim();
+      if (phone) {
+        providerInput.providerPhone = phone;
       }
 
-      await updateProfile({
-        variables: { input: updateInput },
+      const { data: profResult } = await updateProviderProfileMutation({
+        variables: { input: providerInput },
       });
+
+      const updated = profResult?.updateProviderProfile;
+      if (updated) {
+        const currentUserData = userVar();
+        userVar({
+          ...currentUserData,
+          userNick: updated.userNick ?? currentUserData.userNick,
+          userEmail: updated.userEmail ?? currentUserData.userEmail,
+          userPhone: updated.userPhone ?? currentUserData.userPhone,
+          userDescription: updated.userDescription ?? currentUserData.userDescription,
+        });
+      }
+
+      const prevImage = profileData?.getMyProfile?.userImage;
+      const normalizedNew =
+        imageUrl && !String(imageUrl).startsWith('data:') ? imageUrl : '';
+      const imageDirty = !!imageFile || (normalizedNew && normalizedNew !== prevImage);
+
+      if (imageDirty && normalizedNew && userIdToSave) {
+        const { data: imgResult } = await updateUserMutation({
+          variables: {
+            input: {
+              _id: userIdToSave,
+              userImage: normalizedNew,
+            },
+          },
+        });
+        const imgUser = imgResult?.updateUser;
+        if (imgUser?.userImage) {
+          const cur = userVar();
+          userVar({ ...cur, userImage: imgUser.userImage });
+        }
+        if (imgUser?.accessToken) {
+          updateUserInfo(imgUser.accessToken);
+        }
+      }
+
+      setFormData((prev) => ({ ...prev, userImage: normalizedNew || prev.userImage }));
+      setShowSuccessMessage(true);
+      setIsEditMode(false);
+      setImageFile(null);
+      await refetchProfile();
+
+      if (passwordTimeoutRef.current) clearTimeout(passwordTimeoutRef.current);
+      passwordTimeoutRef.current = setTimeout(() => {
+        setShowSuccessMessage(false);
+      }, 3000);
     } catch (error) {
-      // Error handled in onError callback
+      console.error('Profile save failed:', error);
     }
   };
 
@@ -1152,15 +1195,19 @@ function ProfileTab() {
                 <div className="flex flex-col items-center gap-3">
                   <div className="relative">
               {imagePreview ? (
-                <div className="w-32 h-32 rounded-full overflow-hidden border-2 border-slate-200 dark:border-slate-700 shadow-lg">
-                  <img src={imagePreview} alt="Profile" className="w-full h-full object-cover" style={{ display: 'block' }} />
+                <div className="relative h-32 w-32 overflow-hidden rounded-full border-2 border-slate-200 bg-slate-100 shadow-lg dark:border-slate-700 dark:bg-slate-800">
+                  <img
+                    src={imagePreview}
+                    alt="Profile"
+                    className="block h-full w-full min-h-0 object-cover object-center"
+                  />
                   {isUploadingImage && (
-                          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                            <span className="material-symbols-outlined text-white animate-spin">sync</span>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                      <span className="material-symbols-outlined animate-spin text-white">sync</span>
+                    </div>
+                  )}
+                </div>
+              ) : (
                 <div className="w-32 h-32 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white text-3xl font-bold shadow-lg shadow-indigo-200" style={{ display: 'flex' }}>
                   {getInitials(formData.providerFullName || formData.providerDisplayName || 'Provider')}
                       </div>
@@ -1186,6 +1233,7 @@ function ProfileTab() {
                 value={formData.providerFullName}
                 onChange={(e) => handleInputChange('providerFullName', e.target.value)}
                 placeholder="John Doe"
+                maxLength={PROFILE_USER_DESCRIPTION_MAX}
                       disabled={!isEditMode}
                 className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-3 text-sm font-medium text-slate-900 dark:text-white focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50 dark:bg-slate-900/40 disabled:bg-white dark:disabled:bg-slate-900 disabled:cursor-not-allowed"
                     />
@@ -1199,6 +1247,7 @@ function ProfileTab() {
                 value={formData.providerDisplayName}
                 onChange={(e) => handleInputChange('providerDisplayName', e.target.value)}
                 placeholder="johndoe"
+                maxLength={PROFILE_USER_NICK_MAX}
                       disabled={!isEditMode}
                 className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-3 text-sm font-medium text-slate-900 dark:text-white focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50 dark:bg-slate-900/40 disabled:bg-white dark:disabled:bg-slate-900 disabled:cursor-not-allowed"
                     />

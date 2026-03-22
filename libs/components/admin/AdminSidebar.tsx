@@ -1,8 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { useReactiveVar } from '@apollo/client';
-import { userVar } from '../../../apollo/store';
 import { logOut } from '../../auth';
 
 const NAV_ITEMS = [
@@ -14,13 +12,10 @@ const NAV_ITEMS = [
   { icon: 'assignment', label: 'Orders', href: '/admin/orders' },
   { icon: 'article', label: 'Articles', href: '/admin/articles' },
   { icon: 'support_agent', label: 'Customer Support', href: '/admin/customer-support' },
-  { icon: 'settings', label: 'Settings', href: '/admin/settings' },
 ];
 
 export const AdminSidebar: React.FC = () => {
   const router = useRouter();
-  const currentUser = useReactiveVar(userVar);
-  const userName = currentUser?.userNick || 'Admin';
 
   const handleLogout = async () => {
     await logOut();
@@ -42,23 +37,14 @@ export const AdminSidebar: React.FC = () => {
         </Link>
       </div>
 
-      {/* User Info */}
-      <div className="px-6 py-5 border-b border-slate-200">
-        <div className="flex items-center gap-3">
-          <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center shadow-md ring-2 ring-slate-100">
-            <span className="material-symbols-outlined text-white text-xl">admin_panel_settings</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-sm font-bold text-slate-900">{userName}</span>
-            <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Administrator</span>
-          </div>
-        </div>
-      </div>
-
       {/* Navigation */}
       <div className="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
         {NAV_ITEMS.map((item) => {
-          const isActive = router.pathname === item.href || router.pathname.startsWith(item.href + '/');
+          // `/admin` must not match every `/admin/*` route — only exact match for Dashboard
+          const isActive =
+            item.href === '/admin'
+              ? router.pathname === '/admin'
+              : router.pathname === item.href || router.pathname.startsWith(`${item.href}/`);
           return (
             <Link
               key={item.href}

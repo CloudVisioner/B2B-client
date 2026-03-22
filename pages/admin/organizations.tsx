@@ -1,12 +1,58 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { useReactiveVar, useQuery, useMutation } from '@apollo/client';
 import { userVar } from '../../apollo/store';
-import { isLoggedIn, normalizeRole } from '../../libs/auth';
+import { isLoggedIn, normalizeRole, isAdminPortalRole } from '../../libs/auth';
 import { AdminSidebar } from '../../libs/components/admin/AdminSidebar';
 import { AdminHeader } from '../../libs/components/admin/AdminHeader';
-import { GET_ALL_ORGANIZATIONS } from '../../apollo/admin/query';
-import { APPROVE_ORGANIZATION, REJECT_ORGANIZATION, SUSPEND_ORGANIZATION, UPDATE_ORGANIZATION } from '../../apollo/admin/mutation';
+import {
+  GET_ALL_ORGANIZATIONS,
+  GET_ALL_SERVICE_REQUESTS,
+  GET_ALL_QUOTES,
+  GET_ALL_ORDERS,
+} from '../../apollo/admin/query';
+import { APPROVE_ORGANIZATION, REJECT_ORGANIZATION, SUSPEND_ORGANIZATION } from '../../apollo/admin/mutation';
+
+function isBuyerOrgType(t: string | undefined) {
+  return t === 'BUYER';
+}
+
+function isProviderOrgType(t: string | undefined) {
+  return t === 'SERVICE_PROVIDER' || t === 'PROVIDER';
+}
+
+/** How many rows to pull per domain to aggregate activity (admin list APIs are paginated). */
+const ACTIVITY_AGGREGATION_LIMIT = 3000;
+
+function formatOrgActivity(org: {
+  organizationType?: string;
+  requestCount?: number | null;
+  quoteCount?: number | null;
+  orderCount?: number | null;
+  memberCount?: number | null;
+  buyerOrderCount?: number | null;
+}) {
+  const members = Number(org.memberCount) || 0;
+  const mLabel = members === 1 ? 'member' : 'members';
+  if (isBuyerOrgType(org.organizationType)) {
+    const r = Number(org.requestCount) || 0;
+    const ob = Number(org.buyerOrderCount) || 0;
+    const rLabel = r === 1 ? 'service request' : 'service requests';
+    const oPart =
+      ob > 0 ? ` · ${ob} buyer order${ob === 1 ? '' : 's'}` : '';
+    return `${r} ${rLabel}${oPart} · ${members} ${mLabel}`;
+  }
+  if (isProviderOrgType(org.organizationType)) {
+    const q = Number(org.quoteCount) || 0;
+    const o = Number(org.orderCount) || 0;
+    return `${q} quote${q === 1 ? '' : 's'} · ${o} order${o === 1 ? '' : 's'} · ${members} ${mLabel}`;
+  }
+  const r = Number(org.requestCount) || 0;
+  const q = Number(org.quoteCount) || 0;
+  const o = Number(org.orderCount) || 0;
+  const ob = Number(org.buyerOrderCount) || 0;
+  return `${r} req · ${q} quotes · ${o} orders${ob ? ` · ${ob} buyer orders` : ''} · ${members} ${mLabel}`;
+}
 
 export default function AdminOrganizationsPage() {
   const router = useRouter();
@@ -38,10 +84,89 @@ export default function AdminOrganizationsPage() {
     fetchPolicy: 'network-only',
   });
 
+  const activityInput = useMemo(
+    () => ({ page: 1, limit: ACTIVITY_AGGREGATION_LIMIT, search: {} as Record<string, unknown> }),
+    [],
+  );
+
+  const { data: serviceRequestsAggData, refetch: refetchServiceRequestsAgg } = useQuery(
+    GET_ALL_SERVICE_REQUESTS,
+    {
+      skip: !mounted || !isLoggedIn(),
+      variables: { input: activityInput },
+      fetchPolicy: 'network-only',
+    },
+  );
+
+  const { data: quotesAggData, refetch: refetchQuotesAgg } = useQuery(GET_ALL_QUOTES, {
+    skip: !mounted || !isLoggedIn(),
+    variables: { input: activityInput },
+    fetchPolicy: 'network-only',
+  });
+
+  const { data: ordersAggData, refetch: refetchOrdersAgg } = useQuery(GET_ALL_ORDERS, {
+    skip: !mounted || !isLoggedIn(),
+    variables: { input: activityInput },
+    fetchPolicy: 'network-only',
+  });
+
+  const activityMaps = useMemo(() => {
+    const requestsByBuyer = new Map<string, number>();
+    const quotesByProvider = new Map<string, number>();
+    const ordersByProvider = new Map<string, number>();
+    const ordersByBuyer = new Map<string, number>();
+
+    const reqList = serviceRequestsAggData?.getAllServiceRequests?.list || [];
+    for (const r of reqList) {
+      const id = (r.reqBuyerOrgId || r.reqBuyerOrgData?._id) as string | undefined;
+      if (id) requestsByBuyer.set(id, (requestsByBuyer.get(id) || 0) + 1);
+    }
+
+    const quoteList = quotesAggData?.getAllQuotes?.list || [];
+    for (const q of quoteList) {
+      const id = (q.quoteProviderOrgId || q.quoteProviderOrgData?._id) as string | undefined;
+      if (id) quotesByProvider.set(id, (quotesByProvider.get(id) || 0) + 1);
+    }
+
+    const orderList = ordersAggData?.getAllOrders?.list || [];
+    for (const o of orderList) {
+      const pid = (o.orderProviderOrgId || o.orderProviderOrgData?._id) as string | undefined;
+      const bid = (o.orderBuyerOrgId || o.orderBuyerOrgData?._id) as string | undefined;
+      if (pid) ordersByProvider.set(pid, (ordersByProvider.get(pid) || 0) + 1);
+      if (bid) ordersByBuyer.set(bid, (ordersByBuyer.get(bid) || 0) + 1);
+    }
+
+    return { requestsByBuyer, quotesByProvider, ordersByProvider, ordersByBuyer };
+  }, [serviceRequestsAggData, quotesAggData, ordersAggData]);
+
+  const organizationsEnriched = useMemo(() => {
+    const list = orgsData?.getAllOrganizations?.list || [];
+    return list.map((org: any) => {
+      const oid = org._id as string;
+      const reqN = activityMaps.requestsByBuyer.get(oid);
+      const quoteN = activityMaps.quotesByProvider.get(oid);
+      const ordProvN = activityMaps.ordersByProvider.get(oid);
+      const ordBuyN = activityMaps.ordersByBuyer.get(oid);
+
+      return {
+        ...org,
+        requestCount: reqN ?? org.requestCount ?? 0,
+        quoteCount: quoteN ?? org.quoteCount ?? 0,
+        orderCount: ordProvN ?? org.orderCount ?? 0,
+        buyerOrderCount: ordBuyN ?? 0,
+      };
+    });
+  }, [orgsData, activityMaps]);
+
+  const refetchActivityAggregates = () => {
+    void refetchServiceRequestsAgg();
+    void refetchQuotesAgg();
+    void refetchOrdersAgg();
+  };
+
   const [approveOrg] = useMutation(APPROVE_ORGANIZATION);
   const [rejectOrg] = useMutation(REJECT_ORGANIZATION);
   const [suspendOrg] = useMutation(SUSPEND_ORGANIZATION);
-  const [updateOrg] = useMutation(UPDATE_ORGANIZATION);
 
   useEffect(() => {
     setMounted(true);
@@ -50,13 +175,12 @@ export default function AdminOrganizationsPage() {
       return;
     }
     const role = normalizeRole(currentUser?.userRole);
-    if (role && role !== 'ADMIN') {
+    if (role && !isAdminPortalRole(role)) {
       router.push('/dashboard');
       return;
     }
   }, [router, currentUser]);
 
-  const organizations = orgsData?.getAllOrganizations?.list || [];
   const totalOrgs = orgsData?.getAllOrganizations?.metaCounter?.[0]?.total || 0;
 
   const handleApproveOrg = async (orgId: string) => {
@@ -64,6 +188,7 @@ export default function AdminOrganizationsPage() {
     try {
       await approveOrg({ variables: { organizationId: orgId } });
       await refetchOrgs();
+      refetchActivityAggregates();
       alert('Organization approved successfully');
       setSelectedOrg(null);
     } catch (error: any) {
@@ -80,6 +205,7 @@ export default function AdminOrganizationsPage() {
     try {
       await rejectOrg({ variables: { input: { organizationId: orgId, reason: rejectReason } } });
       await refetchOrgs();
+      refetchActivityAggregates();
       alert('Organization rejected successfully');
       setSelectedOrg(null);
       setRejectReason('');
@@ -93,6 +219,7 @@ export default function AdminOrganizationsPage() {
     try {
       await suspendOrg({ variables: { organizationId: orgId } });
       await refetchOrgs();
+      refetchActivityAggregates();
       alert('Organization suspended successfully');
       setSelectedOrg(null);
     } catch (error: any) {
@@ -123,7 +250,7 @@ export default function AdminOrganizationsPage() {
   if (!isLoggedIn()) return null;
 
   const role = normalizeRole(currentUser?.userRole);
-  if (role && role !== 'ADMIN') {
+  if (role && !isAdminPortalRole(role)) {
     return null;
   }
 
@@ -167,7 +294,7 @@ export default function AdminOrganizationsPage() {
                   >
                     <option value="all">All Types</option>
                     <option value="BUYER">Buyer</option>
-                    <option value="PROVIDER">Provider</option>
+                    <option value="SERVICE_PROVIDER">SERVICE_PROVIDER</option>
                   </select>
                 </div>
                 <div>
@@ -228,14 +355,14 @@ export default function AdminOrganizationsPage() {
                           Error loading organizations: {orgsError.message}
                         </td>
                       </tr>
-                    ) : organizations.length === 0 ? (
+                    ) : organizationsEnriched.length === 0 ? (
                       <tr>
                         <td colSpan={7} className="px-6 py-8 text-center text-slate-500">
                           No organizations found
                         </td>
                       </tr>
                     ) : (
-                      organizations.map((org: any) => (
+                      organizationsEnriched.map((org: any) => (
                       <tr key={org._id} className="hover:bg-slate-50 transition-colors">
                         <td className="px-6 py-4">
                           <div>
@@ -245,8 +372,9 @@ export default function AdminOrganizationsPage() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                            org.organizationType === 'BUYER' ? 'bg-blue-100 text-blue-700' :
-                            'bg-emerald-100 text-emerald-700'
+                            isBuyerOrgType(org.organizationType) ? 'bg-blue-100 text-blue-700' :
+                            isProviderOrgType(org.organizationType) ? 'bg-emerald-100 text-emerald-700' :
+                            'bg-slate-100 text-slate-700'
                           }`}>
                             {org.organizationType}
                           </span>
@@ -272,13 +400,9 @@ export default function AdminOrganizationsPage() {
                             )}
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-slate-600">
-                            {org.organizationType === 'BUYER' ? (
-                              <span>{org.requestCount || 0} requests</span>
-                            ) : (
-                              <span>{org.quoteCount || 0} quotes, {org.orderCount || 0} orders</span>
-                            )}
+                        <td className="px-6 py-4">
+                          <div className="max-w-[14rem] text-sm font-medium leading-snug text-slate-700">
+                            {formatOrgActivity(org)}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -352,8 +476,9 @@ export default function AdminOrganizationsPage() {
                       <div>
                         <label className="block text-sm font-semibold text-slate-600 mb-1">Type</label>
                         <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
-                          selectedOrg.organizationType === 'BUYER' ? 'bg-blue-100 text-blue-700' :
-                          'bg-emerald-100 text-emerald-700'
+                          isBuyerOrgType(selectedOrg.organizationType) ? 'bg-blue-100 text-blue-700' :
+                          isProviderOrgType(selectedOrg.organizationType) ? 'bg-emerald-100 text-emerald-700' :
+                          'bg-slate-100 text-slate-700'
                         }`}>
                           {selectedOrg.organizationType}
                         </span>
@@ -383,14 +508,7 @@ export default function AdminOrganizationsPage() {
                     </div>
                     <div className="pt-4 border-t border-slate-200">
                       <h4 className="text-sm font-semibold text-slate-900 mb-2">Activity</h4>
-                      {selectedOrg.organizationType === 'BUYER' ? (
-                        <p className="text-sm text-slate-600">{selectedOrg.requestCount || 0} service requests</p>
-                      ) : (
-                        <div className="text-sm text-slate-600 space-y-1">
-                          <p>{selectedOrg.quoteCount || 0} quotes submitted</p>
-                          <p>{selectedOrg.orderCount || 0} orders completed</p>
-                        </div>
-                      )}
+                      <p className="text-sm text-slate-700">{formatOrgActivity(selectedOrg)}</p>
                     </div>
                   </div>
                   <div className="p-6 border-t border-slate-200 flex items-center justify-end gap-3">

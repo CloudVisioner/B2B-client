@@ -1,37 +1,22 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
-import { useReactiveVar } from '@apollo/client';
-import { userVar } from '../apollo/store';
-import { isLoggedIn } from '../libs/auth';
 import HowItWorks from '../libs/components/HowItWorks';
 import TopCategories from '../libs/components/TopCategories';
-import TestimonialSection from '../libs/components/TestimonialSection';
+import HomePremiumInteractive from '../libs/components/HomePremiumInteractive';
 import CeoTestimonials from '../libs/components/CeoTestimonials';
 import Footer from '../libs/components/Footer';
 import { CategoryId } from '../libs/types';
 
 // Dynamically import components that use framer-motion (client-side only)
-const Navbar = dynamic(() => import('../libs/components/Navbar'), { ssr: false });
 const Hero = dynamic(() => import('../libs/components/Hero'), { ssr: false });
 const AnimatedBackground = dynamic(() => import('../libs/components/AnimatedBackground'), { ssr: false });
 
 export default function Home() {
   // ========== HOOKS & STATE ==========
   const router = useRouter();
-  const currentUser = useReactiveVar(userVar);
 
-  // ========== LIFECYCLES ==========
-  useEffect(() => {
-    if (isLoggedIn() && currentUser?.userRole) {
-      const role = currentUser.userRole;
-      if (role === 'PROVIDER' || role === 'provider') {
-        router.push('/provider/dashboard');
-      } else {
-        router.push('/dashboard');
-      }
-    }
-  }, [router, currentUser?.userRole]);
+  // Logged-in users may browse the marketing home (e.g. "Go to Home" from dashboard); use Navbar → Dashboard to return.
 
   // ========== HANDLERS ==========
   const handleGetStarted = () => {
@@ -46,7 +31,6 @@ export default function Home() {
   return (
     <div className="app-container relative min-h-screen">
       <AnimatedBackground />
-      <Navbar currentPage="home" />
       <main className="main-content relative z-10">
         <Hero 
           onGetStarted={handleGetStarted} 
@@ -56,7 +40,7 @@ export default function Home() {
         <HowItWorks />
         <TopCategories onBrowse={handleBrowseCategory} />
         <CeoTestimonials />
-        <TestimonialSection />
+        <HomePremiumInteractive />
       </main>
       <div className="relative z-10">
         <Footer />

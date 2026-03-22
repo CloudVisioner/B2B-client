@@ -22,10 +22,10 @@ interface TeamMember {
 const TEAM_MEMBERS: TeamMember[] = [
   {
     id: '1',
-    name: 'Sarah Chen',
+    name: 'James Mitchell',
     role: 'Senior Full-Stack Developer',
     department: 'IT',
-    email: 'sarah.chen@company.com',
+    email: 'james.mitchell@company.com',
     rating: 4.9,
     projectsCount: 28,
     avatar: '/team/ec5751f8092aab122dd8886abd69002b (1).webp',
@@ -52,10 +52,10 @@ const TEAM_MEMBERS: TeamMember[] = [
   },
   {
     id: '4',
-    name: 'David Kim',
+    name: 'Chloe Park',
     role: 'Lead UI/UX Designer',
     department: 'Design',
-    email: 'david.kim@company.com',
+    email: 'chloe.park@company.com',
     rating: 5.0,
     projectsCount: 31,
     avatar: '/team/c24d0d7542ee6be66bf4270123c15df4.webp',
@@ -209,8 +209,8 @@ export default function ProviderTeamPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {TEAM_MEMBERS.map((member) => {
                   const dept = DEPARTMENT_COLORS[member.department];
-                  // Lower the first card's image (Sarah Chen - id: '1')
-                  const imagePosition = member.id === '1' ? 'center 30%' : 'center 20%';
+                  // First card: bias crop toward top of photo so the head/face stays in frame (not chest-centered).
+                  const imagePosition = member.id === '1' ? 'center 12%' : 'center 20%';
                   return (
               <div
                 key={member.id}

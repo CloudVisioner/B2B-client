@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useReactiveVar, useQuery, useMutation } from '@apollo/client';
 import { userVar } from '../../apollo/store';
-import { isLoggedIn, normalizeRole } from '../../libs/auth';
+import { isLoggedIn, normalizeRole, isAdminPortalRole } from '../../libs/auth';
 import { AdminSidebar } from '../../libs/components/admin/AdminSidebar';
 import { AdminHeader } from '../../libs/components/admin/AdminHeader';
 import { GET_ALL_USERS, GET_USER_BY_ID } from '../../apollo/admin/query';
@@ -15,9 +15,6 @@ export default function AdminUsersPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [dateRangeFilter, setDateRangeFilter] = useState<string>('all');
-  const [startDate, setStartDate] = useState<string>('');
-  const [endDate, setEndDate] = useState<string>('');
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [page, setPage] = useState(1);
   const [limit] = useState(20);
@@ -32,18 +29,6 @@ export default function AdminUsersPage() {
           ...(roleFilter !== 'all' && { userRole: roleFilter }),
           ...(statusFilter !== 'all' && { userStatus: statusFilter }),
           ...(searchTerm && { userNick: searchTerm, userEmail: searchTerm }),
-          ...(dateRangeFilter === 'custom' && startDate && { createdAtFrom: new Date(startDate).toISOString() }),
-          ...(dateRangeFilter === 'custom' && endDate && { createdAtTo: new Date(endDate + 'T23:59:59').toISOString() }),
-          ...(dateRangeFilter === 'today' && {
-            createdAtFrom: new Date().setHours(0, 0, 0, 0).toString(),
-            createdAtTo: new Date().setHours(23, 59, 59, 999).toString(),
-          }),
-          ...(dateRangeFilter === 'week' && {
-            createdAtFrom: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-          }),
-          ...(dateRangeFilter === 'month' && {
-            createdAtFrom: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-          }),
         },
       },
     },
@@ -61,7 +46,7 @@ export default function AdminUsersPage() {
       return;
     }
     const role = normalizeRole(currentUser?.userRole);
-    if (role && role !== 'ADMIN') {
+    if (role && !isAdminPortalRole(role)) {
       router.push('/dashboard');
       return;
     }
@@ -125,12 +110,12 @@ export default function AdminUsersPage() {
   if (!isLoggedIn()) return null;
 
   const role = normalizeRole(currentUser?.userRole);
-  if (role && role !== 'ADMIN') {
+  if (role && !isAdminPortalRole(role)) {
     return null;
   }
 
   return (
-    <div className="flex h-screen w-full bg-[#F9FAFB] overflow-hidden antialiased">
+    <div className="flex h-screen w-full bg-dashboard-canvas overflow-hidden antialiased">
       {/* Sidebar - Navigation */}
       <AdminSidebar />
 
@@ -140,13 +125,13 @@ export default function AdminUsersPage() {
         <AdminHeader title="Users Management" subtitle="View and manage all platform users" />
 
         {/* ── Scrollable Body ── */}
-        <main className="flex-1 overflow-y-auto bg-[#F9FAFB]">
+        <main className="flex-1 overflow-y-auto bg-dashboard-canvas">
           <div className="max-w-7xl mx-auto px-8 py-10">
             {/* Filters */}
             <div className="bg-white border border-slate-200 rounded-lg p-6 mb-6">
               <div className="space-y-4">
-                {/* First Row: Search, Role, Status, Date Range */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                {/* Search, Role, Status */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-2">Search</label>
                     <div className="relative">
@@ -171,7 +156,7 @@ export default function AdminUsersPage() {
                     >
                       <option value="all">All Roles</option>
                       <option value="BUYER">Buyer</option>
-                      <option value="PROVIDER">Provider</option>
+                      <option value="SERVICE_PROVIDER">SERVICE_PROVIDER</option>
                       <option value="ADMIN">Admin</option>
                     </select>
                   </div>
@@ -187,45 +172,7 @@ export default function AdminUsersPage() {
                       <option value="SUSPENDED">Suspended</option>
                     </select>
                   </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">Date Range</label>
-                    <select
-                      value={dateRangeFilter}
-                      onChange={(e) => setDateRangeFilter(e.target.value)}
-                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    >
-                      <option value="all">All Time</option>
-                      <option value="today">Today</option>
-                      <option value="week">Last 7 Days</option>
-                      <option value="month">Last 30 Days</option>
-                      <option value="custom">Custom Range</option>
-                    </select>
-                  </div>
                 </div>
-
-                {/* Second Row: Custom Date Range (shown when custom is selected) */}
-                {dateRangeFilter === 'custom' && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-200">
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-2">Start Date</label>
-                      <input
-                        type="date"
-                        value={startDate}
-                        onChange={(e) => setStartDate(e.target.value)}
-                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-2">End Date</label>
-                      <input
-                        type="date"
-                        value={endDate}
-                        onChange={(e) => setEndDate(e.target.value)}
-                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                  </div>
-                )}
 
                 {/* Reset Button */}
                 <div className="pt-2 border-t border-slate-200">
@@ -234,9 +181,6 @@ export default function AdminUsersPage() {
                       setSearchTerm('');
                       setRoleFilter('all');
                       setStatusFilter('all');
-                      setDateRangeFilter('all');
-                      setStartDate('');
-                      setEndDate('');
                     }}
                     className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg transition-colors"
                   >
@@ -295,7 +239,7 @@ export default function AdminUsersPage() {
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
                               user.userRole === 'BUYER' ? 'bg-blue-100 text-blue-700' :
-                              user.userRole === 'PROVIDER' ? 'bg-emerald-100 text-emerald-700' :
+                              user.userRole === 'SERVICE_PROVIDER' || user.userRole === 'PROVIDER' ? 'bg-emerald-100 text-emerald-700' :
                               'bg-purple-100 text-purple-700'
                             }`}>
                               {user.userRole}
@@ -370,7 +314,7 @@ export default function AdminUsersPage() {
                       <label className="block text-sm font-semibold text-slate-600 mb-1">Role</label>
                       <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
                         selectedUser.userRole === 'BUYER' ? 'bg-blue-100 text-blue-700' :
-                        selectedUser.userRole === 'PROVIDER' ? 'bg-emerald-100 text-emerald-700' :
+                        selectedUser.userRole === 'SERVICE_PROVIDER' || selectedUser.userRole === 'PROVIDER' ? 'bg-emerald-100 text-emerald-700' :
                         'bg-purple-100 text-purple-700'
                       }`}>
                         {selectedUser.userRole}

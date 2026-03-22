@@ -344,11 +344,11 @@ export function BuyerOrganizationForm() {
           <div className="flex flex-col items-center gap-3">
             <div className="relative">
               {logoPreview ? (
-                <div className="w-24 h-24 rounded-2xl overflow-hidden border-2 border-slate-200 shadow-lg">
+                <div className="relative h-24 w-24 overflow-hidden rounded-2xl border-2 border-slate-200 bg-slate-100 shadow-lg dark:bg-slate-800">
                   <img 
                     src={logoPreview} 
                     alt="Organization logo" 
-                    className="w-full h-full object-cover"
+                    className="block h-full w-full min-h-0 object-cover object-center"
                     onError={(e) => {
                       console.error('Image failed to load:', logoPreview);
                       // Fallback to initials if image fails to load

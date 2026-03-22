@@ -1,6 +1,5 @@
 import React from 'react';
 import Link from 'next/link';
-import Navbar from '../../libs/components/Navbar';
 import Footer from '../../libs/components/Footer';
 
 /* ────────────────────────────────────────────────
@@ -60,8 +59,6 @@ export const CASE_STUDIES: CaseStudyCard[] = [
 export default function ResultsPage() {
   return (
     <div className="app-container">
-      <Navbar currentPage="results" />
-
       <main className="main-content bg-[#f6f6f8] dark:bg-slate-900 min-h-screen">
         <div className="max-w-[800px] mx-auto px-6 py-20">
           {/* ── Section Title ── */}

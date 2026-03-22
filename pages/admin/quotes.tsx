@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useReactiveVar, useQuery, useMutation } from '@apollo/client';
 import { userVar } from '../../apollo/store';
-import { isLoggedIn, normalizeRole } from '../../libs/auth';
+import { isLoggedIn, normalizeRole, isAdminPortalRole } from '../../libs/auth';
 import { AdminSidebar } from '../../libs/components/admin/AdminSidebar';
 import { AdminHeader } from '../../libs/components/admin/AdminHeader';
 import { GET_ALL_QUOTES } from '../../apollo/admin/query';
@@ -61,7 +61,7 @@ export default function AdminQuotesPage() {
       return;
     }
     const role = normalizeRole(currentUser?.userRole);
-    if (role && role !== 'ADMIN') {
+    if (role && !isAdminPortalRole(role)) {
       router.push('/dashboard');
       return;
     }
@@ -118,7 +118,7 @@ export default function AdminQuotesPage() {
   if (!isLoggedIn()) return null;
 
   const role = normalizeRole(currentUser?.userRole);
-  if (role && role !== 'ADMIN') {
+  if (role && !isAdminPortalRole(role)) {
     return null;
   }
 

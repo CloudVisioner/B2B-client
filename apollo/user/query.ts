@@ -127,6 +127,7 @@ export const GET_PROVIDER_DETAIL_FALLBACK = gql`
       
       # Rating & Social Proof (orgAverageRating omitted - will default to 0 in mapper)
       reviewsCount
+      myRating
       orgTotalLikes
       orgTotalViews
       orgTotalProjects
@@ -623,6 +624,26 @@ export const GET_MY_PROFILE = gql`
   }
 `;
 
+/**
+ * Current session user (Bearer) — use for PROVIDER/BUYER self profile; no userId variable.
+ * Prefer this over getUser(userId) when the schema exposes getMyProfile.
+ */
+export const GET_MY_PROFILE_SELF = gql`
+  query GetMyProfileSelf {
+    getMyProfile {
+      _id
+      userNick
+      userEmail
+      userPhone
+      userImage
+      userDescription
+      userRole
+      createdAt
+      updatedAt
+    }
+  }
+`;
+
 // ============================================
 // BUYER ORGANIZATION QUERIES
 // ============================================
@@ -640,10 +661,9 @@ export const GET_MY_PROFILE = gql`
  * - orgOwnerUserId - User ID who owns this organization
  * - organizationName - Company Name (Required)
  * - organizationIndustry - Industry (Required)
- * - organizationLocation - Location (Required)
+ * - organizationCountry - Country / location (Required)
  * - organizationDescription - Description (Required)
  * - organizationImage - Company Logo/Image (Optional)
- * - budgetRange - Budget Range (Optional)
  * - createdAt - Created timestamp
  * - updatedAt - Updated timestamp
  */
@@ -656,10 +676,10 @@ export const GET_BUYER_ORGANIZATION = gql`
       orgOwnerUserId
       organizationName
       organizationIndustry
+      organizationCountry
       organizationLocation
       organizationDescription
       organizationImage
-      budgetRange
       createdAt
       updatedAt
     }
@@ -681,6 +701,7 @@ export const GET_PROVIDER_ORGANIZATION = gql`
       organizationContactEmail
       organizationCountry
       organizationImage
+      # Backend Organization type exposes categoryId / subCategory (not organizationCategories)
       categoryId
       subCategory
       orgOwnerUserId
@@ -776,7 +797,7 @@ export const GET_SERVICE_REQUESTS = gql`
           _id
           organizationName
           organizationIndustry
-          organizationLocation
+          organizationCountry
           organizationDescription
           organizationImage
           organizationContactEmail
@@ -831,7 +852,7 @@ export const GET_SERVICE_REQUEST = gql`
         _id
         organizationName
         organizationIndustry
-        organizationLocation
+        organizationCountry
         organizationDescription
         organizationImage
         organizationContactEmail

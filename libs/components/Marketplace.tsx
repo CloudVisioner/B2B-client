@@ -10,6 +10,34 @@ import { CategoryId, ServiceCategory, Provider } from '../types/index';
 import { GET_PROVIDERS_BY_CATEGORY, GET_PROVIDERS_SORTED } from '../../apollo/user/query';
 import { mapBackendProviderToList, mapSortOption, mapCategoryToBackend, mapSubCategoryToBackend, mapSubCategoryFromBackend } from '../utils/providerMapper';
 
+/** Lower bound of a budget string for "max $/hr" filtering (e.g. "4000-8000" → 4000, not 40008000). */
+function parseBudgetRangeLowerBound(raw: string): number | null {
+  const t = raw.trim();
+  if (!t) return null;
+  if (t.includes('-')) {
+    const parts = t
+      .split('-')
+      .map((p) => parseFloat(String(p).replace(/[^0-9.]/g, '')))
+      .filter((n) => Number.isFinite(n) && n > 0);
+    if (parts.length === 0) return null;
+    return Math.min(...parts);
+  }
+  const n = parseFloat(t.replace(/[^0-9.]/g, ''));
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/** Numeric rate used for marketplace budget slider (hourly first, else parsed budgetRange). */
+function effectiveProviderRateCap(provider: Provider): number | null {
+  const hourly = Number(provider.startingRate);
+  if (Number.isFinite(hourly) && hourly > 0) {
+    return hourly;
+  }
+  if (provider.budgetRange == null) return null;
+  const raw =
+    typeof provider.budgetRange === 'string' ? provider.budgetRange : String(provider.budgetRange);
+  return parseBudgetRangeLowerBound(raw);
+}
+
 export const CATEGORIES: ServiceCategory[] = [
   {
     id: 'it-software',
@@ -391,12 +419,14 @@ const Marketplace: React.FC<MarketplaceProps> = ({
   const [selectedCatId, setSelectedCatId] = useState<CategoryId>(initialCategory);
   const [sortBy, setSortBy] = useState(initialFilters.sort || 'Newest');
   const [isSortOpen, setIsSortOpen] = useState(false);
-  const [maxBudget, setMaxBudget] = useState(initialFilters.budget || 5000);
+  const [maxBudget, setMaxBudget] = useState(initialFilters.budget ?? 10000);
   const [activeSubCats, setActiveSubCats] = useState<string[]>(initialFilters.subcategory || []);
   const [selectedLocation, setSelectedLocation] = useState(initialFilters.location || 'All Countries');
   const [currentPage, setCurrentPage] = useState(initialFilters.page || 1);
   const [searchQuery, setSearchQuery] = useState(initialFilters.search || '');
   const itemsPerPage = 9;
+  /** Backend fetch size: subcategory + budget are applied client-side, so we must load enough rows first. */
+  const marketplaceFetchLimit = 100;
   
   const isInitialMount = useRef(true);
   const lastFiltersRef = useRef<string>('');
@@ -427,8 +457,9 @@ const Marketplace: React.FC<MarketplaceProps> = ({
 
     const input: any = {
       categoryId: backendCategoryId,
-      page: Math.max(1, currentPage || 1),
-      limit: Math.max(1, Math.min(100, itemsPerPage || 5)), // Ensure limit is between 1 and 100
+      // Always page 1 with a high limit — pagination is applied after client-side filters.
+      page: 1,
+      limit: marketplaceFetchLimit,
     };
     
     // Validate and add sortBy - only valid provider sort options
@@ -449,17 +480,16 @@ const Marketplace: React.FC<MarketplaceProps> = ({
     if (selectedLocation && selectedLocation !== 'All Countries') {
       input.location = selectedLocation;
     }
-    
-    if (maxBudget && maxBudget > 0 && maxBudget !== 5000) {
-      input.maxBudget = maxBudget;
-    }
-    
+
+    // Budget cap is applied client-side only. Sending maxBudget to the API often over-filters or mismatches
+    // hourly vs project fields, which hid providers for mid-range slider values (e.g. $4k–$8k/hr).
+
     if (searchQuery && searchQuery.trim()) {
       input.searchQuery = searchQuery.trim();
     }
     
     return { input };
-  }, [backendCategoryId, activeSubCats, selectedLocation, maxBudget, currentPage, itemsPerPage, searchQuery, backendSortBy]);
+  }, [backendCategoryId, selectedLocation, searchQuery, backendSortBy, marketplaceFetchLimit]);
   
   // ========== APOLLO REQUESTS ==========
   const useSortedQuery = true;
@@ -502,7 +532,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({
   useEffect(() => {
     if (isInitialMount.current) {
       setSortBy(initialFilters.sort || 'Newest');
-      setMaxBudget(initialFilters.budget || 5000);
+      setMaxBudget(initialFilters.budget ?? 10000);
       setActiveSubCats(initialFilters.subcategory || []);
       setSelectedLocation(initialFilters.location || 'All Countries');
       setCurrentPage(initialFilters.page || 1);
@@ -545,7 +575,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({
           category: selectedCatId,
           subcategory: activeSubCats.length > 0 ? activeSubCats : undefined,
           location: selectedLocation !== 'All Countries' ? selectedLocation : undefined,
-          budget: maxBudget !== 5000 ? maxBudget : undefined,
+          budget: maxBudget < 10000 ? maxBudget : undefined,
           sort: sortBy !== 'Newest' ? sortBy : undefined,
           page: currentPage > 1 ? currentPage : undefined,
           search: searchQuery || undefined,
@@ -584,46 +614,62 @@ const Marketplace: React.FC<MarketplaceProps> = ({
       let subCategoryMatches = true; // Default to true (show all if no filter)
       
       if (activeSubCats.length > 0) {
-        // Normalize provider subcategories to array
-        const providerSubCats = Array.isArray(provider.subCategory) 
-          ? provider.subCategory 
+        const providerSubCats = Array.isArray(provider.subCategory)
+          ? provider.subCategory
           : [provider.subCategory];
-        
-        // Normalize to strings and trim for comparison (case-insensitive)
-        const normalizedProviderSubCats = providerSubCats.map(cat => String(cat).trim().toLowerCase());
-        const normalizedActiveSubCats = activeSubCats.map(cat => String(cat).trim().toLowerCase());
-        
-        // Check if any of the provider's subcategories match any selected subcategory
-        subCategoryMatches = normalizedActiveSubCats.some(selectedSubCat => 
-          normalizedProviderSubCats.includes(selectedSubCat)
+        // Compare in backend enum space so kebab-case UI ids match UPPER_SNAKE API values
+        const providerKeys = providerSubCats
+          .filter(Boolean)
+          .map((cat) => String(mapSubCategoryToBackend(String(cat).trim())).toUpperCase());
+        const selectedKeys = activeSubCats.map((cat) =>
+          String(mapSubCategoryToBackend(String(cat).trim())).toUpperCase(),
         );
+        subCategoryMatches = selectedKeys.some((sel) => providerKeys.includes(sel));
       }
       
       // Provider must match both category AND subcategory (if subcategory filter is active)
       return categoryMatches && subCategoryMatches;
     });
 
-    // Apply budget filter client-side (if maxBudget is set and not default)
-    if (maxBudget && maxBudget > 0 && maxBudget !== 5000) {
-      mappedProviders = mappedProviders.filter(provider => {
-        // Check organizationHourlyRate (preferred field)
-        if (provider.startingRate && provider.startingRate > 0) {
-          return provider.startingRate <= maxBudget;
-        }
-        // Fallback to budgetRange if startingRate is not available
-        if (provider.budgetRange) {
-          const budgetValue = typeof provider.budgetRange === 'string' 
-            ? parseFloat(provider.budgetRange.replace(/[^0-9.]/g, ''))
-            : Number(provider.budgetRange);
-          return !isNaN(budgetValue) && budgetValue > 0 && budgetValue <= maxBudget;
-        }
-        // If no budget info, include the provider (don't filter out)
-        return true;
+    // Budget: slider max is 10000 — treat max as "no cap"; otherwise compare effective starting rate to cap
+    const budgetCapActive = maxBudget > 0 && maxBudget < 10000;
+    if (budgetCapActive) {
+      mappedProviders = mappedProviders.filter((provider) => {
+        const cap = effectiveProviderRateCap(provider);
+        if (cap == null) return true;
+        return cap <= maxBudget;
       });
     }
 
-    return mappedProviders;
-  }, [data, useSortedQuery, activeSubCats, selectedCatId, maxBudget]);
+    // Client-side sort so order is correct even if the API ignores sortBy or uses a different default.
+    const sorted = [...mappedProviders];
+    const createdMs = (p: Provider) => {
+      const raw = p.createdAt;
+      if (!raw) return 0;
+      const t = Date.parse(raw);
+      return Number.isFinite(t) ? t : 0;
+    };
+    if (sortBy === 'Cheapest') {
+      sorted.sort((a, b) => {
+        const ca = effectiveProviderRateCap(a);
+        const cb = effectiveProviderRateCap(b);
+        const na = ca != null && Number.isFinite(ca) ? ca : Number.POSITIVE_INFINITY;
+        const nb = cb != null && Number.isFinite(cb) ? cb : Number.POSITIVE_INFINITY;
+        if (na !== nb) return na - nb;
+        return (a.startingRate || 0) - (b.startingRate || 0);
+      });
+    } else if (sortBy === 'Highest Rated') {
+      sorted.sort((a, b) => {
+        const dr = (b.rating ?? 0) - (a.rating ?? 0);
+        if (dr !== 0) return dr;
+        return (b.reviewsCount ?? 0) - (a.reviewsCount ?? 0);
+      });
+    } else {
+      sorted.sort((a, b) => createdMs(b) - createdMs(a));
+    }
+
+    return sorted;
+  }, [data, useSortedQuery, activeSubCats, selectedCatId, maxBudget, sortBy]);
   
   const totalCount = useMemo(() => {
     return providers.length;
@@ -748,7 +794,8 @@ const Marketplace: React.FC<MarketplaceProps> = ({
               <div className="flex items-center justify-between">
                 <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Budget</h4>
                 <button 
-                  onClick={() => handleBudgetChange(5000)}
+                  type="button"
+                  onClick={() => handleBudgetChange(10000)}
                   className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase hover:underline"
                 >
                   Reset
@@ -860,7 +907,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({
                         setCurrentPage(1);
                         setActiveSubCats([]);
                         setSelectedLocation('All Countries');
-                        setMaxBudget(5000);
+                        setMaxBudget(10000);
                         setSearchQuery('');
                         setTimeout(() => refetch(), 100);
                       }}
@@ -897,12 +944,12 @@ const Marketplace: React.FC<MarketplaceProps> = ({
                       onClick={() => onSelectProvider(provider.id)}
                     >
                       {/* Top 60% Image Area */}
-                      <div className="h-[60%] w-full relative overflow-hidden bg-slate-100 dark:bg-slate-800">
+                      <div className="relative h-[60%] w-full overflow-hidden bg-slate-100 dark:bg-slate-800">
                         {hasImage ? (
                           <img 
                             src={imageUrl} 
                             alt={provider.name}
-                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                            className="block h-full w-full min-h-0 object-cover object-center transition-transform duration-700 group-hover:scale-105"
                             onError={(e) => {
                               // Fallback to icon if image fails to load
                               const target = e.target as HTMLImageElement;
@@ -936,7 +983,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({
                       <div className="h-[40%] p-5 flex flex-col justify-between bg-white dark:bg-slate-900/95 backdrop-blur-sm border-t border-slate-100 dark:border-white/5 relative z-10">
                         <div className="space-y-2">
                           {/* Organization Name */}
-                          <h3 className="font-sans font-bold text-lg text-slate-900 dark:text-white line-clamp-2 leading-tight tracking-tight">
+                          <h3 className="line-clamp-2 break-words font-sans text-lg font-bold leading-snug tracking-normal text-slate-900 dark:text-white">
                             {provider.name}
                           </h3>
                           

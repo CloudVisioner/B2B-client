@@ -1,3 +1,27 @@
+/**
+ * Backend DTO limits (UpdateUser / UpdateAdminProfile): enforce on the client so saves don’t loop on validation errors.
+ */
+export const PROFILE_USER_NICK_MIN = 2;
+export const PROFILE_USER_NICK_MAX = 50;
+export const PROFILE_USER_DESCRIPTION_MAX = 500;
+
+export function clampUserNick(raw: string): string {
+  return raw.trim().slice(0, PROFILE_USER_NICK_MAX);
+}
+
+export function clampUserDescription(raw: string): string {
+  return raw.trim().slice(0, PROFILE_USER_DESCRIPTION_MAX);
+}
+
+/** Returns an error message if invalid, otherwise null. */
+export function getUserNickValidationError(raw: string): string | null {
+  const n = clampUserNick(raw);
+  if (n.length < PROFILE_USER_NICK_MIN) {
+    return `Display name must be ${PROFILE_USER_NICK_MIN}–${PROFILE_USER_NICK_MAX} characters (spaces at the ends don’t count).`;
+  }
+  return null;
+}
+
 export function formatDate(date: string | Date): string {
   return new Date(date).toLocaleDateString();
 }

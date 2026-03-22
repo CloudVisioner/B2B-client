@@ -23,6 +23,41 @@ interface ProviderProfileProps {
   onSelectProvider?: (id: string) => void;
 }
 
+/** Matches homepage `HowItWorks` step cards: lift + shadow, no harsh whole-card color flip. */
+const coreServiceCardClass =
+  'group relative flex flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-8 shadow-[0_2px_8px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.06)] transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-2 hover:border-slate-300 hover:shadow-[0_20px_50px_rgba(0,0,0,0.1),0_8px_24px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-slate-900 dark:shadow-[0_2px_8px_rgba(0,0,0,0.25)] dark:hover:border-white/40 dark:hover:shadow-[0_20px_50px_rgba(0,0,0,0.45),0_12px_32px_rgba(0,0,0,0.35)]';
+
+const coreServiceCardShine =
+  'pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-br from-white/60 via-transparent to-transparent opacity-0 transition-opacity duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:opacity-100 dark:from-white/[0.08] dark:via-transparent';
+
+/** GraphQL myRating: 1–5 = voted; 0 / null / undefined = no vote (keeps stars in sync after navigation). */
+function parseMyRating(raw: unknown): number | null {
+  if (raw == null) return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 1) return null;
+  return Math.min(5, Math.max(1, Math.round(n)));
+}
+
+const MY_RATING_STORAGE_PREFIX = 'smeconnect:orgMyRating:';
+
+function readStoredMyRating(orgId: string): number | null {
+  if (typeof window === 'undefined' || !orgId) return null;
+  try {
+    return parseMyRating(window.localStorage.getItem(`${MY_RATING_STORAGE_PREFIX}${orgId}`));
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredMyRating(orgId: string, rating: number): void {
+  if (typeof window === 'undefined' || !orgId) return;
+  try {
+    window.localStorage.setItem(`${MY_RATING_STORAGE_PREFIX}${orgId}`, String(rating));
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
 const ProviderProfile: React.FC<ProviderProfileProps> = ({ providerId, onBrowseServices, onSelectProvider }) => {
   // ========== HOOKS & STATE ==========
   const router = useRouter();
@@ -58,7 +93,7 @@ const ProviderProfile: React.FC<ProviderProfileProps> = ({ providerId, onBrowseS
         variables: { orgId: providerId || '' },
       },
     ],
-    onCompleted: (data) => {
+    onCompleted: () => {
       setIsRatingAnimating(false);
       setRatingJustSubmitted(true);
       setTimeout(() => setRatingJustSubmitted(false), 2000);
@@ -66,7 +101,7 @@ const ProviderProfile: React.FC<ProviderProfileProps> = ({ providerId, onBrowseS
     onError: (error) => {
       console.error('Error rating organization:', error);
       setIsRatingAnimating(false);
-      alert('Failed to submit rating. Please try again.');
+      void refetch();
     },
   });
 
@@ -108,6 +143,30 @@ const ProviderProfile: React.FC<ProviderProfileProps> = ({ providerId, onBrowseS
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
   }, [showRatingSelector]);
+
+  // Align star UI with server when detail loads or refetches; fall back to local persistence if API omits myRating.
+  useEffect(() => {
+    const bd = data?.getProviderDetail;
+    if (!bd || !providerId) return;
+    if (bd._id && bd._id !== providerId) return;
+    if (isRatingLoading) return;
+    if (isRatingAnimating) return;
+
+    const fromServer = parseMyRating(bd.myRating);
+    if (fromServer != null) {
+      setSelectedRating(fromServer);
+      writeStoredMyRating(providerId, fromServer);
+      return;
+    }
+    const stored = readStoredMyRating(providerId);
+    setSelectedRating(stored);
+  }, [
+    providerId,
+    data?.getProviderDetail?._id,
+    data?.getProviderDetail?.myRating,
+    isRatingLoading,
+    isRatingAnimating,
+  ]);
 
   // ========== UTILITIES ==========
   const getImageUrl = (imagePath: string | null | undefined): string => {
@@ -152,12 +211,15 @@ const ProviderProfile: React.FC<ProviderProfileProps> = ({ providerId, onBrowseS
 
     if (!providerId) return;
 
-    // Toggle logic: if clicking the same rating, remove it (set to 0)
-    const isTogglingOff = selectedRating === rating;
-    const ratingToSend = isTogglingOff ? 0 : rating;
+    // Persistent vote: never send 0 or clear. Same star = no-op (count/average unchanged on server).
+    if (selectedRating === rating) {
+      setShowRatingSelector(false);
+      return;
+    }
 
+    const priorSelected = selectedRating;
     setIsRatingAnimating(true);
-    setSelectedRating(isTogglingOff ? null : rating);
+    setSelectedRating(rating);
     setShowRatingSelector(false);
 
     try {
@@ -165,18 +227,19 @@ const ProviderProfile: React.FC<ProviderProfileProps> = ({ providerId, onBrowseS
         variables: {
           input: {
             orgId: providerId,
-            rating: ratingToSend,
+            rating,
           },
         },
       });
-    } catch (err) {
-      // Error handled in onError callback
+      writeStoredMyRating(providerId, rating);
+    } catch {
+      setSelectedRating(priorSelected ?? readStoredMyRating(providerId));
     }
   };
 
-  const handleStarHover = (rating: number) => {
+  const handleStarHover = (starIndex: number) => {
     if (!isRatingLoading && !isRatingAnimating) {
-      setHoveredRating(rating);
+      setHoveredRating(starIndex);
     }
   };
 
@@ -184,17 +247,17 @@ const ProviderProfile: React.FC<ProviderProfileProps> = ({ providerId, onBrowseS
     setHoveredRating(null);
   };
 
-  // Sync selectedRating with backend myRating (toggle-aware)
-  useEffect(() => {
-    if (!backendData) return;
-    if (isRatingAnimating || isRatingLoading) return;
-
-    if (backendData.myRating != null) {
-      setSelectedRating(backendData.myRating);
-    } else {
-      setSelectedRating(null);
+  const handlePostRequest = () => {
+    if (!userLoggedIn) {
+      router.push('/login');
+      return;
     }
-  }, [backendData?.myRating, backendData, isRatingAnimating, isRatingLoading]);
+    router.push('/post-job');
+  };
+
+  /** User has a locked-in vote (stable UI; review count is owned by the API). */
+  const isVoted = selectedRating != null && selectedRating > 0;
+  const starHighlight = hoveredRating ?? selectedRating ?? 0;
 
   // ========== CONDITIONAL RENDERING ==========
   if (loading && !provider) {
@@ -457,11 +520,11 @@ const ProviderProfile: React.FC<ProviderProfileProps> = ({ providerId, onBrowseS
             <div className="flex-shrink-0">
               <div className="relative group">
                 <div className="absolute -inset-4 bg-gradient-to-r from-primary/20 to-purple-500/20 rounded-3xl blur-2xl opacity-75 group-hover:opacity-100 transition-opacity"></div>
-                <div className="relative w-40 h-40 rounded-3xl bg-white dark:bg-slate-900 border-2 border-slate-200/50 dark:border-slate-800/50 shadow-2xl flex items-center justify-center overflow-hidden backdrop-blur-sm">
+                <div className="relative h-40 w-40 shrink-0 overflow-hidden rounded-3xl border-2 border-slate-200/50 bg-slate-100 shadow-2xl ring-1 ring-black/5 dark:border-slate-800/50 dark:bg-slate-800 dark:ring-white/10">
                   {provider.avatar ? (
                     <img 
                       alt={`${provider.name} Logo`} 
-                      className="w-full h-full object-cover" 
+                      className="block h-full w-full min-h-0 object-cover object-center"
                       src={getImageUrl(provider.avatar)}
                       onError={(e) => {
                         // Fallback to placeholder if image fails
@@ -492,8 +555,8 @@ const ProviderProfile: React.FC<ProviderProfileProps> = ({ providerId, onBrowseS
 
             {/* Center: Main Info */}
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-3 mb-4">
-                <h1 className="text-5xl md:text-6xl lg:text-7xl font-black bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 dark:from-white dark:via-slate-100 dark:to-white bg-clip-text text-transparent tracking-tight">
+              <div className="mb-4 flex min-w-0 flex-wrap items-start gap-3">
+                <h1 className="min-w-0 max-w-full flex-1 text-5xl font-black leading-[1.12] tracking-tight text-slate-900 dark:text-white md:text-6xl lg:text-7xl break-words pb-0.5">
                   {provider.name}
                 </h1>
                 {provider.badges.includes("VERIFIED") && (
@@ -541,6 +604,8 @@ const ProviderProfile: React.FC<ProviderProfileProps> = ({ providerId, onBrowseS
                   {userLoggedIn && (
                     <div className="relative rating-selector-container">
                       <button
+                        type="button"
+                        aria-label={isVoted ? 'Update your rating' : 'Rate this provider'}
                         onClick={() => setShowRatingSelector(!showRatingSelector)}
                         disabled={isRatingLoading || isRatingAnimating}
                         className={`group relative flex items-center gap-2 px-5 py-2.5 rounded-2xl font-bold text-sm transition-all duration-300 ${
@@ -575,23 +640,24 @@ const ProviderProfile: React.FC<ProviderProfileProps> = ({ providerId, onBrowseS
                             Select Your Rating
                           </p>
                           <div className="flex items-center gap-2">
-                            {[1, 2, 3, 4, 5].map((rating) => (
+                            {[1, 2, 3, 4, 5].map((rating) => {
+                              const filled = rating <= starHighlight;
+                              const hoverPreview =
+                                hoveredRating != null && rating <= hoveredRating;
+                              return (
                               <button
+                                type="button"
                                 key={rating}
                                 onClick={() => handleRatingClick(rating)}
                                 onMouseEnter={() => handleStarHover(rating)}
                                 onMouseLeave={handleStarLeave}
-                                className="group relative transition-all duration-200 hover:scale-125 active:scale-95"
+                                className="group relative transition-transform duration-200 hover:scale-125 active:scale-95"
                               >
                                 <Star
-                                  className={`w-8 h-8 transition-all duration-200 ${
-                                    hoveredRating !== null
-                                      ? rating <= hoveredRating
-                                        ? 'fill-amber-400 text-amber-400 scale-110'
-                                        : 'fill-slate-200 text-slate-300 dark:fill-slate-700 dark:text-slate-600'
-                                      : rating <= (selectedRating || 0)
-                                      ? 'fill-amber-400 text-amber-400'
-                                      : 'fill-slate-200 text-slate-300 dark:fill-slate-700 dark:text-slate-600 group-hover:fill-amber-300 group-hover:text-amber-300'
+                                  className={`w-8 h-8 transition-colors duration-200 ${
+                                    filled
+                                      ? `fill-yellow-400 text-yellow-400${hoverPreview ? ' scale-110' : ''}`
+                                      : 'fill-slate-200 text-slate-300 dark:fill-slate-700 dark:text-slate-600 hover:fill-yellow-200 hover:text-yellow-300 dark:hover:fill-slate-600 dark:hover:text-slate-500'
                                   }`}
                                 />
                                 {rating === hoveredRating && (
@@ -600,7 +666,8 @@ const ProviderProfile: React.FC<ProviderProfileProps> = ({ providerId, onBrowseS
                                   </div>
                                 )}
                               </button>
-                            ))}
+                            );
+                            })}
                           </div>
                         </div>
                       )}
@@ -629,21 +696,15 @@ const ProviderProfile: React.FC<ProviderProfileProps> = ({ providerId, onBrowseS
                   <span className="text-sm text-slate-500 dark:text-slate-400 font-semibold">/hr</span>
                 </div>
 
-                {/* CTA Buttons */}
-                {userLoggedIn ? (
-                  <button className="group px-8 py-4 bg-gradient-to-r from-indigo-600 via-indigo-600 to-purple-600 dark:from-primary dark:via-primary dark:to-purple-600 text-white font-black text-lg rounded-2xl shadow-xl shadow-indigo-500/30 dark:shadow-primary/30 hover:shadow-2xl hover:shadow-indigo-500/40 dark:hover:shadow-primary/40 transition-all duration-300 hover:scale-[1.02] flex items-center justify-center gap-2 whitespace-nowrap">
-                    <MessageCircle className="w-5 h-5 flex-shrink-0 text-white" />
-                    <span className="text-white">Request Quote</span>
-                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform flex-shrink-0 text-white" />
-                  </button>
-                ) : (
-                    <button 
-                      onClick={() => router.push('/signup?role=buyer')}
-                      className="px-8 py-4 bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-black text-lg rounded-2xl hover:border-primary dark:hover:border-primary transition-all duration-300 whitespace-nowrap"
-                    >
-                      Sign Up to Contact
-                    </button>
-                )}
+                {/* CTA — post a service request (buyer flow) */}
+                <button
+                  type="button"
+                  onClick={handlePostRequest}
+                  className="group flex items-center justify-center gap-2 whitespace-nowrap rounded-2xl bg-gradient-to-r from-indigo-600 via-indigo-600 to-purple-600 px-8 py-4 text-lg font-black text-white shadow-xl shadow-indigo-500/30 transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl hover:shadow-indigo-500/40 dark:from-primary dark:via-primary dark:to-purple-600 dark:shadow-primary/30 dark:hover:shadow-primary/40"
+                >
+                  <span className="text-white">Post a request</span>
+                  <ArrowRight className="h-5 w-5 shrink-0 text-white transition-transform group-hover:translate-x-1" />
+                </button>
               </div>
             </div>
           </div>
@@ -818,46 +879,29 @@ const ProviderProfile: React.FC<ProviderProfileProps> = ({ providerId, onBrowseS
               const cardSpecialties = getSpecialtiesForSubCategory(subCat);
 
               return (
-                <div 
-                  key={idx} 
-                  className="group relative bg-gradient-to-br from-white to-slate-50 dark:from-slate-900 dark:to-slate-800 border-2 border-slate-200/80 dark:border-slate-700/80 rounded-3xl p-8 hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-2xl hover:shadow-indigo-500/20 dark:hover:shadow-indigo-500/10 transition-all duration-500 overflow-hidden"
-                >
-                  {/* Premium Gradient Background Effect */}
-                  <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 via-purple-500/5 to-pink-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                  
-                  {/* Top Accent Line with Animation */}
-                  <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 group-hover:from-indigo-500 group-hover:via-purple-500 group-hover:to-pink-500 transition-all duration-500"></div>
+                <div key={idx} className={coreServiceCardClass}>
+                  <div className={coreServiceCardShine} aria-hidden />
 
-                  {/* Corner Decoration */}
-                  <div className="absolute top-4 right-4 w-20 h-20 bg-gradient-to-br from-indigo-100/50 to-purple-100/50 dark:from-indigo-900/20 dark:to-purple-900/20 rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-
-                  <div className="relative z-10">
-                    {/* Service Icon with Enhanced Design */}
-                    <div className="mb-6">
-                      <div className="relative w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-100 via-purple-100 to-pink-100 dark:from-indigo-900/40 dark:via-purple-900/40 dark:to-pink-900/40 flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-lg shadow-indigo-500/20">
-                        <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-indigo-500/10 to-purple-500/10 dark:from-indigo-400/20 dark:to-purple-400/20"></div>
-                        <CheckCircle className="w-10 h-10 text-indigo-600 dark:text-indigo-400 relative z-10" />
-                      </div>
+                  <div className="relative z-10 flex flex-col">
+                    <div className="mb-6 inline-flex rounded-xl bg-indigo-50 p-4 dark:bg-indigo-900/30">
+                      <CheckCircle className="h-8 w-8 text-indigo-600 dark:text-indigo-400" aria-hidden />
                     </div>
 
-                    {/* Service Title with Enhanced Typography */}
-                    <h3 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white mb-4 leading-tight tracking-tight group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors duration-300">
+                    <h3 className="mb-4 text-2xl font-bold leading-tight tracking-tight text-slate-900 dark:text-white md:text-[1.65rem]">
                       {formatSubCategory(subCat)}
                     </h3>
 
-                    {/* Divider */}
-                    <div className="w-16 h-1 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full mb-6"></div>
+                    <div className="mb-6 h-px w-12 bg-slate-200 dark:bg-slate-600" />
 
-                    {/* Specialties Section with Enhanced Design */}
-                    <div className="space-y-4">
-                      <p className="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] mb-3">
+                    <div className="space-y-3">
+                      <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
                         Available Specialties
                       </p>
-                      <div className="flex flex-wrap gap-2.5">
+                      <div className="flex flex-wrap gap-2">
                         {cardSpecialties.map((specialty, specIdx) => (
-                          <span 
+                          <span
                             key={specIdx}
-                            className="px-4 py-2 bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 group-hover:border-indigo-300 dark:group-hover:border-indigo-600 group-hover:bg-indigo-50 dark:group-hover:bg-indigo-900/20 group-hover:text-indigo-700 dark:group-hover:text-indigo-300 transition-all duration-300 shadow-sm group-hover:shadow-md"
+                            className="rounded-lg border border-slate-200/90 bg-slate-50/90 px-3 py-1.5 text-xs font-semibold text-slate-600 transition-[border-color,background-color,box-shadow] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-indigo-200 hover:bg-white hover:shadow-sm dark:border-slate-700/90 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:border-indigo-500/40 dark:hover:bg-slate-800"
                           >
                             {specialty}
                           </span>
@@ -865,10 +909,11 @@ const ProviderProfile: React.FC<ProviderProfileProps> = ({ providerId, onBrowseS
                       </div>
                     </div>
 
-                    {/* Bottom Accent */}
-                    <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
-                      <div className="flex items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-400">
-                        <span className="material-symbols-outlined text-sm">verified</span>
+                    <div className="mt-8 border-t border-slate-200/80 pt-6 dark:border-slate-700/80">
+                      <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                        <span className="material-symbols-outlined text-base text-indigo-600/80 dark:text-indigo-400/90">
+                          verified
+                        </span>
                         <span>Professional Service</span>
                       </div>
                     </div>

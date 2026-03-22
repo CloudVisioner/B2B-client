@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { useQuery } from '@apollo/client';
-import Navbar from '../../libs/components/Navbar';
 import Footer from '../../libs/components/Footer';
 import { GET_ARTICLE_BY_SLUG } from '../../apollo/admin/query';
 import { getImageUrl } from '../../libs/utils';
@@ -97,7 +96,6 @@ export default function ArticlePage() {
   if (!slug || typeof slug !== 'string') {
     return (
       <div className="app-container">
-        <Navbar currentPage="articles" />
         <main className="main-content bg-[#f6f6f8] min-h-screen flex items-center justify-center">
           <div className="text-center">
             <h1 className="text-2xl font-bold text-slate-900 mb-4">Article Not Found</h1>
@@ -114,7 +112,6 @@ export default function ArticlePage() {
   if (articleLoading) {
     return (
       <div className="app-container">
-        <Navbar currentPage="articles" />
         <main className="main-content bg-[#f6f6f8] min-h-screen flex items-center justify-center">
           <div className="text-center">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
@@ -134,7 +131,6 @@ export default function ArticlePage() {
   if (articleError && !finalArticle) {
     return (
       <div className="app-container">
-        <Navbar currentPage="articles" />
         <main className="main-content bg-[#f6f6f8] min-h-screen flex items-center justify-center">
           <div className="text-center">
             <h1 className="text-2xl font-bold text-slate-900 mb-4">Article Not Found</h1>
@@ -152,7 +148,6 @@ export default function ArticlePage() {
   if (!finalArticle) {
     return (
       <div className="app-container">
-        <Navbar currentPage="articles" />
         <main className="main-content bg-[#f6f6f8] min-h-screen flex items-center justify-center">
           <div className="text-center">
             <h1 className="text-2xl font-bold text-slate-900 mb-4">Article Not Found</h1>
@@ -181,8 +176,6 @@ function renderArticle(article: any) {
 
   return (
     <div className="app-container">
-      <Navbar currentPage="articles" />
-
       <main className="main-content bg-white dark:bg-slate-900 min-h-screen">
         <article className="max-w-4xl mx-auto px-6 py-12">
           {/* Back Button */}

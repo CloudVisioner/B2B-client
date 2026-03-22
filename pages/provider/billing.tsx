@@ -42,7 +42,7 @@ export default function ProviderBillingPage() {
 
   if (!mounted) {
     return (
-      <div className="flex h-screen w-full bg-slate-50 dark:bg-slate-900 overflow-hidden">
+      <div className="flex h-screen w-full bg-dashboard-canvas overflow-hidden">
         <div className="w-64 flex-shrink-0 h-full border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900" />
         <div className="flex flex-1 flex-col overflow-hidden">
           <div className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800" />
@@ -85,7 +85,7 @@ export default function ProviderBillingPage() {
   };
 
   return (
-    <div className="flex h-screen w-full bg-slate-50 dark:bg-slate-900 overflow-hidden antialiased">
+    <div className="flex h-screen w-full bg-dashboard-canvas overflow-hidden antialiased">
       <ProviderSidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
         <ProviderHeader title="Billing & Invoices" />
@@ -179,7 +179,7 @@ export default function ProviderBillingPage() {
                 Add Method
               </button>
             </div>
-            <div className="p-4 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-900/50">
+            <div className="p-4 border border-slate-200 dark:border-slate-700 rounded-lg bg-dashboard-canvas/50">
               <p className="text-sm text-slate-500 dark:text-slate-400 text-center">
                 Stripe integration coming soon. You'll be able to receive payments directly to your bank account.
               </p>

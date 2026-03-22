@@ -131,8 +131,12 @@ function PreviewCard({ form, userOrganization }: { form: FormData; userOrganizat
         {userOrganization && (
           <div className="flex items-center gap-2">
             {userOrganization.organizationImage ? (
-              <div className="w-6 h-6 rounded bg-indigo-100 flex items-center justify-center overflow-hidden">
-                <img src={getImageUrl(userOrganization.organizationImage)} alt={userOrganization.organizationName || 'Organization'} className="w-full h-full object-cover" />
+              <div className="h-6 w-6 overflow-hidden rounded bg-indigo-100">
+                <img
+                  src={getImageUrl(userOrganization.organizationImage)}
+                  alt={userOrganization.organizationName || 'Organization'}
+                  className="block h-full w-full min-h-0 object-cover object-center"
+                />
               </div>
             ) : (
               <div className="w-6 h-6 rounded bg-indigo-100 flex items-center justify-center">
@@ -410,11 +414,11 @@ export default function PostJobPage() {
   };
 
   return (
-    <div className="flex h-screen w-full bg-[#F9FAFB] overflow-hidden antialiased">
+    <div className="flex h-screen w-full bg-dashboard-canvas overflow-hidden antialiased">
       <Sidebar />
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <main className="flex-1 overflow-y-auto bg-[#F9FAFB]">
+        <main className="flex-1 overflow-y-auto bg-dashboard-canvas">
           <div className="max-w-6xl mx-auto px-10 py-10">
 
             {/* ── Back + Title ─────────────────────── */}

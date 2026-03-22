@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import Navbar from '../../libs/components/Navbar';
 import Footer from '../../libs/components/Footer';
 
 /* ────────────────────────────────────────────────
@@ -207,7 +206,6 @@ export default function CaseStudyPage() {
   if (!study) {
     return (
       <div className="app-container">
-        <Navbar currentPage="results" />
         <main className="main-content flex items-center justify-center min-h-screen bg-[#f6f6f8] dark:bg-slate-900">
           <div className="text-center">
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-4">Case Study Not Found</h1>
@@ -222,8 +220,6 @@ export default function CaseStudyPage() {
 
   return (
     <div className="app-container">
-      <Navbar currentPage="results" />
-
       {/* Reading Progress Bar */}
       <div className="fixed top-20 left-0 right-0 z-40 h-[2px] bg-slate-100 dark:bg-slate-800">
         <div

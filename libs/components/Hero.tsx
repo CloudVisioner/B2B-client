@@ -22,46 +22,8 @@ const Hero: React.FC<HeroProps> = ({ onGetStarted, onWantToHire, onWantToWork })
   const MotionButton = mounted ? motion.button : 'button';
 
   return (
-    <section className="relative pt-32 pb-24 px-4 overflow-hidden bg-transparent">
-      {/* Animated Background Overlay for Hero */}
-      <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
-        <MotionDiv
-          className="absolute top-1/4 left-1/4 w-[600px] h-[600px] rounded-full blur-3xl opacity-20"
-          style={{
-            background: 'radial-gradient(circle, rgba(99, 102, 241, 0.5) 0%, rgba(139, 92, 246, 0.3) 50%, transparent 70%)',
-          }}
-          {...(mounted ? {
-            animate: {
-              scale: [1, 1.3, 1],
-              opacity: [0.2, 0.3, 0.2],
-            },
-            transition: {
-              duration: 8,
-              repeat: Infinity,
-              ease: 'easeInOut',
-            }
-          } : {})}
-        />
-        <MotionDiv
-          className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] rounded-full blur-3xl opacity-15"
-          style={{
-            background: 'radial-gradient(circle, rgba(236, 72, 153, 0.4) 0%, rgba(168, 85, 247, 0.2) 50%, transparent 70%)',
-          }}
-          {...(mounted ? {
-            animate: {
-              scale: [1, 1.4, 1],
-              opacity: [0.15, 0.25, 0.15],
-            },
-            transition: {
-              duration: 10,
-              repeat: Infinity,
-              ease: 'easeInOut',
-            }
-          } : {})}
-        />
-      </div>
-
-      <div className="max-w-4xl mx-auto text-center relative z-10">
+    <section className="relative overflow-hidden bg-transparent px-4 pb-24 pt-32">
+      <div className="relative z-10 mx-auto max-w-4xl text-center">
         <MotionDiv
           {...(mounted ? {
             initial: { opacity: 0, y: 20 },

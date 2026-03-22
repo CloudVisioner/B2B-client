@@ -48,7 +48,7 @@ export const SIGNUP = gql`
           _id
           organizationName
           organizationIndustry
-          organizationLocation
+          organizationCountry
           organizationDescription
           organizationWebsiteUrl
           organizationImage
@@ -189,32 +189,31 @@ export const CREATE_ORGANIZATION = gql`
 mutation CreateOrUpdateBuyerOrganization($input: BuyerOrganizationInput!) {
   createOrUpdateBuyerOrganization(input: $input) {
     _id
+    organizationType
+    organizationStatus
+    orgOwnerUserId
     organizationName
     organizationIndustry
+    organizationCountry
     organizationLocation
     organizationDescription
-    organizationImage
-    budgetRange
     createdAt
     updatedAt
   }
 }
 `;
 
-export const UPDATE_ORGANIZATION = gql`
- mutation UpdateOrganization($input: OrganizationUpdate!) {
-  updateOrganization(input: $input) {
-    _id
-    organizationName
-    organizationIndustry
-    organizationLocation
-    organizationDescription
-    organizationImage
-    budgetRange
-    createdAt
-    updatedAt
+/** Same operation as admin `UPDATE_ORGANIZATION`; exported under a distinct name to avoid duplicate exports with `apollo/admin/mutation`. */
+export const UPDATE_USER_ORGANIZATION = gql`
+  mutation UpdateOrganization($input: UpdateOrganizationInput!) {
+    updateOrganization(input: $input) {
+      _id
+      organizationName
+      organizationDescription
+      organizationWebsite
+      organizationIndustry
+    }
   }
-}
 `;
 
 // ============================================
@@ -488,15 +487,17 @@ export const CREATE_PROVIDER_ORG_PROF = gql`
     createProviderOrgProf(input: $input) {
       _id
       organizationName
-      organizationEmail
-      organizationCountry
+      organizationType
+      organizationStatus
       organizationDescription
+      organizationContactEmail
+      organizationCountry
       categoryId
       subCategory
       organizationImage
-      minProjectSize
+      budgetRange
       createdAt
-      deletedAt
+      updatedAt
     }
   }
 `;
@@ -510,23 +511,24 @@ export const UPDATE_PROVIDER_ORG_PROF = gql`
     updateProviderOrgProf(input: $input) {
       _id
       organizationName
-      organizationEmail
-      organizationCountry
+      organizationType
+      organizationStatus
       organizationDescription
+      organizationContactEmail
+      organizationCountry
       categoryId
       subCategory
       organizationImage
-      minProjectSize
+      budgetRange
       createdAt
       updatedAt
-      deletedAt
     }
   }
 `;
 
 /**
  * Update Provider User Profile
- * Role: PROVIDER only
+ * Role: PROVIDER only — maps providerDisplayName → userNick, providerFullName → userDescription, etc.
  */
 export const UPDATE_PROVIDER_PROFILE = gql`
   mutation UpdateProviderProfile($input: UpdateProviderProfileInput!) {

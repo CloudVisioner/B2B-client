@@ -1,7 +1,6 @@
 import React, { useEffect } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@apollo/client';
-import Navbar from '../../libs/components/Navbar';
 import Footer from '../../libs/components/Footer';
 import { GET_PUBLISHED_ARTICLES } from '../../apollo/admin/query';
 import { getImageUrl } from '../../libs/utils';
@@ -42,8 +41,6 @@ export default function ArticlesPage() {
 
   return (
     <div className="app-container">
-      <Navbar currentPage="articles" />
-
       <main className="main-content bg-[#f6f6f8] dark:bg-slate-900 min-h-screen">
         <div className="max-w-7xl mx-auto px-6 py-20">
           {/* ── Section Title ── */}
@@ -89,14 +86,13 @@ export default function ArticlesPage() {
                   href={`/articles/${article.slug}`}
                   className="group bg-white dark:bg-slate-800 rounded-xl shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden"
                 >
-                  {/* Cover Image */}
-                  <div className="relative h-48 overflow-hidden bg-slate-200 dark:bg-slate-700">
+                  {/* Cover Image — 4:3 area so the photo reads taller than the old fixed h-48 strip */}
+                  <div className="relative w-full aspect-[4/3] overflow-hidden bg-slate-200 dark:bg-slate-700">
                     {article.articleCoverImage || article.thumbnail ? (
                       <img
                         src={getImageUrl(article.articleCoverImage || article.thumbnail)}
                         alt={article.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        style={{ maxWidth: '100%', maxHeight: '100%' }}
+                        className="absolute inset-0 h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
                         onError={(e) => {
                           const target = e.target as HTMLImageElement;
                           const parent = target.parentElement;

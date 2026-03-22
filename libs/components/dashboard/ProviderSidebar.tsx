@@ -76,19 +76,20 @@ export const ProviderSidebar: React.FC = () => {
 
       {/* Profile / Organization Logo */}
       <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800">
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 items-center gap-3">
           {imageUrl ? (
-            <img
-              alt={organizationName}
-              className="w-16 h-16 rounded-xl object-cover ring-2 ring-slate-100 dark:ring-slate-700 shadow-md"
-              src={imageUrl}
-              onError={(e) => {
-                // Fallback to initials if image fails to load
-                e.currentTarget.style.display = 'none';
-                const fallback = e.currentTarget.nextElementSibling as HTMLElement;
-                if (fallback) fallback.style.display = 'flex';
-              }}
-            />
+            <span className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-slate-100 shadow-md ring-2 ring-slate-100 dark:bg-slate-800 dark:ring-slate-700">
+              <img
+                alt={organizationName}
+                className="block h-full w-full min-h-0 object-cover object-center"
+                src={imageUrl}
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                  const fallback = e.currentTarget.parentElement?.nextElementSibling as HTMLElement;
+                  if (fallback) fallback.style.display = 'flex';
+                }}
+              />
+            </span>
           ) : null}
           <div 
             className={`${imageUrl ? 'hidden' : 'flex'} items-center justify-center w-16 h-16 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 text-white text-xl font-bold shadow-md ring-2 ring-slate-100 dark:ring-slate-700`}
@@ -100,8 +101,8 @@ export const ProviderSidebar: React.FC = () => {
               .toUpperCase()
               .slice(0, 2) || 'OR'}
           </div>
-          <div className="flex flex-col">
-            <span className="text-sm font-bold text-slate-900 dark:text-white">{organizationName}</span>
+          <div className="min-w-0 flex-1 flex flex-col">
+            <span className="text-sm font-bold leading-snug text-slate-900 break-words dark:text-white">{organizationName}</span>
             <span className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Provider</span>
           </div>
         </div>
@@ -135,6 +136,14 @@ export const ProviderSidebar: React.FC = () => {
 
       {/* Sidebar Footer */}
       <div className="p-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
+        <button
+          type="button"
+          onClick={() => router.push('/')}
+          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors text-left"
+        >
+          <span className="material-symbols-outlined text-[22px]">home</span>
+          <span className="text-sm font-medium">Go to Home</span>
+        </button>
         <Link
           href="/provider/help-support"
           className="w-full flex items-center gap-3 px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"

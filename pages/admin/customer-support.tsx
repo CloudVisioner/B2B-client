@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useReactiveVar, useQuery, useMutation } from '@apollo/client';
 import { userVar } from '../../apollo/store';
-import { isLoggedIn, normalizeRole } from '../../libs/auth';
+import { isLoggedIn, normalizeRole, isAdminPortalRole } from '../../libs/auth';
 import { AdminSidebar } from '../../libs/components/admin/AdminSidebar';
 import { AdminHeader } from '../../libs/components/admin/AdminHeader';
 import { GET_CS_CENTER_CONTENT } from '../../apollo/admin/query';
@@ -17,6 +17,8 @@ interface FAQ {
   order: number;
 }
 
+type FAQFormFields = Pick<FAQ, 'question' | 'answer' | 'category'>;
+
 export default function AdminCustomerSupportPage() {
   const router = useRouter();
   const currentUser = useReactiveVar(userVar);
@@ -25,7 +27,7 @@ export default function AdminCustomerSupportPage() {
   // FAQs State
   const [faqs, setFaqs] = useState<FAQ[]>([]);
   const [editingFaq, setEditingFaq] = useState<FAQ | null>(null);
-  const [faqForm, setFaqForm] = useState<FAQ>({ question: '', answer: '', category: 'general', order: 0 });
+  const [faqForm, setFaqForm] = useState<FAQFormFields>({ question: '', answer: '', category: 'general' });
   const [toast, setToast] = useState({ isOpen: false, type: 'info' as 'success' | 'error' | 'warning' | 'info', title: '', message: '' });
 
   const { data: csData, loading: csLoading, refetch: refetchCS } = useQuery(GET_CS_CENTER_CONTENT, {
@@ -44,7 +46,7 @@ export default function AdminCustomerSupportPage() {
       return;
     }
     const role = normalizeRole(currentUser?.userRole);
-    if (role && role !== 'ADMIN') {
+    if (role && !isAdminPortalRole(role)) {
       router.push('/dashboard');
     }
   }, [router, currentUser]);
@@ -53,7 +55,9 @@ export default function AdminCustomerSupportPage() {
     if (csData?.getCSCenterContent) {
       const content = csData.getCSCenterContent;
       if (content.faqs) {
-        setFaqs(content.faqs.sort((a: FAQ, b: FAQ) => (a.order || 0) - (b.order || 0)));
+        setFaqs(
+          [...content.faqs].sort((a: FAQ, b: FAQ) => (a.order || 0) - (b.order || 0)),
+        );
       }
     }
   }, [csData]);
@@ -77,7 +81,7 @@ export default function AdminCustomerSupportPage() {
               question: faqForm.question,
               answer: faqForm.answer,
               category: faqForm.category,
-              order: faqForm.order,
+              order: Math.max(0, editingFaq.order ?? 0),
             },
           },
         });
@@ -89,14 +93,14 @@ export default function AdminCustomerSupportPage() {
               question: faqForm.question,
               answer: faqForm.answer,
               category: faqForm.category,
-              order: faqForm.order || faqs.length,
+              order: faqs.length,
             },
           },
         });
         showToast('success', 'Success', 'FAQ created successfully');
       }
       setEditingFaq(null);
-      setFaqForm({ question: '', answer: '', category: 'general', order: 0 });
+      setFaqForm({ question: '', answer: '', category: 'general' });
       await refetchCS();
     } catch (error: any) {
       showToast('error', 'Error', error.message || 'Failed to save FAQ');
@@ -130,7 +134,7 @@ export default function AdminCustomerSupportPage() {
   }
 
   const role = normalizeRole(currentUser?.userRole);
-  if (role && role !== 'ADMIN') {
+  if (role && !isAdminPortalRole(role)) {
     return null;
   }
 
@@ -168,31 +172,20 @@ export default function AdminCustomerSupportPage() {
                       placeholder="Navigate to your dashboard and click 'Post a Job'..."
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-bold text-slate-700 mb-2">Category</label>
-                      <select
-                        value={faqForm.category}
-                        onChange={(e) => setFaqForm({ ...faqForm, category: e.target.value })}
-                        className="w-full px-4 py-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 font-medium"
-                      >
-                        <option value="general">General</option>
-                        <option value="getting-started">Getting Started</option>
-                        <option value="service-requests">Service Requests</option>
-                        <option value="quotes">Quotes & Orders</option>
-                        <option value="payments">Payments</option>
-                        <option value="account">Account</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-bold text-slate-700 mb-2">Order</label>
-                      <input
-                        type="number"
-                        value={faqForm.order}
-                        onChange={(e) => setFaqForm({ ...faqForm, order: parseInt(e.target.value) || 0 })}
-                        className="w-full px-4 py-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 font-medium"
-                      />
-                    </div>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-2">Category</label>
+                    <select
+                      value={faqForm.category}
+                      onChange={(e) => setFaqForm({ ...faqForm, category: e.target.value })}
+                      className="w-full px-4 py-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 font-medium"
+                    >
+                      <option value="general">General</option>
+                      <option value="getting-started">Getting Started</option>
+                      <option value="service-requests">Service Requests</option>
+                      <option value="quotes">Quotes & Orders</option>
+                      <option value="payments">Payments</option>
+                      <option value="account">Account</option>
+                    </select>
                   </div>
                   <div className="flex gap-3">
                     <button
@@ -206,7 +199,7 @@ export default function AdminCustomerSupportPage() {
                       <button
                         onClick={() => {
                           setEditingFaq(null);
-                          setFaqForm({ question: '', answer: '', category: 'general', order: 0 });
+                          setFaqForm({ question: '', answer: '', category: 'general' });
                         }}
                         className="px-6 py-3 bg-slate-200 text-slate-700 rounded-lg font-bold hover:bg-slate-300 transition-colors"
                       >
@@ -242,14 +235,13 @@ export default function AdminCustomerSupportPage() {
                             </p>
                             <div className="flex items-center gap-4 mt-3">
                               <span className="text-xs font-bold text-slate-400 uppercase">{faq.category}</span>
-                              <span className="text-xs font-bold text-slate-400">Order: {faq.order}</span>
                             </div>
                           </div>
                           <div className="flex gap-2 ml-4">
                             <button
                               onClick={() => {
                                 setEditingFaq(faq);
-                                setFaqForm({ question: faq.question, answer: faq.answer, category: faq.category, order: faq.order || 0 });
+                                setFaqForm({ question: faq.question, answer: faq.answer, category: faq.category });
                               }}
                               className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-lg font-bold hover:bg-indigo-100 transition-colors text-sm"
                             >

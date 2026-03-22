@@ -312,11 +312,11 @@ function OrganizationTab() {
           <div className="flex flex-col items-center gap-3">
             <div className="relative">
               {logoPreview ? (
-                <div className="w-24 h-24 rounded-2xl overflow-hidden border-2 border-slate-200 shadow-lg">
+                <div className="relative h-24 w-24 overflow-hidden rounded-2xl border-2 border-slate-200 bg-slate-100 shadow-lg">
                   <img 
                     src={logoPreview} 
                     alt="Company logo" 
-                    className="w-full h-full object-cover"
+                    className="block h-full w-full min-h-0 object-cover object-center"
                     onError={(e) => {
                       console.error('Image failed to load:', logoPreview);
                       // Fallback to initials if image fails to load
@@ -908,8 +908,12 @@ function ProfileTab() {
           <div className="flex flex-col items-center gap-3">
             <div className="relative">
               {imagePreview ? (
-                <div className="w-32 h-32 rounded-full overflow-hidden border-2 border-slate-200 shadow-lg">
-                  <img src={imagePreview} alt="Profile" className="w-full h-full object-cover" style={{ display: 'block' }} />
+                <div className="relative h-32 w-32 overflow-hidden rounded-full border-2 border-slate-200 bg-slate-100 shadow-lg">
+                  <img
+                    src={imagePreview}
+                    alt="Profile"
+                    className="block h-full w-full min-h-0 object-cover object-center"
+                  />
                   {isUploadingImage && (
                     <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                       <span className="material-symbols-outlined text-white animate-spin">sync</span>

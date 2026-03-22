@@ -91,6 +91,13 @@ const errorLink = onError(({ graphQLErrors, networkError, operation, forward }) 
         console.warn(
           `[GraphQL warning]: Field ${path?.join('.') || 'unknown'} returned non-iterable value. This will be normalized to an empty array.`
         );
+      } else if (
+        message &&
+        message.includes('organizationImage') &&
+        message.includes('conflict')
+      ) {
+        // Apollo cache invariant sometimes surfaces here; handled via evict + mutation field omission.
+        console.warn('[Apollo cache]', message);
       } else {
         console.error(
           `[GraphQL error]: Message: ${message}, Location: ${locations}, Path: ${path}`
@@ -152,16 +159,62 @@ const splitLink = typeof window !== 'undefined' && wsLink
     )
   : httpLink;
 
+/**
+ * Backend sometimes returns `organizationImage` as `String` or `[String]`.
+ * Apollo treats those as incompatible scalars unless we always persist one shape (string | null).
+ * No `read` — avoids canonical vs raw mismatches that still trigger merge conflicts.
+ */
+function normalizeOrganizationImage(value: unknown): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (Array.isArray(value)) {
+    const first = value[0];
+    if (first == null || first === '') return null;
+    return typeof first === 'string' ? first : String(first);
+  }
+  if (typeof value === 'string') return value;
+  return null;
+}
+
+const organizationImageFieldPolicy = {
+  merge(existing: unknown, incoming: unknown) {
+    const next = normalizeOrganizationImage(incoming);
+    if (next !== undefined) return next;
+    const prev = normalizeOrganizationImage(existing);
+    if (prev !== undefined) return prev;
+    return existing as string | null | undefined;
+  },
+};
+
 function createApolloClient() {
   return new ApolloClient({
     link: ApolloLink.from([errorLink, authLink, splitLink]),
     cache: new InMemoryCache({
       typePolicies: {
         Query: {
-          fields: {},
-        },
-        Organization: {
           fields: {
+            /** Single embedded org per root field — replace whole result, no deep merge fights. */
+            getBuyerOrganization: {
+              merge(_existing, incoming) {
+                return incoming;
+              },
+            },
+            getProviderOrganization: {
+              merge(_existing, incoming) {
+                return incoming;
+              },
+            },
+          },
+        },
+        /**
+         * Same `_id` can appear under signup `userOrganization`, buyer query, provider query, etc.
+         * Normalizing by `_id` merges those writes and triggers scalar conflicts on `organizationImage`.
+         * Embed-only: each query path keeps its own org object.
+         */
+        Organization: {
+          keyFields: false,
+          fields: {
+            organizationImage: organizationImageFieldPolicy,
             orgSkills: {
               read(existing) {
                 if (!existing) return [];
@@ -190,6 +243,12 @@ function createApolloClient() {
                 return [];
               },
             },
+          },
+        },
+        BuyerOrganization: {
+          keyFields: false,
+          fields: {
+            organizationImage: organizationImageFieldPolicy,
           },
         },
       },

@@ -75,19 +75,20 @@ export const Sidebar: React.FC = () => {
 
       {/* Profile / Organization Logo */}
       <div className="px-6 py-5 border-b border-slate-100">
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 items-center gap-3">
           {imageUrl ? (
-            <img
-              alt={organizationName}
-              className="w-16 h-16 rounded-xl object-cover ring-2 ring-slate-100 shadow-md"
-              src={imageUrl}
-              onError={(e) => {
-                // Fallback to initials if image fails to load
-                e.currentTarget.style.display = 'none';
-                const fallback = e.currentTarget.nextElementSibling as HTMLElement;
-                if (fallback) fallback.style.display = 'flex';
-              }}
-            />
+            <span className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-slate-100 shadow-md ring-2 ring-slate-100">
+              <img
+                alt={organizationName}
+                className="block h-full w-full min-h-0 object-cover object-center"
+                src={imageUrl}
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                  const fallback = e.currentTarget.parentElement?.nextElementSibling as HTMLElement;
+                  if (fallback) fallback.style.display = 'flex';
+                }}
+              />
+            </span>
           ) : null}
           <div 
             className={`${imageUrl ? 'hidden' : 'flex'} items-center justify-center w-16 h-16 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 text-white text-xl font-bold shadow-md ring-2 ring-slate-100`}
@@ -99,8 +100,8 @@ export const Sidebar: React.FC = () => {
               .toUpperCase()
               .slice(0, 2) || 'OR'}
           </div>
-          <div className="flex flex-col">
-            <span className="text-sm font-bold text-slate-900">{organizationName}</span>
+          <div className="min-w-0 flex-1 flex flex-col">
+            <span className="text-sm font-bold leading-snug text-slate-900 break-words">{organizationName}</span>
             <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Buyer</span>
           </div>
         </div>
@@ -134,6 +135,14 @@ export const Sidebar: React.FC = () => {
 
       {/* Footer */}
       <div className="p-4 border-t border-slate-100 space-y-2">
+        <button
+          type="button"
+          onClick={() => router.push('/')}
+          className="w-full flex items-center gap-3 px-4 py-2.5 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 transition-all rounded-lg text-sm font-medium text-left"
+        >
+          <span className="material-symbols-outlined text-[22px]">home</span>
+          <span>Go to Home</span>
+        </button>
         <Link
           href="/help-support"
           className="w-full flex items-center gap-3 px-4 py-2.5 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 transition-all rounded-lg text-sm font-medium"

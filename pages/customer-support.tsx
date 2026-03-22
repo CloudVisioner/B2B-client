@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@apollo/client';
-import Navbar from '../libs/components/Navbar';
 import Footer from '../libs/components/Footer';
 import { GET_CS_CENTER_CONTENT } from '../apollo/admin/query';
 import { NotificationToast } from '../libs/components/NotificationToast';
@@ -62,8 +61,6 @@ export default function CustomerSupportPage() {
 
   return (
     <div className="app-container relative min-h-screen" style={{ fontFamily: 'Inter, sans-serif' }}>
-      <Navbar currentPage="home" />
-      
       <main className="main-content relative z-10">
         {/* Hero Section with FAQ Animation */}
         <section className="relative w-full min-h-[400px] overflow-hidden bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">

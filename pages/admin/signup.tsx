@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useReactiveVar } from '@apollo/client';
 import { userVar } from '../../apollo/store';
-import { signUpNew, normalizeRole, isValidRole, isLoggedIn } from '../../libs/auth';
+import { adminSignUp, normalizeRole, isValidRole, isLoggedIn, isAdminPortalRole } from '../../libs/auth';
 
 export default function AdminSignupPage() {
   const router = useRouter();
@@ -21,8 +22,7 @@ export default function AdminSignupPage() {
     // Check if admin already exists (you might want to add an API call here)
     // For now, we'll allow signup but backend should enforce single admin
     if (isLoggedIn() && currentUser) {
-      const role = normalizeRole(currentUser?.userRole);
-      if (role === 'ADMIN') {
+      if (isAdminPortalRole(currentUser?.userRole)) {
         router.push('/admin');
       }
     }
@@ -62,12 +62,10 @@ export default function AdminSignupPage() {
     }
 
     try {
-      // Note: Backend should enforce ADMIN role and single admin restriction
-      await signUpNew({
+      await adminSignUp({
         userNick: formData.userNick?.trim() || '',
         email: formData.email?.trim().toLowerCase() || '',
         password: formData.password,
-        memberType: 'buyer', // Temporary - backend should handle admin role assignment
       });
 
       await new Promise(resolve => setTimeout(resolve, 200));
@@ -82,7 +80,8 @@ export default function AdminSignupPage() {
       }
 
       // If admin role is set, redirect to admin dashboard
-      if (userRole === 'ADMIN') {
+      if (isAdminPortalRole(userRole)) {
+        setLoading(false);
         router.push('/admin');
       } else {
         setError('Admin account creation requires special permissions. Please contact system administrator.');
@@ -232,24 +231,24 @@ export default function AdminSignupPage() {
             <p className="text-xs text-slate-400 text-center mb-4">
               Already have an admin account?
             </p>
-            <a
+            <Link
               href="/admin/login"
-              className="block w-full text-center py-2 text-indigo-300 hover:text-indigo-200 text-sm font-medium transition-colors"
+              className="block w-full rounded-lg py-2 text-center text-sm font-semibold text-indigo-300 transition-colors hover:bg-white/5 hover:text-indigo-200"
             >
               Sign in instead
-            </a>
+            </Link>
           </div>
         </div>
 
         {/* Back to Home */}
         <div className="mt-6 text-center">
-          <a
+          <Link
             href="/"
-            className="text-slate-300 hover:text-white text-sm transition-colors inline-flex items-center gap-2"
+            className="inline-flex items-center gap-2 text-sm text-slate-300 transition-colors hover:text-white"
           >
             <span className="material-symbols-outlined text-base">arrow_back</span>
-            <span>Back to Home</span>
-          </a>
+            Back to Home
+          </Link>
         </div>
       </div>
     </div>

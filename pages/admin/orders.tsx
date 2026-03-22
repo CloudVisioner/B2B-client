@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useReactiveVar, useQuery, useMutation } from '@apollo/client';
 import { userVar } from '../../apollo/store';
-import { isLoggedIn, normalizeRole } from '../../libs/auth';
+import { isLoggedIn, normalizeRole, isAdminPortalRole } from '../../libs/auth';
 import { AdminSidebar } from '../../libs/components/admin/AdminSidebar';
 import { AdminHeader } from '../../libs/components/admin/AdminHeader';
 import { GET_ALL_ORDERS } from '../../apollo/admin/query';
@@ -63,7 +63,7 @@ export default function AdminOrdersPage() {
       return;
     }
     const role = normalizeRole(currentUser?.userRole);
-    if (role && role !== 'ADMIN') {
+    if (role && !isAdminPortalRole(role)) {
       router.push('/dashboard');
       return;
     }
@@ -120,12 +120,12 @@ export default function AdminOrdersPage() {
   if (!isLoggedIn()) return null;
 
   const role = normalizeRole(currentUser?.userRole);
-  if (role && role !== 'ADMIN') {
+  if (role && !isAdminPortalRole(role)) {
     return null;
   }
 
   return (
-    <div className="flex h-screen w-full bg-[#F9FAFB] overflow-hidden antialiased">
+    <div className="flex h-screen w-full bg-dashboard-canvas overflow-hidden antialiased">
       {/* Sidebar - Navigation */}
       <AdminSidebar />
 
@@ -135,7 +135,7 @@ export default function AdminOrdersPage() {
         <AdminHeader title="Orders Management" subtitle="Monitor and manage all orders" />
 
         {/* ── Scrollable Body ── */}
-        <main className="flex-1 overflow-y-auto bg-[#F9FAFB]">
+        <main className="flex-1 overflow-y-auto bg-dashboard-canvas">
           <div className="max-w-7xl mx-auto px-8 py-10">
             <div className="bg-white border border-slate-200 rounded-lg p-6 mb-6">
               <div className="space-y-4">

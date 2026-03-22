@@ -3,7 +3,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/router';
 import { useReactiveVar, useQuery } from '@apollo/client';
 import { userVar } from '../../../apollo/store';
-import { GET_PROVIDER_ORGANIZATION, GET_QUOTES_BY_ORGANIZATION, GET_SERVICE_REQUESTS, GET_MY_PROFILE } from '../../../apollo/user/query';
+import { GET_PROVIDER_ORGANIZATION, GET_QUOTES_BY_ORGANIZATION, GET_SERVICE_REQUESTS, GET_MY_PROFILE_SELF } from '../../../apollo/user/query';
 import { getHeaders } from '../../../apollo/utils';
 import { isLoggedIn, getJwtToken, decodeJWT } from '../../auth';
 import { NotificationBell } from './NotificationBell';
@@ -48,39 +48,20 @@ export const ProviderHeader: React.FC<ProviderHeaderProps> = ({ title }) => {
     }
   }, []);
 
-  // Get userId from currentUser or token
-  const getUserId = (): string | null => {
-    if (currentUser?._id && currentUser._id.length === 24) return currentUser._id;
-    const token = getJwtToken();
-    if (token) {
-      try {
-        const claims = decodeJWT(token);
-        return claims?._id || claims?.userId || null;
-      } catch (e) {
-        return null;
-      }
-    }
-    return null;
-  };
-
-  const validUserId = getUserId();
-
   // Fetch user profile to get latest image on page load and after updates
-  const { data: profileData, refetch: refetchProfile } = useQuery(GET_MY_PROFILE, {
-    skip: !isLoggedIn() || !validUserId,
-    variables: { userId: validUserId || '' },
+  const { data: profileData } = useQuery(GET_MY_PROFILE_SELF, {
+    skip: !isLoggedIn(),
     fetchPolicy: 'cache-and-network',
     errorPolicy: 'all',
     context: {
       headers: isLoggedIn() ? getHeaders() : {},
     },
     onCompleted: (data) => {
-      if (data?.getUser?.userImage) {
+      if (data?.getMyProfile?.userImage) {
         const current = userVar();
-        // Update userVar with latest image
         userVar({
           ...current,
-          userImage: data.getUser.userImage,
+          userImage: data.getMyProfile.userImage,
         });
       }
     },
@@ -105,7 +86,7 @@ export const ProviderHeader: React.FC<ProviderHeaderProps> = ({ title }) => {
   };
 
   // Use profile image if available, otherwise use currentUser image or token claims
-  const rawUserImage = profileData?.getUser?.userImage || currentUser?.userImage || (() => {
+  const rawUserImage = profileData?.getMyProfile?.userImage || currentUser?.userImage || (() => {
     const token = getJwtToken();
     if (token) {
       try {
@@ -212,27 +193,23 @@ export const ProviderHeader: React.FC<ProviderHeaderProps> = ({ title }) => {
             <NotificationBell userId={currentUser?._id} userRole={currentUser?.userRole} />
             <div className="h-8 w-[1px] bg-slate-200 dark:bg-slate-800"></div>
             <button
+              type="button"
               onClick={() => router.push('/provider/settings')}
-              className="focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded-xl transition-all"
+              className="rounded-xl transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               {userImage ? (
-                <div className="w-12 h-12 rounded-xl overflow-hidden ring-2 ring-indigo-500/20 shadow-lg hover:ring-indigo-500/40 transition-all">
-                  <img 
-                    src={userImage} 
-                    alt={userName} 
-                    className="w-full h-full object-cover"
-                    style={{ display: 'block' }}
+                <span className="relative block h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-slate-100 shadow-lg ring-2 ring-indigo-500/20 transition-all hover:ring-indigo-500/40 dark:bg-slate-800">
+                  <img
+                    src={userImage}
+                    alt={userName}
+                    className="block h-full w-full min-h-0 object-cover object-center"
                     onError={(e) => {
-                      // Fallback to initials if image fails
-                      const target = e.target as HTMLImageElement;
-                      target.style.display = 'none';
-                      const parent = target.parentElement?.parentElement;
-                      if (parent) {
-                        parent.innerHTML = `<div class="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center text-white font-black text-sm shadow-lg" style="display: flex">${getInitials(userName)}</div>`;
-                      }
+                      const el = e.target as HTMLImageElement;
+                      el.onerror = null;
+                      el.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=4F46E5&color=fff`;
                     }}
                   />
-                </div>
+                </span>
               ) : (
                 <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center text-white font-black text-sm shadow-lg hover:from-indigo-600 hover:to-indigo-700 transition-all" style={{ display: 'flex' }}>
                   {getInitials(userName)}

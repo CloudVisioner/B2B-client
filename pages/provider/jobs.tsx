@@ -35,7 +35,7 @@ interface ServiceRequest {
     _id: string;
     organizationName?: string;
     organizationIndustry?: string;
-    organizationLocation?: string;
+    organizationCountry?: string;
     organizationDescription?: string;
     organizationImage?: string;
     organizationContactEmail?: string;
@@ -569,10 +569,10 @@ export default function ProviderJobsPage() {
                                     </span>
                                   </div>
                                 )}
-                                {job.reqBuyerOrgData?.organizationLocation && (
+                                {job.reqBuyerOrgData?.organizationCountry && (
                                 <div className="flex items-center gap-2">
                                     <span className="material-symbols-outlined text-base text-slate-400">location_on</span>
-                                  <span className="text-xs text-slate-500">{job.reqBuyerOrgData.organizationLocation}</span>
+                                  <span className="text-xs text-slate-500">{job.reqBuyerOrgData.organizationCountry}</span>
                                   </div>
                                 )}
                                 {job.reqCategory && (

@@ -45,7 +45,12 @@ export function mapBackendProviderToList(backend: BackendProviderListItem): Prov
     reviewsCount: backend.reviewsCount || 0,
     projectsCompleted: backend.orgTotalProjects || 0,
     responseTime: backend.orgResponseTimeAvg || '',
-    startingRate: backend.organizationHourlyRate || backend.startingRate || 0,
+    startingRate: (() => {
+      const raw = backend.organizationHourlyRate ?? backend.startingRate;
+      if (raw == null || raw === '') return 0;
+      const n = typeof raw === 'number' ? raw : parseFloat(String(raw).replace(/[^0-9.-]/g, ''));
+      return Number.isFinite(n) ? n : 0;
+    })(),
     budgetRange: backend.budgetRange != null ? (typeof backend.budgetRange === 'string' ? backend.budgetRange : String(backend.budgetRange)) : null,
     location: backend.organizationLocation || backend.location || backend.organizationCountry || '',
     city: (backend as any).orgCity || '',
@@ -57,6 +62,12 @@ export function mapBackendProviderToList(backend: BackendProviderListItem): Prov
     orgTotalLikes: backend.orgTotalLikes,
     orgTotalViews: backend.orgTotalViews,
     industries: normalizeToStringArray(backend.industries),
+    createdAt:
+      typeof backend.createdAt === 'string'
+        ? backend.createdAt
+        : backend.createdAt != null
+          ? String(backend.createdAt)
+          : '',
   };
 }
 

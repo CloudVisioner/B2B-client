@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import Navbar from '../../libs/components/Navbar';
 import ProviderProfile from '../../libs/components/ProviderProfile';
 import Footer from '../../libs/components/Footer';
 
@@ -37,7 +36,6 @@ export default function ProviderDetailPage() {
 
   return (
     <div className="app-container">
-      <Navbar currentPage="provider-profile" />
       <main className="main-content">
         <ProviderProfile 
           providerId={providerId} 
