@@ -5,9 +5,17 @@ import { userVar } from '../apollo/store';
 import { isLoggedIn, getJwtToken, updateUserInfo, decodeJWT } from '../libs/auth';
 import { Sidebar } from '../libs/components/dashboard/Sidebar';
 import { Header } from '../libs/components/dashboard/Header';
-import { CREATE_ORGANIZATION, UPDATE_ORGANIZATION, UPDATE_MY_PROFILE, CHANGE_MY_PASSWORD, UPLOAD_PROFILE_IMAGE } from '../apollo/user/mutation';
+import { CREATE_ORGANIZATION, UPDATE_MY_PROFILE, CHANGE_MY_PASSWORD, UPLOAD_PROFILE_IMAGE } from '../apollo/user/mutation';
 import { GET_BUYER_ORGANIZATION, GET_MY_PROFILE } from '../apollo/user/query';
 import { getHeaders } from '../apollo/utils';
+import {
+  clampUserDescription,
+  clampUserNick,
+  getUserNickValidationError,
+  PROFILE_USER_DESCRIPTION_MAX,
+  PROFILE_USER_NICK_MAX,
+} from '../libs/utils';
+import { uploadOrganizationImage } from '../libs/utils/uploadOrganizationImage';
 
 /* ═══════════════════════════════════════════════════════════
    Tab definitions
@@ -26,12 +34,12 @@ type TabId = (typeof TABS)[number]['id'];
 function OrganizationTab() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const orgExistedBeforeSaveRef = useRef(false);
   const [formData, setFormData] = useState({
     orgName: '',
     industry: '',
     location: '',
     description: '',
-    budgetRange: '',
     logoUrl: '',
   });
   const [isEditMode, setIsEditMode] = useState(false);
@@ -88,9 +96,8 @@ function OrganizationTab() {
           setFormData({
             orgName: org.organizationName || '',
             industry: org.organizationIndustry || '',
-            location: org.organizationLocation || '',
+            location: org.organizationLocation || org.organizationCountry || '',
             description: org.organizationDescription || '',
-            budgetRange: org.budgetRange || '',
             logoUrl: logoUrl,
           });
           
@@ -118,31 +125,14 @@ function OrganizationTab() {
     context: {
       headers: isLoggedIn() ? getHeaders() : {},
     },
-    refetchQueries: [
-      {
-        query: GET_BUYER_ORGANIZATION,
-      },
-    ],
+    refetchQueries: [{ query: GET_BUYER_ORGANIZATION }],
     awaitRefetchQueries: true,
-    onCompleted: async (data) => {
+    onCompleted: () => {
       setShowSuccessMessage(true);
-      setIsCreated(true);
+      setIsCreated(!orgExistedBeforeSaveRef.current);
       setIsEditMode(false);
       setLogoFile(null);
-      
-      const org = data?.createOrUpdateBuyerOrganization;
-      // organizationImage is now a string, not an array
-      // ✅ Safety check: ensure it's always a string, even if backend returns array
-      let newLogoUrl = '';
-      if (org?.organizationImage) {
-        if (Array.isArray(org.organizationImage)) {
-          newLogoUrl = org.organizationImage[0] || '';
-        } else {
-          newLogoUrl = org.organizationImage;
-        }
-      }
-      
-      await refetch();
+      void refetch();
 
       if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current);
       successTimeoutRef.current = setTimeout(() => {
@@ -150,43 +140,10 @@ function OrganizationTab() {
         setIsCreated(false);
       }, 3000);
     },
-    onError: (error) => {
-      console.error('Error creating organization:', error);
-      alert('Failed to create organization. Please try again.');
+    onError: (error: unknown) => {
+      console.error('Error saving buyer organization:', error);
     },
   });
-
-  const [updateOrg, { loading: isUpdating }] = useMutation(UPDATE_ORGANIZATION, {
-    context: {
-      headers: isLoggedIn() ? getHeaders() : {},
-    },
-    refetchQueries: [
-      {
-        query: GET_BUYER_ORGANIZATION,
-      },
-    ],
-    awaitRefetchQueries: true,
-    onCompleted: async (data) => {
-      setShowSuccessMessage(true);
-      setIsCreated(false);
-      setIsEditMode(false);
-      setLogoFile(null);
-      
-      await refetch();
-
-      if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current);
-      successTimeoutRef.current = setTimeout(() => {
-        setShowSuccessMessage(false);
-        setIsCreated(false);
-      }, 3000);
-    },
-    onError: (error) => {
-      console.error('Error updating organization:', error);
-      alert('Failed to update organization. Please try again.');
-    },
-  });
-
-  const isSaving = isCreating || isUpdating;
 
   const handleInputChange = (field: string, value: string | string[]) => {
     if (!isEditMode) return;
@@ -195,89 +152,59 @@ function OrganizationTab() {
 
 
   const handleSave = async () => {
-    if (!formData.orgName || !formData.industry || !formData.location) {
-      alert('Please fill in all required fields (Name, Industry, Location).');
+    if (isCreating) return;
+    if (!formData.orgName || !formData.industry || !formData.location || !formData.description?.trim()) {
+      console.warn('Buyer org save: missing required fields');
       return;
     }
 
     try {
-      let logoUrl: string = '';
-      // Ensure logoUrl is always a string, not an array
-      if (Array.isArray(formData.logoUrl)) {
-        logoUrl = formData.logoUrl[0] || '';
-      } else {
-        logoUrl = formData.logoUrl || '';
-      }
+      /** Same as provider settings: multipart upload returns a string path/URL only (never send `File` to the mutation). */
+      let organizationImageUrlFromUpload: string | undefined;
 
       if (logoFile) {
         setIsUploadingLogo(true);
         try {
-          logoUrl = await uploadLogoToBackend(logoFile);
-          // Ensure it's a string (uploadLogoToBackend should return string, but double-check)
-          if (Array.isArray(logoUrl)) {
-            logoUrl = logoUrl[0] || '';
+          const uploaded = await uploadOrganizationImage(logoFile);
+          const urlString = typeof uploaded === 'string' ? uploaded.trim() : '';
+          if (!urlString) {
+            console.error('Buyer org logo upload: empty URL from server');
+            return;
           }
-          // Update formData with the new image URL
-          setFormData((prev) => ({ ...prev, logoUrl }));
-          // Update preview to show the uploaded image URL (not blob)
-          const fullImageUrl = getImageUrl(logoUrl);
-          setLogoPreview(fullImageUrl);
-          // Clear the file since it's now uploaded
+          organizationImageUrlFromUpload = urlString;
+          setFormData((prev) => ({ ...prev, logoUrl: urlString }));
+          setLogoPreview(getImageUrl(urlString));
           setLogoFile(null);
-        } catch (error: any) {
-          console.error('Error uploading logo:', error);
-          alert(`Failed to upload logo: ${error.message || 'Please try again'}`);
-          setIsUploadingLogo(false);
+        } catch (error: unknown) {
+          console.error('Error uploading buyer organization logo:', error);
           return;
         } finally {
           setIsUploadingLogo(false);
         }
       }
 
-      if (organizationExists) {
-        const updateInput: any = {
-          orgId: orgData.getBuyerOrganization._id,
-          organizationName: formData.orgName.trim(),
-          organizationIndustry: formData.industry,
-          organizationLocation: formData.location.trim(),
-          organizationDescription: formData.description.trim(),
-        };
+      const locationValue = formData.location.trim();
+      const input: {
+        organizationName: string;
+        organizationIndustry: string;
+        organizationLocation: string;
+        organizationDescription: string;
+        organizationImage?: string;
+      } = {
+        organizationName: formData.orgName.trim(),
+        organizationIndustry: formData.industry,
+        organizationLocation: locationValue,
+        organizationDescription: formData.description.trim(),
+      };
 
-        if (formData.budgetRange.trim()) {
-          updateInput.budgetRange = formData.budgetRange.trim();
-        }
-
-        if (logoUrl) {
-          // ✅ Ensure organizationImage is always a string, not an array
-          // Double-check in case logoUrl somehow became an array
-          updateInput.organizationImage = Array.isArray(logoUrl) ? logoUrl[0] : logoUrl;
-        }
-
-        await updateOrg({
-          variables: { input: updateInput },
-        });
-      } else {
-        const createInput: any = {
-          organizationName: formData.orgName.trim(),
-          organizationIndustry: formData.industry,
-          organizationLocation: formData.location.trim(),
-          organizationDescription: formData.description.trim(),
-        };
-
-        if (formData.budgetRange.trim()) {
-          createInput.budgetRange = formData.budgetRange.trim();
-        }
-
-        if (logoUrl) {
-          // ✅ Ensure organizationImage is always a string, not an array
-          // Double-check in case logoUrl somehow became an array
-          createInput.organizationImage = Array.isArray(logoUrl) ? logoUrl[0] : logoUrl;
-        }
-
-        await createOrg({
-          variables: { input: createInput },
-        });
+      if (organizationImageUrlFromUpload) {
+        input.organizationImage = organizationImageUrlFromUpload;
       }
+
+      orgExistedBeforeSaveRef.current = !!organizationExists;
+      await createOrg({
+        variables: { input },
+      });
     } catch (error) {
       // Error handled in onError callback
     }
@@ -297,11 +224,13 @@ function OrganizationTab() {
     const image = e.target.files?.[0];
     if (!image) return;
     if (!image.type.match(/^image\/(jpg|jpeg|png)$/i)) {
-      alert('Please upload a valid image file (JPG, JPEG, or PNG)');
+      console.warn('Buyer org logo: invalid file type');
+      if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
     if (image.size > 5 * 1024 * 1024) {
-      alert('Image size must be less than 5MB');
+      console.warn('Buyer org logo: file too large');
+      if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
     if (logoPreview && logoPreview.startsWith('blob:')) {
@@ -313,40 +242,6 @@ function OrganizationTab() {
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
-  };
-
-  const uploadLogoToBackend = async (file: File): Promise<string> => {
-    const formData = new FormData();
-    const token = getJwtToken();
-    const apiUrl = process.env.NEXT_PUBLIC_API_GRAPHQL_URL || process.env.REACT_APP_API_GRAPHQL_URL || 'http://localhost:3010/graphql';
-    formData.append('operations', JSON.stringify({
-      query: `mutation ImageUploader($file: Upload!, $target: String!) {
-        imageUploader(file: $file, target: $target)
-      }`,
-      variables: { file: null, target: 'organization' }
-    }));
-    formData.append('map', JSON.stringify({ '0': ['variables.file'] }));
-    formData.append('0', file);
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'apollo-require-preflight': 'true',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: formData,
-    });
-    if (!response.ok) {
-      throw new Error(`Upload failed: ${response.statusText}`);
-    }
-    const result = await response.json();
-    if (result.errors) {
-      throw new Error(result.errors[0]?.message || 'Upload failed');
-    }
-    const uploadedUrl = result.data?.imageUploader;
-    if (!uploadedUrl) {
-      throw new Error('No URL returned from upload');
-    }
-    return uploadedUrl;
   };
 
   if (!organizationExists) {
@@ -515,19 +410,6 @@ function OrganizationTab() {
                 {formData.description.length} / 2000 characters
               </p>
             </div>
-            <div className="col-span-2">
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-                Budget Range
-              </label>
-              <input
-                type="text"
-                value={formData.budgetRange}
-                onChange={(e) => handleInputChange('budgetRange', e.target.value)}
-                placeholder="$1,000 - $10,000 per project"
-                disabled={!isEditMode}
-                className="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm font-medium text-slate-900 focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50 disabled:bg-white disabled:cursor-not-allowed"
-              />
-            </div>
           </div>
         </div>
       </div>
@@ -536,10 +418,17 @@ function OrganizationTab() {
         <div className="flex justify-end">
           <button
             onClick={handleSave}
-            disabled={isSaving || isUploadingLogo || orgLoading || !formData.orgName || !formData.industry || !formData.location}
+            disabled={
+              isCreating ||
+              isUploadingLogo ||
+              orgLoading ||
+              !formData.orgName ||
+              !formData.industry ||
+              !formData.location
+            }
             className="bg-[var(--primary)] hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-6 py-2.5 rounded-lg font-bold text-sm transition-all shadow-sm flex items-center gap-2"
           >
-            {isSaving || isUploadingLogo ? (
+            {isCreating || isUploadingLogo ? (
               <>
                 <span className="material-symbols-outlined text-lg animate-spin">sync</span>
                 {isUploadingLogo ? 'Uploading Logo...' : 'Saving...'}
@@ -652,10 +541,10 @@ function ProfileTab() {
       if (data?.getUser && !isEditMode && !imageFile) {
         const user = data.getUser;
         setFormData({
-          userNick: user.userNick || '',
+          userNick: clampUserNick(user.userNick || ''),
           userEmail: user.userEmail || '',
           userPhone: user.userPhone || '',
-          userDescription: user.userDescription || '',
+          userDescription: clampUserDescription(user.userDescription || ''),
           userImage: user.userImage || '',
         });
         if (user.userImage) {
@@ -722,9 +611,13 @@ function ProfileTab() {
         setShowSuccessMessage(false);
       }, 3000);
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error('Error updating profile:', error);
-      alert('Failed to update profile. Please try again.');
+      const msg =
+        error?.graphQLErrors?.map((e: { message: string }) => e.message).join(' ') ||
+        error?.message ||
+        'Failed to update profile. Please try again.';
+      alert(msg);
     },
   });
 
@@ -746,7 +639,10 @@ function ProfileTab() {
 
   const handleInputChange = (field: string, value: string) => {
     if (!isEditMode) return;
-    setFormData((prev) => ({ ...prev, [field]: value }));
+    let next = value;
+    if (field === 'userNick') next = value.slice(0, PROFILE_USER_NICK_MAX);
+    if (field === 'userDescription') next = value.slice(0, PROFILE_USER_DESCRIPTION_MAX);
+    setFormData((prev) => ({ ...prev, [field]: next }));
   };
 
   const handlePasswordChange = (field: string, value: string) => {
@@ -829,6 +725,12 @@ function ProfileTab() {
       return;
     }
 
+    const nickErr = getUserNickValidationError(formData.userNick);
+    if (nickErr) {
+      alert(nickErr);
+      return;
+    }
+
     // Get user ID from multiple sources as fallback
     const getUserIdFromToken = (): string | null => {
       const token = getJwtToken();
@@ -873,9 +775,12 @@ function ProfileTab() {
         }
       }
 
+      const nick = clampUserNick(formData.userNick);
+      const bio = clampUserDescription(formData.userDescription);
+
       const updateInput: any = {
         _id: userIdToSave,
-        userNick: formData.userNick.trim(),
+        userNick: nick,
         userEmail: formData.userEmail.trim(),
       };
 
@@ -883,8 +788,8 @@ function ProfileTab() {
         updateInput.userPhone = formData.userPhone.trim();
       }
 
-      if (formData.userDescription.trim()) {
-        updateInput.userDescription = formData.userDescription.trim();
+      if (bio.length > 0) {
+        updateInput.userDescription = bio;
       }
 
       if (imageUrl) {
@@ -1050,6 +955,7 @@ function ProfileTab() {
                 value={formData.userNick}
                 onChange={(e) => handleInputChange('userNick', e.target.value)}
                 placeholder="John Doe"
+                maxLength={PROFILE_USER_NICK_MAX}
                 disabled={!isEditMode}
                 className="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm font-medium text-slate-900 focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50 disabled:bg-white disabled:cursor-not-allowed"
               />
@@ -1085,9 +991,13 @@ function ProfileTab() {
                 value={formData.userDescription}
                 onChange={(e) => handleInputChange('userDescription', e.target.value)}
                 placeholder="Tell us about yourself..."
+                maxLength={PROFILE_USER_DESCRIPTION_MAX}
                 disabled={!isEditMode}
                 className="w-full border border-slate-200 rounded-lg px-4 py-3.5 text-sm font-medium text-slate-900 focus:ring-[var(--primary)] focus:border-[var(--primary)] bg-slate-50/50 resize-y disabled:bg-white disabled:cursor-not-allowed"
               />
+              <p className="text-xs text-slate-400 mt-1 text-right">
+                {formData.userDescription.length}/{PROFILE_USER_DESCRIPTION_MAX}
+              </p>
             </div>
           </div>
         </div>

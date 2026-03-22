@@ -1,14 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery } from '@apollo/client';
-import { isLoggedIn, getJwtToken } from '../../auth';
-import { CREATE_ORGANIZATION, UPDATE_ORGANIZATION } from '../../../apollo/user/mutation';
+import { isLoggedIn } from '../../auth';
+import { CREATE_ORGANIZATION } from '../../../apollo/user/mutation';
 import { GET_BUYER_ORGANIZATION } from '../../../apollo/user/query';
 import { getHeaders } from '../../../apollo/utils';
+import { uploadOrganizationImage } from '../../utils/uploadOrganizationImage';
 
 export function BuyerOrganizationForm() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const hasRefetchedOnMountRef = useRef(false);
   const hasInitializedEditModeRef = useRef(false);
   const [formData, setFormData] = useState({
     orgName: '',
@@ -43,14 +43,6 @@ export function BuyerOrganizationForm() {
       headers: isLoggedIn() ? getHeaders() : {},
     },
   });
-
-  // Refetch on mount to ensure fresh data
-  useEffect(() => {
-    if (isLoggedIn() && !hasRefetchedOnMountRef.current) {
-      hasRefetchedOnMountRef.current = true;
-      refetch().catch(console.error);
-    }
-  }, [refetch]);
 
   // Helper function to convert relative image paths to full URLs
   const getImageUrl = (imagePath: string | null | undefined): string => {
@@ -88,7 +80,7 @@ export function BuyerOrganizationForm() {
         setFormData({
           orgName: org.organizationName || '',
           industry: org.organizationIndustry || '',
-          location: org.organizationLocation || '',
+          location: org.organizationLocation || org.organizationCountry || '',
           description: org.organizationDescription || '',
           logoUrl: logoUrl,
         });
@@ -135,13 +127,14 @@ export function BuyerOrganizationForm() {
     context: {
       headers: isLoggedIn() ? getHeaders() : {},
     },
-    onCompleted: async (data) => {
+    refetchQueries: [{ query: GET_BUYER_ORGANIZATION }],
+    awaitRefetchQueries: true,
+    onCompleted: () => {
       setIsSaved(true);
       setShowSuccessMessage(true);
       setIsEditMode(false);
       setLogoFile(null);
-
-      await refetch();
+      void refetch();
 
       if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current);
       successTimeoutRef.current = setTimeout(() => {
@@ -149,37 +142,10 @@ export function BuyerOrganizationForm() {
         setShowSuccessMessage(false);
       }, 3000);
     },
-    onError: (error) => {
-      console.error('Error creating organization:', error);
-      alert('Failed to create organization. Please try again.');
+    onError: (error: unknown) => {
+      console.error('Error saving buyer organization:', error);
     },
   });
-
-  const [updateOrg, { loading: isUpdating }] = useMutation(UPDATE_ORGANIZATION, {
-    context: {
-      headers: isLoggedIn() ? getHeaders() : {},
-    },
-    onCompleted: async (data) => {
-      setIsSaved(true);
-      setShowSuccessMessage(true);
-      setIsEditMode(false);
-      setLogoFile(null);
-
-      await refetch();
-
-      if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current);
-      successTimeoutRef.current = setTimeout(() => {
-        setIsSaved(false);
-        setShowSuccessMessage(false);
-      }, 3000);
-    },
-    onError: (error) => {
-      console.error('Error updating organization:', error);
-      alert('Failed to update organization. Please try again.');
-    },
-  });
-
-  const isSaving = isCreating || isUpdating;
 
   const handleInputChange = (field: string, value: string) => {
     if (!isEditMode) return;
@@ -201,7 +167,7 @@ export function BuyerOrganizationForm() {
       setFormData({
         orgName: org.organizationName || '',
         industry: org.organizationIndustry || '',
-        location: org.organizationLocation || '',
+        location: org.organizationLocation || org.organizationCountry || '',
         description: org.organizationDescription || '',
         logoUrl: logoUrl,
       });
@@ -217,85 +183,58 @@ export function BuyerOrganizationForm() {
   };
 
   const handleSave = async () => {
+    if (isCreating) return;
     if (!formData.orgName || !formData.industry || !formData.location || !formData.description) {
-      alert('Please fill in all required fields.');
+      console.warn('Buyer org save: missing required fields');
       return;
     }
 
     try {
-      let logoUrl: string = '';
-      // Ensure logoUrl is always a string, not an array
-      if (Array.isArray(formData.logoUrl)) {
-        logoUrl = formData.logoUrl[0] || '';
-      } else {
-        logoUrl = formData.logoUrl || '';
-      }
+      /** Same as provider settings: upload returns string path/URL; mutation receives that string only. */
+      let organizationImageUrlFromUpload: string | undefined;
 
       if (logoFile) {
         setIsUploadingLogo(true);
         try {
-          const uploadedUrl = await uploadLogoToBackend(logoFile);
-          // Ensure it's a string (uploadLogoToBackend should return string, but double-check)
-          logoUrl = Array.isArray(uploadedUrl) ? uploadedUrl[0] : uploadedUrl;
-          // Update formData with the new image URL
-          setFormData((prev) => ({ ...prev, logoUrl }));
-          // Update preview to show the uploaded image URL (not blob)
-          const fullImageUrl = getImageUrl(logoUrl);
-          setLogoPreview(fullImageUrl);
-          // Clear the file since it's now uploaded
+          const uploaded = await uploadOrganizationImage(logoFile);
+          const urlString = typeof uploaded === 'string' ? uploaded.trim() : '';
+          if (!urlString) {
+            console.error('Buyer org logo upload: empty URL from server');
+            return;
+          }
+          organizationImageUrlFromUpload = urlString;
+          setFormData((prev) => ({ ...prev, logoUrl: urlString }));
+          setLogoPreview(getImageUrl(urlString));
           setLogoFile(null);
-        } catch (error: any) {
-          console.error('Error uploading logo:', error);
-          alert(`Failed to upload logo: ${error.message || 'Please try again'}`);
-          setIsUploadingLogo(false);
+        } catch (error: unknown) {
+          console.error('Error uploading buyer organization logo:', error);
           return;
         } finally {
           setIsUploadingLogo(false);
         }
       }
 
-      if (organizationExists) {
-        const updateInput: any = {
-          orgId: orgData.getBuyerOrganization._id,
-          organizationName: formData.orgName.trim(),
-          organizationIndustry: formData.industry,
-          organizationLocation: formData.location.trim(),
-          organizationDescription: formData.description.trim(),
-        };
+      const locationValue = formData.location.trim();
+      const input: {
+        organizationName: string;
+        organizationIndustry: string;
+        organizationLocation: string;
+        organizationDescription: string;
+        organizationImage?: string;
+      } = {
+        organizationName: formData.orgName.trim(),
+        organizationIndustry: formData.industry,
+        organizationLocation: locationValue,
+        organizationDescription: formData.description.trim(),
+      };
 
-        if (logoUrl) {
-          // ✅ Ensure organizationImage is always a string, not an array
-          // Double-check in case logoUrl somehow became an array
-          updateInput.organizationImage = Array.isArray(logoUrl) ? logoUrl[0] : logoUrl;
-        }
-
-        await updateOrg({
-          variables: {
-            input: updateInput,
-          },
-        });
-      } else {
-        const createInput: any = {
-          organizationName: formData.orgName.trim(),
-          organizationIndustry: formData.industry,
-          organizationLocation: formData.location.trim(),
-          organizationDescription: formData.description.trim(),
-          orgOwnerUserId: null,
-          deletedAt: null,
-        };
-
-        if (logoUrl) {
-          // ✅ Ensure organizationImage is always a string, not an array
-          // Double-check in case logoUrl somehow became an array
-          createInput.organizationImage = Array.isArray(logoUrl) ? logoUrl[0] : logoUrl;
-        }
-
-        await createOrg({
-          variables: {
-            input: createInput,
-          },
-        });
+      if (organizationImageUrlFromUpload) {
+        input.organizationImage = organizationImageUrlFromUpload;
       }
+
+      await createOrg({
+        variables: { input },
+      });
     } catch {
       // handled in onError
     }
@@ -315,11 +254,13 @@ export function BuyerOrganizationForm() {
     if (!image) return;
 
     if (!image.type.match(/^image\/(jpg|jpeg|png)$/i)) {
-      alert('Please upload a valid image file (JPG, JPEG, or PNG)');
+      console.warn('Buyer org logo: invalid file type');
+      if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
     if (image.size > 5 * 1024 * 1024) {
-      alert('Image size must be less than 5MB');
+      console.warn('Buyer org logo: file too large');
+      if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
 
@@ -335,61 +276,6 @@ export function BuyerOrganizationForm() {
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
-  };
-
-  const uploadLogoToBackend = async (file: File): Promise<string> => {
-    const formData = new FormData();
-    const token = getJwtToken();
-    const apiUrl =
-      process.env.NEXT_PUBLIC_API_URL ||
-      process.env.NEXT_PUBLIC_API_GRAPHQL_URL ||
-      process.env.REACT_APP_API_GRAPHQL_URL ||
-      'http://localhost:4001/graphql';
-
-    formData.append(
-      'operations',
-      JSON.stringify({
-        query: `mutation ImageUploader($file: Upload!, $target: String!) {
-          imageUploader(file: $file, target: $target)
-        }`,
-        variables: { file: null, target: 'organization' },
-      }),
-    );
-
-    formData.append(
-      'map',
-      JSON.stringify({
-        0: ['variables.file'],
-      }),
-    );
-
-    formData.append('0', file);
-
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'apollo-require-preflight': 'true',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: formData,
-    });
-
-    if (!response.ok) {
-      throw new Error(`Upload failed: ${response.statusText}`);
-    }
-
-    const result = await response.json();
-
-    if (result.errors) {
-      throw new Error(result.errors[0]?.message || 'Upload failed');
-    }
-
-    const uploadedUrl = result.data?.imageUploader;
-    if (!uploadedUrl) {
-      throw new Error('No URL returned from upload');
-    }
-
-    return uploadedUrl;
   };
 
   return (
@@ -626,7 +512,7 @@ export function BuyerOrganizationForm() {
           <button
             onClick={handleSave}
             disabled={
-              isSaving ||
+              isCreating ||
               isUploadingLogo ||
               orgLoading ||
               !formData.orgName ||
@@ -636,7 +522,7 @@ export function BuyerOrganizationForm() {
             }
             className="bg-[var(--primary)] hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-6 py-2.5 rounded-lg font-bold text-sm transition-all shadow-sm flex items-center gap-2"
           >
-            {isSaving || isUploadingLogo ? (
+            {isCreating || isUploadingLogo ? (
               <>
                 <span className="material-symbols-outlined text-lg animate-spin">sync</span>
                 {isUploadingLogo ? 'Uploading Logo...' : organizationExists ? 'Saving...' : 'Creating...'}
