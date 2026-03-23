@@ -83,8 +83,9 @@ export const Sidebar: React.FC = () => {
                 className="block h-full w-full min-h-0 object-cover object-center"
                 src={imageUrl}
                 onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                  const fallback = e.currentTarget.parentElement?.nextElementSibling as HTMLElement;
+                  const span = e.currentTarget.parentElement as HTMLElement;
+                  if (span) span.style.display = 'none';
+                  const fallback = span?.nextElementSibling as HTMLElement;
                   if (fallback) fallback.style.display = 'flex';
                 }}
               />

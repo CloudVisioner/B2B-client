@@ -66,6 +66,9 @@ export function useWebSocket({
     const token = getJwtToken();
     // Get WebSocket URL - check for dedicated WS URL first, then derive from GraphQL URL
     let wsHost = process.env.NEXT_PUBLIC_WS_URL || process.env.NEXT_PUBLIC_API_WS;
+    if (wsHost) {
+      wsHost = wsHost + '/socket.io/';
+    }
     
     if (!wsHost) {
       const graphqlUrl =
@@ -74,7 +77,7 @@ export function useWebSocket({
         'http://localhost:4001/graphql';
       // Remove /graphql and convert http to ws, https to wss
       wsHost = graphqlUrl
-        .replace('/graphql', '')
+        .replace('/graphql', '/socket.io/')
         .replace('http://', 'ws://')
         .replace('https://', 'wss://');
     }

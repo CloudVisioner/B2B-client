@@ -566,10 +566,6 @@ const ProviderProfile: React.FC<ProviderProfileProps> = ({ providerId, onBrowseS
                 )}
               </div>
               
-              <p className="text-2xl md:text-3xl text-slate-600 dark:text-slate-300 mb-6 font-black leading-[1.8] max-w-2xl pb-2">
-                {provider.description}
-              </p>
-
               {/* Meta Info */}
               <div className="flex flex-wrap items-center gap-6 mb-8">
                 <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
