@@ -6,7 +6,7 @@ import { isLoggedIn } from '../libs/auth';
 import { getHeaders } from '../apollo/utils';
 import { Sidebar } from '../libs/components/dashboard/Sidebar';
 import { NotificationBell } from '../libs/components/dashboard/NotificationBell';
-import { NotificationToast } from '../libs/components/NotificationToast';
+import { NotificationToast } from '../libs/components/common/NotificationToast';
 import { GET_BUYER_SERVICE_REQUESTS, GET_QUOTES_BY_REQUEST, GET_QUOTE_BY_ID, GET_MY_PROFILE, GET_BUYER_ORGANIZATION } from '../apollo/user/query';
 import { UPDATE_SERVICE_REQUEST, UPDATE_SERVICE_REQUEST_STATUS, ACCEPT_QUOTE, REJECT_QUOTE } from '../apollo/user/mutation';
 import { getJwtToken, decodeJWT } from '../libs/auth';

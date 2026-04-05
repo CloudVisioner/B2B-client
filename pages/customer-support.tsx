@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@apollo/client';
-import Footer from '../libs/components/Footer';
+import Footer from '../libs/components/layout/Footer';
 import { GET_CS_CENTER_CONTENT } from '../apollo/admin/query';
-import { NotificationToast } from '../libs/components/NotificationToast';
+import { NotificationToast } from '../libs/components/common/NotificationToast';
 import Image from 'next/image';
 
 export default function CustomerSupportPage() {

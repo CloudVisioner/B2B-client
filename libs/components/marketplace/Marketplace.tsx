@@ -6,9 +6,9 @@ import {
   CheckCircle, ArrowRight, ChevronLeft, ChevronRight,
   Code, Briefcase, Megaphone, Palette, Calculator, Scale, Target, PenTool, Layout, Video, MapPin, Building2, DollarSign, Users, Loader2, AlertCircle
 } from 'lucide-react';
-import { CategoryId, ServiceCategory, Provider } from '../types/index';
-import { GET_PROVIDERS_BY_CATEGORY, GET_PROVIDERS_SORTED } from '../../apollo/user/query';
-import { mapBackendProviderToList, mapSortOption, mapCategoryToBackend, mapSubCategoryToBackend, mapSubCategoryFromBackend } from '../utils/providerMapper';
+import { CategoryId, ServiceCategory, Provider } from '../../types/index';
+import { GET_PROVIDERS_BY_CATEGORY, GET_PROVIDERS_SORTED } from '../../../apollo/user/query';
+import { mapBackendProviderToList, mapSortOption, mapCategoryToBackend, mapSubCategoryToBackend, mapSubCategoryFromBackend } from '../../utils/providerMapper';
 
 /** Lower bound of a budget string for "max $/hr" filtering (e.g. "4000-8000" → 4000, not 40008000). */
 function parseBudgetRangeLowerBound(raw: string): number | null {

@@ -3,7 +3,7 @@
    Complete API implementation with fetch
    ═══════════════════════════════════════════════════════════ */
 
-import { getJwtToken } from '../../libs/auth';
+import { getJwtToken } from '../auth';
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||

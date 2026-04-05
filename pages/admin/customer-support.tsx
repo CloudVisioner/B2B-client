@@ -7,7 +7,7 @@ import { AdminSidebar } from '../../libs/components/admin/AdminSidebar';
 import { AdminHeader } from '../../libs/components/admin/AdminHeader';
 import { GET_CS_CENTER_CONTENT } from '../../apollo/admin/query';
 import { CREATE_CS_FAQ, UPDATE_CS_FAQ, DELETE_CS_FAQ } from '../../apollo/admin/mutation';
-import { NotificationToast } from '../../libs/components/NotificationToast';
+import { NotificationToast } from '../../libs/components/common/NotificationToast';
 
 interface FAQ {
   _id?: string;

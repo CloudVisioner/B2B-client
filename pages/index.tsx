@@ -1,16 +1,16 @@
 import React from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
-import HowItWorks from '../libs/components/HowItWorks';
-import TopCategories from '../libs/components/TopCategories';
-import HomePremiumInteractive from '../libs/components/HomePremiumInteractive';
-import CeoTestimonials from '../libs/components/CeoTestimonials';
-import Footer from '../libs/components/Footer';
+import HowItWorks from '../libs/components/home/HowItWorks';
+import TopCategories from '../libs/components/home/TopCategories';
+import HomePremiumInteractive from '../libs/components/home/HomePremiumInteractive';
+import CeoTestimonials from '../libs/components/home/CeoTestimonials';
+import Footer from '../libs/components/layout/Footer';
 import { CategoryId } from '../libs/types';
 
 // Dynamically import components that use framer-motion (client-side only)
-const Hero = dynamic(() => import('../libs/components/Hero'), { ssr: false });
-const AnimatedBackground = dynamic(() => import('../libs/components/AnimatedBackground'), { ssr: false });
+const Hero = dynamic(() => import('../libs/components/home/Hero'), { ssr: false });
+const AnimatedBackground = dynamic(() => import('../libs/components/home/AnimatedBackground'), { ssr: false });
 
 export default function Home() {
   // ========== HOOKS & STATE ==========

@@ -10,12 +10,12 @@ import {
   ArrowRight, MessageCircle, Calendar,
   Building2, Briefcase, Sparkles
 } from 'lucide-react';
-import { Provider, BackendTestimonial, BackendPortfolio, ClientTestimonial, PortfolioItem } from '../types/index';
-import { GET_PROVIDER_DETAIL, GET_PROVIDER_DETAIL_FALLBACK } from '../../apollo/user/query';
-import { RATE_ORGANIZATION } from '../../apollo/user/mutation';
-import { mapBackendProviderDetail } from '../utils/providerMapper';
-import { getHeaders } from '../../apollo/utils';
-import { isLoggedIn } from '../auth';
+import { Provider, BackendTestimonial, BackendPortfolio, ClientTestimonial, PortfolioItem } from '../../types/index';
+import { GET_PROVIDER_DETAIL, GET_PROVIDER_DETAIL_FALLBACK } from '../../../apollo/user/query';
+import { RATE_ORGANIZATION } from '../../../apollo/user/mutation';
+import { mapBackendProviderDetail } from '../../utils/providerMapper';
+import { getHeaders } from '../../../apollo/utils';
+import { isLoggedIn } from '../../auth';
 
 interface ProviderProfileProps {
   providerId: string | null;

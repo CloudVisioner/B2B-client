@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
-import Marketplace from '../libs/components/Marketplace';
-import Footer from '../libs/components/Footer';
+import Marketplace from '../libs/components/marketplace/Marketplace';
+import Footer from '../libs/components/layout/Footer';
 import { CategoryId } from '../libs/types';
 
 const MARKETPLACE_SORT_OPTIONS = ['Newest', 'Cheapest', 'Highest Rated'] as const;

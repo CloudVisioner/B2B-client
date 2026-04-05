@@ -4,14 +4,13 @@ import { useRouter } from 'next/router';
 import { ApolloProvider } from '@apollo/client';
 import { useApollo } from '../apollo/client';
 import { ThemeProvider } from '../libs/contexts/ThemeContext';
-import { ChatWidgets } from '../libs/components/ChatWidgets';
-import ChatbaseIdentity from '../libs/components/ChatbaseIdentity';
+import { ChatWidgets } from '../libs/components/chat/ChatWidgets';
 import { shouldShowMarketingNavbar } from '../libs/utils/shouldShowMarketingNavbar';
 import '../styles/globals.css';
 import '../scss/app.scss';
 import { CssBaseline } from '@mui/material';
 
-const Navbar = dynamic(() => import('../libs/components/Navbar'), { ssr: false });
+const Navbar = dynamic(() => import('../libs/components/layout/Navbar'), { ssr: false });
 
 function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -35,8 +34,7 @@ export default function App({ Component, pageProps }: AppProps) {
         <AppShell>
           <Component {...pageProps} />
         </AppShell>
-        <ChatbaseIdentity />
-        <ChatWidgets />
+<ChatWidgets />
       </ThemeProvider>
     </ApolloProvider>
   );

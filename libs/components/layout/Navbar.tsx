@@ -4,9 +4,9 @@ import { useRouter } from 'next/router';
 import { Sun, Moon, Menu, X, MessageCircle } from 'lucide-react';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import { useReactiveVar } from '@apollo/client';
-import { userVar } from '../../apollo/store';
-import { isLoggedIn, normalizeRole, isAdminPortalRole } from '../auth';
-import { useTheme } from '../contexts/ThemeContext';
+import { userVar } from '../../../apollo/store';
+import { isLoggedIn, normalizeRole, isAdminPortalRole } from '../../auth';
+import { useTheme } from '../../contexts/ThemeContext';
 
 const NAV_LINKS = [
   { href: '/', label: 'Home' },

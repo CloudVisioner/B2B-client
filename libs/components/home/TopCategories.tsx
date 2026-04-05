@@ -1,7 +1,7 @@
 import React from 'react';
 import Image from 'next/image';
 import { Code, Briefcase, Megaphone, Palette, ArrowRight } from 'lucide-react';
-import { CategoryId } from '../types/index';
+import { CategoryId } from '../../types/index';
 
 interface TopCategoriesProps {
   onBrowse: (id: CategoryId) => void;

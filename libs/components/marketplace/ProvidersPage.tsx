@@ -6,9 +6,9 @@ import {
   Code, Palette, Megaphone,
 } from 'lucide-react';
 import { ALL_PROVIDERS, CATEGORIES, COUNTRIES } from './Marketplace';
-import { CategoryId, Provider } from '../types/index';
-import { GET_PROVIDERS_BY_CATEGORY } from '../../apollo/user/query';
-import { mapBackendProviderToList, mapCategoryToBackend } from '../utils/providerMapper';
+import { CategoryId, Provider } from '../../types/index';
+import { GET_PROVIDERS_BY_CATEGORY } from '../../../apollo/user/query';
+import { mapBackendProviderToList, mapCategoryToBackend } from '../../utils/providerMapper';
 
 interface ProvidersPageProps {
   onSelectProvider: (id: string) => void;

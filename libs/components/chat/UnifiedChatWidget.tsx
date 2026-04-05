@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { getJwtToken } from '../auth';
+import { getJwtToken } from '../../auth';
 
 /** Raw JSON public chat must not use the GraphQL subscription URL (`/graphql` = graphql-ws protocol). */
 function deriveWsBaseFromHttp(graphqlOrApiUrl: string): string {

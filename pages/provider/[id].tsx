@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import ProviderProfile from '../../libs/components/ProviderProfile';
-import Footer from '../../libs/components/Footer';
+import ProviderProfile from '../../libs/components/marketplace/ProviderProfile';
+import Footer from '../../libs/components/layout/Footer';
 
 export default function ProviderDetailPage() {
   const router = useRouter();

@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@apollo/client';
-import Footer from '../../libs/components/Footer';
+import Footer from '../../libs/components/layout/Footer';
 import { GET_PUBLISHED_ARTICLES } from '../../apollo/admin/query';
 import { getImageUrl } from '../../libs/utils';
 

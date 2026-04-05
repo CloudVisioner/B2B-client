@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import Footer from '../../libs/components/Footer';
+import Footer from '../../libs/components/layout/Footer';
 
 /* ────────────────────────────────────────────────
    Full Case Study Data

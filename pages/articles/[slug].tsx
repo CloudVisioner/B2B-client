@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { useQuery } from '@apollo/client';
-import Footer from '../../libs/components/Footer';
+import Footer from '../../libs/components/layout/Footer';
 import { GET_ARTICLE_BY_SLUG } from '../../apollo/admin/query';
 import { getImageUrl } from '../../libs/utils';
 
